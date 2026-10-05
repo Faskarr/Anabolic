@@ -65,11 +65,13 @@ async function ensureProfile(user) {
   return { profile, created: false };
 }
 
+/** Lit admins/{uid}. Renvoie l'erreur au lieu de l'avaler (diagnostic). */
 async function checkAdmin(uid) {
   try {
-    return (await getDoc(doc(db, 'admins', uid))).exists();
-  } catch {
-    return false;
+    return { isAdmin: (await getDoc(doc(db, 'admins', uid))).exists(), adminError: null };
+  } catch (err) {
+    console.warn('[auth] admin check', err);
+    return { isAdmin: false, adminError: err.code || err.message };
   }
 }
 
@@ -82,13 +84,13 @@ export function onSession(callback) {
       return;
     }
     try {
-      const [{ profile, created }, isAdmin] = await Promise.all([
+      const [{ profile, created }, { isAdmin, adminError }] = await Promise.all([
         ensureProfile(user),
         checkAdmin(user.uid),
       ]);
       callback({
         state: profile.status === 'disabled' ? 'disabled' : 'active',
-        user, profile, isAdmin, created,
+        user, profile, isAdmin, adminError, created,
       });
     } catch (error) {
       console.error('[auth] session', error);

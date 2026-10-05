@@ -40,7 +40,7 @@ function CheckRow(label) {
 }
 
 export function FoundationView(session) {
-  const { user, isAdmin, created } = session;
+  const { user, isAdmin, adminError, created } = session;
   const first = (user.displayName || '').split(' ')[0];
 
   const checks = {
@@ -50,6 +50,23 @@ export function FoundationView(session) {
     rules:  CheckRow('Règles de sécurité'),
     role:   CheckRow('Rôle'),
   };
+
+  // UID affiché + copie : c'est l'ID exact à utiliser pour admins/{uid}.
+  const copyBtn = h('button', {
+    class: 'btn btn--ghost btn--block', type: 'button', style: { marginTop: '12px' },
+    onclick: async () => {
+      try {
+        await navigator.clipboard.writeText(user.uid);
+        copyBtn.textContent = 'UID copié ✓';
+      } catch {
+        copyBtn.textContent = 'Copie impossible — sélectionne le texte';
+      }
+    },
+  }, 'Copier mon UID');
+  const uidCard = h('section', { class: 'card' },
+    h('h2', { class: 'card__title' }, 'Mon UID'),
+    h('p', { class: 'card__text', style: { fontFamily: 'ui-monospace, Menlo, monospace', wordBreak: 'break-all', userSelect: 'all', color: 'var(--ink)' } }, user.uid),
+    copyBtn);
   const list = h('ul', { class: 'checks' }, Object.values(checks).map((c) => c.row));
 
   const view = h('main', { class: 'screen' },
@@ -69,6 +86,7 @@ export function FoundationView(session) {
       h('p', { class: 'card__text' }, 'Vérification de la nouvelle infrastructure.'),
       list,
     ),
+    uidCard,
     h('section', { class: 'card' },
       h('h2', { class: 'card__title' }, 'Prochaine étape'),
       h('p', { class: 'card__text' },
@@ -79,11 +97,11 @@ export function FoundationView(session) {
     ),
   );
 
-  runChecks(user, created, isAdmin, checks);
+  runChecks(user, created, isAdmin, adminError, checks);
   return view;
 }
 
-async function runChecks(user, created, isAdmin, checks) {
+async function runChecks(user, created, isAdmin, adminError, checks) {
   checks.auth.set(true, user.email);
   checks.profil.set(true, created ? 'créé' : 'retrouvé');
 
@@ -107,5 +125,6 @@ async function runChecks(user, created, isAdmin, checks) {
     else checks.rules.set(false, err.code || err.message);
   }
 
-  checks.role.set(true, isAdmin ? 'Administrateur' : 'Utilisateur');
+  if (adminError) checks.role.set(false, `admin : ${adminError}`);
+  else checks.role.set(true, isAdmin ? 'Administrateur' : 'Utilisateur');
 }
