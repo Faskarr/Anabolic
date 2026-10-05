@@ -115,10 +115,12 @@ async function runChecks(user, created, isAdmin, adminError, checks) {
     checks.write.set(false, err.code || err.message);
   }
 
-  // 2. Lecture du profil d'un AUTRE utilisateur (doit être REFUSÉE).
+  // 2. Lecture du statut admin d'un AUTRE compte : refusée pour TOUT LE MONDE,
+  //    admin compris (règle admins/{uid} : lecture par le propriétaire seul).
   //    Si elle passe, les règles ne sont pas déployées (mode test).
+  //    NB : users/{autre} n'est pas un bon test, l'admin a le droit de le lire.
   try {
-    await withTimeout(getDoc(doc(db, 'users', 'probe-other-user')), 8000, 'Règles');
+    await withTimeout(getDoc(doc(db, 'admins', 'probe-other-user')), 8000, 'Règles');
     checks.rules.set(false, 'NON PROTÉGÉ');
   } catch (err) {
     if (err.code === 'permission-denied') checks.rules.set(true, 'actives');
