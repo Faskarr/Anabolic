@@ -7,16 +7,17 @@ import { h } from '../lib/dom.js';
 import { greeting, formatShortDate, frNum, formatWeekdays } from '../lib/dates.js';
 import { nextMeal, nextProtocolItems, formatMinutes } from '../lib/schedule.js';
 import { state, activeProfileId, profileData, sessionWeekKey, sessionCount } from '../store.js';
-import { setWeekItem } from '../data/repo.js';
 import { LiveLogo } from '../ui/logo.js';
 import { Skeleton } from '../ui/layout.js';
 import { icon } from '../ui/icons.js';
-import { selectSession, nextSession } from './training.js';
+import { selectSession, nextSession, setSessionDone } from './training.js';
 import { effectiveWeekdays, ItemRow, itemKey } from './protocol.js';
-import { dietTotals } from './diet.js';
+import { dietTotals, SupplementList } from './diet.js';
 import { weightStats, WeightInput } from './weight.js';
 import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
+import { friendOf, unreadFriend } from '../data/friends.js';
+import { trainedToday } from './messages-hub.js';
 
 function Widget({ eyebrow, action, children, tone, cls = '' }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
@@ -47,23 +48,61 @@ function CoachSends(session) {
 // ── Messages ────────────────────────────────────────────────────────────
 
 function MessagesWidget(session) {
+  const me = session.user.uid;
+  const friendUnread = state.friendships.filter((f) => unreadFriend(f, me));
+  let title = 'Messages';
+  let text = 'Aucun message non lu';
+  let unread = false;
+  let href = '#/contact';
+
   if (session.isAdmin) {
     const n = (state.adminConversations || []).filter(unreadForAdmin).length;
-    return h('a', { class: `card widget coach-msg${n ? '' : ' coach-msg--calm'}`, href: '#/contact' },
-      h('span', { class: 'coach-msg__icon' }, icon('message', 22)),
-      h('span', { class: 'coach-msg__body' },
-        h('span', { class: 'eyebrow' }, 'Messages'),
-        h('span', { class: 'coach-msg__text' }, n ? `${n} conversation${n > 1 ? 's' : ''} non lue${n > 1 ? 's' : ''}` : 'Aucun message non lu')),
-      icon('chevron', 20));
+    if (n) { unread = true; href = '#/admin/messages'; text = `${n} conversation${n > 1 ? 's' : ''} d’utilisateur non lue${n > 1 ? 's' : ''}`; }
+  } else if (unreadForUser(state.conversation)) {
+    unread = true; href = '#/contact/coach'; title = 'Nouveau message du coach'; text = state.conversation.lastText || '';
   }
-  const c = state.conversation;
-  const unread = unreadForUser(c);
-  return h('a', { class: `card widget coach-msg${unread ? '' : ' coach-msg--calm'}`, href: '#/contact' },
+  if (!unread && friendUnread.length) {
+    const f = friendUnread[0];
+    unread = true;
+    if (friendUnread.length === 1) href = `#/friends/${encodeURIComponent(f.id)}`;
+    title = friendUnread.length > 1 ? `${friendUnread.length} amis t’ont écrit` : `Message de ${f.names?.[friendOf(f, me)] || 'ton ami'}`;
+    text = f.lastText || '';
+  }
+  return h('a', { class: `card widget coach-msg${unread ? '' : ' coach-msg--calm'}`, href },
     h('span', { class: 'coach-msg__icon' }, icon('message', 22)),
     h('span', { class: 'coach-msg__body' },
-      h('span', { class: 'eyebrow' }, unread ? 'Nouveau message du coach' : 'Messages'),
-      h('span', { class: 'coach-msg__text' }, unread ? (c.lastText || '') : 'Aucun message non lu · écrire au coach')),
+      h('span', { class: 'eyebrow' }, title),
+      h('span', { class: 'coach-msg__text' }, text)),
     icon('chevron', 20));
+}
+
+// ── Amis entraînés aujourd'hui ──────────────────────────────────────────
+
+function FriendsWidget(session) {
+  const me = session.user.uid;
+  const friends = state.friendships.map((f) => {
+    const uid = friendOf(f, me);
+    return { f, name: f.names?.[uid] || 'Ami', act: state.friendActivity[uid] };
+  });
+  if (!friends.length) {
+    return Widget({ eyebrow: 'Amis', children: [
+      h('p', { class: 'muted' }, 'Ajoute tes partenaires d’entraînement avec leur code ami.'),
+      h('a', { class: 'btn btn--ghost btn--block', href: '#/contact' }, icon('plus', 18), 'Ajouter un ami')] });
+  }
+  const trained = friends.filter((x) => trainedToday(x.act));
+  const rest = friends.length - trained.length;
+  return Widget({
+    eyebrow: 'Amis aujourd’hui',
+    action: link(`${trained.length}/${friends.length}`, '#/contact'),
+    children: trained.length
+      ? [h('ul', { class: 'friends-today' }, trained.map((x) => h('li', {},
+        h('a', { href: `#/friends/${encodeURIComponent(x.f.id)}` },
+          h('span', { class: 'avatar avatar--sm' }, x.name.charAt(0).toUpperCase()),
+          h('span', { class: 'friends-today__name' }, x.name),
+          h('span', { class: 'tag tag--ok' }, icon('dumbbell', 14), x.act.sessionName || 'Séance faite'))))),
+      rest ? h('p', { class: 'muted small' }, `${rest} ami${rest > 1 ? 's' : ''} pas encore entraîné${rest > 1 ? 's' : ''}.`) : null]
+      : h('p', { class: 'muted' }, 'Aucun de tes amis ne s’est encore entraîné aujourd’hui. Montre l’exemple 💪'),
+  });
 }
 
 // ── Séance du jour : la prochaine séance à faire ────────────────────────
@@ -100,7 +139,7 @@ function TodaySession() {
         h('span', { class: 'today-session__go' }, icon('chevron', 22))),
       h('button', {
         class: 'today-session__check', type: 'button',
-        onclick: () => setWeekItem(sessionWeekKey(pid, session.id), { done: true, ts: Date.now() }),
+        onclick: () => setSessionDone(pid, session, true),
       }, icon('check', 18), 'Marquer comme faite'),
     ],
   });
@@ -162,7 +201,8 @@ function DietWidget() {
         ? h('ul', { class: 'next-meal__foods' }, foods.slice(0, 5).map((f) => h('li', {}, h('span', {}, f.name), h('span', { class: 'muted' }, f.qty || ''))),
           foods.length > 5 ? h('li', { class: 'muted' }, `+ ${foods.length - 5} autre(s)`) : null)
         : h('p', { class: 'muted small' }, 'Aucun aliment dans ce repas.'),
-      h('p', { class: 'next-meal__macros' }, `${mt.cal} kcal · P ${Math.round(mt.p)} · G ${Math.round(mt.g)} · L ${Math.round(mt.l)}`));
+      h('p', { class: 'next-meal__macros' }, `${mt.cal} kcal · P ${Math.round(mt.p)} · G ${Math.round(mt.g)} · L ${Math.round(mt.l)}`),
+      SupplementList(m));
   }
 
   return Widget({
@@ -213,6 +253,7 @@ export function HomeView(session) {
     MessagesWidget(session),     // toujours en premier
     CoachSends(session),
     TodaySession(),
+    FriendsWidget(session),
     ProtocolWidget(),
     DietWidget(),
     WeightWidget(),

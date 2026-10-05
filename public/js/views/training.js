@@ -11,6 +11,7 @@ import {
 import {
   updateProfileData, setWeekItem, setCounterBase, addLog, deleteLog,
 } from '../data/repo.js';
+import { publishActivity } from '../data/friends.js';
 import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, IconButton, SectionTitle } from '../ui/layout.js';
 import { formSheet, confirmSheet, actionSheet, openSheet } from '../ui/sheet.js';
 import { undoToast } from '../ui/toast.js';
@@ -46,6 +47,19 @@ export function nextSession(pid = activeProfileId(CAT)) {
     return isDone(s) && ts && new Date(ts).toDateString() === todayStr;
   });
   return { session, plannedToday: Boolean(planned), sessions, doneToday, isDone, pid };
+}
+
+/**
+ * Coche / décoche une séance ET met à jour l'activité visible par les amis
+ * (« s'est entraîné aujourd'hui »).
+ */
+export function setSessionDone(pid, session, done) {
+  setWeekItem(sessionWeekKey(pid, session.id), done ? { done: true, ts: Date.now() } : { done: false, ts: null });
+  if (!state.me) return;
+  if (done) { publishActivity(state.me, session.name, true); return; }
+  // Décoché : reste « entraîné » si une autre séance a été faite aujourd'hui.
+  const other = nextSession(pid).doneToday?.find((s) => s.id !== session.id);
+  publishActivity(state.me, other?.name, Boolean(other));
 }
 
 const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -330,7 +344,7 @@ export function TrainingView() {
 
   const doneCard = h('button', {
     class: `done-toggle${done ? ' done-toggle--on' : ''}`, type: 'button', 'aria-pressed': String(Boolean(done)),
-    onclick: () => setWeekItem(weekKey, done ? { done: false, ts: null } : { done: true, ts: Date.now() }),
+    onclick: () => setSessionDone(pid, session, !done),
   },
   h('span', { class: 'done-toggle__box' }, icon('check', 18)),
   h('span', { class: 'done-toggle__text' },

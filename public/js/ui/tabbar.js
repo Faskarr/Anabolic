@@ -22,7 +22,8 @@ let justTapped = null;
 
 /** Route courante → onglet actif. */
 function tabOf(current) {
-  if (current.startsWith('admin/conv') || current === 'contact') return 'contact';
+  if (current.startsWith('contact') || current.startsWith('friends')
+    || current === 'admin/messages' || current.startsWith('admin/conv')) return 'contact';
   if (current.startsWith('admin') || current.startsWith('me')) return 'me';
   return current.split('/')[0];
 }

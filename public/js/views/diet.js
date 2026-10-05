@@ -159,17 +159,65 @@ function CaloriesCard(d, totals) {
       MacroBar('Lipides', totals.l, d.macros?.l || 0, 'l')));
 }
 
+// ── Compléments (sous-catégorie de chaque repas) ───────────────────────
+
+async function editSupplement(meal, sup) {
+  const r = await formSheet({
+    title: sup ? 'Modifier le complément' : `Complément · ${meal.name}`,
+    fields: [
+      { name: 'name', label: 'Complément', value: sup?.name, required: true, maxlength: 80, placeholder: 'Créatine, Oméga 3, Vitamine D…' },
+      { name: 'dose', label: 'Dose (optionnel)', value: sup?.dose, maxlength: 40, placeholder: '5 g, 2 gélules…' },
+    ],
+    deleteLabel: sup ? 'Supprimer le complément' : null,
+  });
+  if (!r) return;
+  if (r.action === 'delete') {
+    const undo = updateProfileData(CAT, (d) => {
+      const m = d.meals.find((x) => x.id === meal.id);
+      if (m) m.supplements = (m.supplements || []).filter((x) => x.id !== sup.id);
+    });
+    undoToast(`« ${sup.name} » supprimé`, undo);
+    return;
+  }
+  const next = { id: sup?.id || uid('sup'), name: r.values.name, dose: r.values.dose || '' };
+  updateProfileData(CAT, (d) => {
+    const m = d.meals.find((x) => x.id === meal.id);
+    if (!m) return;
+    m.supplements = m.supplements || [];
+    const i = m.supplements.findIndex((x) => x.id === next.id);
+    if (i >= 0) m.supplements[i] = next; else m.supplements.push(next);
+  });
+}
+
+/** Liste compacte des compléments d'un repas (réutilisée par l'accueil et l'admin). */
+export function SupplementList(meal, onEdit) {
+  const sups = meal.supplements || [];
+  if (!sups.length) return null;
+  return h('div', { class: 'supps' },
+    h('span', { class: 'supps__label' }, 'Compléments'),
+    h('div', { class: 'supps__items' }, sups.map((x) => (onEdit
+      ? h('button', { class: 'supp', type: 'button', onclick: () => onEdit(x) }, x.name, x.dose ? h('span', { class: 'supp__dose' }, x.dose) : null)
+      : h('span', { class: 'supp' }, x.name, x.dose ? h('span', { class: 'supp__dose' }, x.dose) : null)))));
+}
+
 function MealCard(meal) {
   const foods = meal.foods || [];
   return h('section', { class: 'card card--flush' },
     h('header', { class: 'meal__head' },
       h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, [meal.time, `${mealCal(meal)} kcal`].filter(Boolean).join(' · '))),
       h('div', { class: 'row-gap' },
-        IconButton('plus', `Ajouter un aliment à ${meal.name}`, () => editFood(meal, null), 'icon-btn--soft'),
+        IconButton('plus', `Ajouter à ${meal.name}`, () => actionSheet({
+          title: meal.name,
+          actions: [
+            { label: 'Ajouter un aliment', icon: 'leaf', onClick: () => editFood(meal, null) },
+            { label: 'Ajouter un complément', icon: 'pill', onClick: () => editSupplement(meal, null) },
+          ],
+        }), 'icon-btn--soft'),
         IconButton('more', `Options de ${meal.name}`, () => actionSheet({
           title: meal.name,
           actions: [
-            { label: 'Renommer', icon: 'edit', onClick: () => editMeal(meal) },
+            { label: 'Renommer / heure', icon: 'edit', onClick: () => editMeal(meal) },
+            { label: 'Ajouter un complément', icon: 'pill', onClick: () => editSupplement(meal, null) },
             { label: 'Supprimer le repas', icon: 'trash', danger: true, onClick: () => deleteMeal(meal) },
           ],
         }), 'icon-btn--soft'))),
@@ -183,7 +231,8 @@ function MealCard(meal) {
               h('span', { class: 'food__meta' }, [f.qty, hasMacros ? `P ${frNum(f.p || 0, 0)} · G ${frNum(f.g || 0, 0)} · L ${frNum(f.l || 0, 0)}` : null].filter(Boolean).join(' · '))),
             h('span', { class: 'food__kcal' }, String(f.cal || 0))));
       }))
-      : h('button', { class: 'meal__empty', type: 'button', onclick: () => editFood(meal, null) }, 'Aucun aliment — appuie pour ajouter'));
+      : h('button', { class: 'meal__empty', type: 'button', onclick: () => editFood(meal, null) }, 'Aucun aliment — appuie pour ajouter'),
+    SupplementList(meal, (x) => editSupplement(meal, x)));
 }
 
 // ── Vue ─────────────────────────────────────────────────────────────────

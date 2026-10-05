@@ -23,7 +23,7 @@ import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { lineChart } from '../ui/chart.js';
-import { dietTotals, MacroBar } from './diet.js';
+import { dietTotals, MacroBar, SupplementList } from './diet.js';
 import { weightStats } from './weight.js';
 import { effectiveWeekdays, itemKey } from './protocol.js';
 import { est1RM } from './training.js';
@@ -97,7 +97,7 @@ export function AdminHomeView() {
       Stat(users.filter(isActive7).length, 'Actifs 7 j'),
       Stat(users.filter((u) => now - ms(u.createdAt) < 30 * DAY).length, 'Nouveaux 30 j'),
       Stat(users.filter((u) => u.status === 'disabled').length, 'Désactivés')),
-    h('a', { class: 'card admin-link', href: '#/contact' },
+    h('a', { class: 'card admin-link', href: '#/admin/messages' },
       h('span', { class: 'menu-row__icon' }, icon('message', 20)),
       h('span', { class: 'menu-row__label' }, 'Messages'),
       unreadIds.size ? h('span', { class: 'count-badge' }, String(unreadIds.size)) : h('span', { class: 'muted' }, 'à jour'),
@@ -347,7 +347,8 @@ function DietTab(user) {
         h('span', { class: 'meal__kcal' }, `${(m.foods || []).reduce((a, f) => a + (Number(f.cal) || 0), 0)} kcal`))),
       (m.foods || []).map((f) => h('div', { class: 'food' },
         h('span', { class: 'food__body' }, h('span', { class: 'food__name' }, f.name), h('span', { class: 'food__meta' }, f.qty || '')),
-        h('span', { class: 'food__kcal' }, String(f.cal || 0)))))),
+        h('span', { class: 'food__kcal' }, String(f.cal || 0)))),
+      SupplementList(m))),
   ];
 }
 

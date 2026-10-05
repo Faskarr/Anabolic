@@ -17,6 +17,7 @@ import { weekKey } from './lib/dates.js';
 import { watchConversation, watchAllConversations, unreadForUser, unreadForAdmin } from './data/messages.js';
 import { watchPendingInbox } from './data/inbox.js';
 import { watchUsers } from './data/admin.js';
+import { watchFriendships, watchActivity, unreadFriend, friendOf } from './data/friends.js';
 
 const { doc, onSnapshot } = fs;
 
@@ -43,6 +44,9 @@ export const state = {
   weekKey: weekKey(),
   conversation: null,        // ma conversation avec l'admin (métadonnées)
   inbox: [],                 // envois du coach en attente
+  me: null,                  // { uid, displayName, email } de l'utilisateur connecté
+  friendships: [],           // mes amitiés (avec aperçu du dernier message)
+  friendActivity: {},        // { [uidAmi]: { name, day, sessionName } }
   adminUsers: null,          // ADMIN : tous les utilisateurs (null = non chargé)
   adminConversations: null,  // ADMIN : toutes les conversations (null = non chargé)
   error: null,
@@ -118,9 +122,24 @@ function listenWeek() {
 }
 
 /** Démarre la synchro pour un utilisateur. */
-export function startStore(uid) {
+const activityUnsubs = new Map();
+
+/** Abonne/désabonne l'activité de chaque ami quand la liste d'amis change. */
+function syncFriendActivity() {
+  const wanted = new Set(state.friendships.map((f) => friendOf(f, state.uid)));
+  for (const [uid, unsub] of activityUnsubs) {
+    if (!wanted.has(uid)) { unsub(); activityUnsubs.delete(uid); delete state.friendActivity[uid]; }
+  }
+  for (const uid of wanted) {
+    if (activityUnsubs.has(uid)) continue;
+    activityUnsubs.set(uid, watchActivity(uid, (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); }));
+  }
+}
+
+export function startStore(uid, user) {
   stopStore();
   state.uid = uid;
+  state.me = user ? { uid, displayName: user.displayName, email: user.email } : { uid };
   state.ready = false;
   state.error = null;
   for (const [name, apply] of Object.entries(DOC_HANDLERS)) {
@@ -129,6 +148,7 @@ export function startStore(uid) {
   listenWeek();
   unsubs.push(watchConversation(uid, (c) => { state.conversation = c; emit(); updateAppBadge(); }));
   unsubs.push(watchPendingInbox(uid, (items) => { state.inbox = items; emit(); }));
+  unsubs.push(watchFriendships(uid, (list) => { state.friendships = list; syncFriendActivity(); emit(); updateAppBadge(); }));
   document.addEventListener('visibilitychange', onVisible);
 }
 
@@ -142,7 +162,8 @@ export function startAdminFeeds() {
 export function unreadCount() {
   const mine = unreadForUser(state.conversation) ? 1 : 0;
   const admin = (state.adminConversations || []).filter(unreadForAdmin).length;
-  return mine + admin;
+  const friends = state.friendships.filter((f) => unreadFriend(f, state.uid)).length;
+  return mine + admin + friends;
 }
 
 /** Pastille sur l'icône de l'app (iOS 16.4+, app installée sur l'écran d'accueil). */
@@ -157,12 +178,15 @@ function updateAppBadge() {
 export function stopStore() {
   unsubs.forEach((u) => u());
   unsubs = [];
+  activityUnsubs.forEach((u) => u());
+  activityUnsubs.clear();
   pending = 0;
   document.removeEventListener('visibilitychange', onVisible);
   Object.assign(state, {
     uid: null, ready: false, profiles: emptyProfiles(), workouts: {}, diet: {}, protocol: {},
     weights: [], exlogs: {}, counterBase: 0, week: {}, error: null,
     conversation: null, adminConversations: null, inbox: [], adminUsers: null,
+    me: null, friendships: [], friendActivity: {},
   });
 }
 
@@ -170,8 +194,8 @@ export function stopStore() {
 function onVisible() {
   if (document.visibilityState !== 'visible' || !state.uid) return;
   if (weekKey() !== state.weekKey) {
-    const uid = state.uid;
-    startStore(uid);
+    const { uid, me } = state;
+    startStore(uid, me);
   }
 }
 

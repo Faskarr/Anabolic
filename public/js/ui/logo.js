@@ -1,6 +1,6 @@
 /**
  * Logo « ANABOLICOS » animé en continu : la même oscillation 3D que l'animation
- * d'ouverture, en plus discret, rejouée toutes les 7 secondes.
+ * d'ouverture, rejouée en boucle toutes les 4 secondes.
  *
  * Les vues sont re-rendues à chaque mise à jour temps réel : pour que
  * l'animation ne redémarre pas à chaque rendu, on la cale sur une horloge
@@ -8,7 +8,7 @@
  */
 import { h } from '../lib/dom.js';
 
-const PERIOD_MS = 7000;
+const PERIOD_MS = 4000;
 const t0 = performance.now();
 
 export function LiveLogo({ size = 'sm' } = {}) {

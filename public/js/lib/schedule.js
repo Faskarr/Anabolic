@@ -8,7 +8,7 @@ const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/\p{D
 
 /** Mots-clés → heure approximative (minutes). Ordre = priorité. */
 const KEYWORDS = [
-  [/reveil|lever|jeun/, 6 * 60 + 30],
+  [/reveil|\blever\b|\bjeun\b/, 6 * 60 + 30],   // « à jeun » — mais pas « déjeuner »
   [/petit.?dej|breakfast/, 7 * 60 + 30],
   [/pre.?(work|train|seance|entrain)|avant (la )?seance/, 17 * 60],
   [/post.?(work|train|seance|entrain)|apres (la )?seance/, 19 * 60],

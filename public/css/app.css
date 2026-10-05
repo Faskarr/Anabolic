@@ -593,21 +593,23 @@ input[type="search"].input { -webkit-appearance: none; }
 
 /* ═══ Entrée de l'accueil : les blocs se mettent en place ══════ */
 .view.view--enter { animation: none; }
-.view--enter > * { animation: block-in 560ms var(--ease-out) backwards; }
+.view--enter > * { animation: block-in 700ms var(--ease-out) backwards; }
 @keyframes block-in {
-  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  from { opacity: 0; transform: translateY(34px) scale(.96); }
   to   { opacity: 1; transform: none; }
 }
 
 /* ═══ Logo animé en continu (même mouvement que l'ouverture, discret) ═ */
 .brand--live { display: inline-block; perspective: 600px; }
-.brand--live .brand__inner { display: inline-block; transform-origin: 50% 50%; animation: logo-sway 7s cubic-bezier(.45,.05,.35,1) infinite; }
+.brand--live .brand__inner { display: inline-block; transform-origin: 50% 50%; animation: logo-sway 4s cubic-bezier(.45,.05,.35,1) infinite; }
+/* Oscillation amortie (comme l'ouverture), rejouée en boucle toutes les 4 s */
 @keyframes logo-sway {
-  0%, 62%, 100% { transform: rotateY(0); }
-  70% { transform: rotateY(22deg); }
-  78% { transform: rotateY(-12deg); }
-  85% { transform: rotateY(6deg); }
-  92% { transform: rotateY(-2deg); }
+  0%        { transform: rotateY(0); }
+  12%       { transform: rotateY(26deg); }
+  26%       { transform: rotateY(-15deg); }
+  38%       { transform: rotateY(8deg); }
+  48%       { transform: rotateY(-3deg); }
+  56%, 100% { transform: rotateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .view--enter > * { animation: none; }
@@ -637,5 +639,38 @@ input[type="search"].input { -webkit-appearance: none; }
    Safari réserve déjà de la place sous la page pour sa barre d'adresse :
    on réduit la marge basse pour coller la barre d'onglets au-dessus. */
 @media (display-mode: browser) {
-  .tabbar { padding-bottom: max(4px, calc(var(--safe-bottom) - 22px)); }
+  .tabbar { padding-bottom: 4px; }
 }
+/* Même règle via la classe posée par app.js (détection iOS fiable). */
+html.in-browser .tabbar { padding-bottom: 4px; }
+
+/* ═══ Compléments (sous-catégorie discrète d'un repas) ══════════ */
+.supps { display: flex; align-items: flex-start; gap: var(--s2); padding: var(--s2) var(--s4) var(--s3); border-top: .5px dashed var(--line); }
+.next-meal .supps { padding: var(--s2) 0 0; margin-top: var(--s2); }
+.supps__label { flex-shrink: 0; padding-top: 5px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--stone); }
+.supps__items { display: flex; flex-wrap: wrap; gap: 6px; }
+.supp {
+  display: inline-flex; align-items: baseline; gap: 5px; min-height: 28px; padding: 4px 10px;
+  border-radius: var(--r-pill); background: var(--bordeaux-tint); color: var(--bordeaux);
+  font-size: var(--fs-xs); font-weight: 600;
+}
+.supp__dose { color: var(--ink-soft); font-weight: 500; opacity: .8; }
+button.supp:active { transform: scale(.96); }
+
+/* ═══ Messagerie : hub, code ami, amis ═════════════════════════ */
+.avatar--brand { background: var(--bordeaux); color: #fff; }
+.avatar--sm { width: 32px; height: 32px; font-size: 14px; }
+.friend-code__value {
+  font-family: var(--font-display); font-weight: 600; font-size: 46px; letter-spacing: .14em;
+  margin: 4px 0 2px; font-variant-numeric: tabular-nums; user-select: all;
+}
+.friend-code .btn-row { margin-top: var(--s3); }
+.friend-status { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 6px 12px; border-radius: var(--r-pill); background: #E3EFE8; color: var(--ok); font-size: var(--fs-sm); font-weight: 600; }
+.tag .icon { vertical-align: -2px; margin-right: 3px; }
+.friends-today { list-style: none; display: flex; flex-direction: column; }
+.friends-today li + li { border-top: .5px solid var(--line); }
+.friends-today a { display: flex; align-items: center; gap: var(--s3); min-height: 52px; color: var(--ink); text-decoration: none; }
+.friends-today__name { flex: 1; font-weight: 600; }
+
+/* « OS » plus grand que « ANABOLIC » (signature du logo) */
+.brand__accent { font-size: 1.32em; line-height: 0; }

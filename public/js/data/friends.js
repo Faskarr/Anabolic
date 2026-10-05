@@ -1,0 +1,140 @@
+/**
+ * Amis : code personnel, ajout, discussions privées, activité du jour.
+ *
+ * Firestore (voir firestore.rules) :
+ *   friendCodes/{CODE}            { uid, name, createdAt }          code → utilisateur
+ *   friendships/{uidA_uidB}       { members:[a,b], names:{a,b}, code, createdAt,
+ *                                   lastText, lastFrom, lastAt, readAt:{uid: ts} }
+ *   friendships/{id}/messages/*   { from: uid, text, at }
+ *   activity/{uid}                { name, day:'YYYY-MM-DD'|null, sessionName, at }
+ *
+ * Sécurité : une amitié ne peut être créée qu'avec le code de l'autre personne ;
+ * l'activité n'est lisible que par les amis.
+ */
+import { db, fs } from '../firebase.js';
+import { localISODate } from '../lib/dates.js';
+import { ms } from './messages.js';
+import { toast } from '../ui/toast.js';
+
+const {
+  doc, collection, query, where, orderBy, limit, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc,
+  writeBatch, serverTimestamp,
+} = fs;
+
+// Sans 0/O, 1/I/L : lisible et dictable.
+const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const CODE_RE = /^[A-Z2-9]{6}$/;
+
+export const pairOf = (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+export const friendOf = (f, me) => f.members.find((m) => m !== me);
+export const unreadFriend = (f, me) => Boolean(f.lastFrom && f.lastFrom !== me && ms(f.lastAt) > ms(f.readAt?.[me]));
+
+const read = (snap) => ({ id: snap.id, ...snap.data({ serverTimestamps: 'estimate' }) });
+
+function randomCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return [...bytes].map((b) => ALPHABET[b % ALPHABET.length]).join('');
+}
+
+/** Normalise une saisie : « ab-12 cd » → « AB12CD ». */
+export const cleanCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/**
+ * Renvoie le code ami de l'utilisateur, en le créant si besoin.
+ * @param {{ uid, displayName, email }} user
+ * @param {string} [known]  code déjà connu (profil)
+ */
+export async function ensureMyCode(user, known) {
+  if (known && CODE_RE.test(known)) return known;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = randomCode();
+    try {
+      await setDoc(doc(db, 'friendCodes', code), {
+        uid: user.uid, name: (user.displayName || user.email || 'Utilisateur').slice(0, 120), createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, 'users', user.uid), { friendCode: code });
+      return code;
+    } catch (err) {
+      // Code déjà pris par quelqu'un d'autre → on en tire un nouveau.
+      if (err.code !== 'permission-denied') throw err;
+    }
+  }
+  throw new Error('Impossible de générer un code, réessaie.');
+}
+
+/** Mes amitiés, en temps réel (les plus récentes conversations d'abord). */
+export function watchFriendships(uid, cb) {
+  const q = query(collection(db, 'friendships'), where('members', 'array-contains', uid));
+  return onSnapshot(q,
+    (snap) => cb(snap.docs.map(read).sort((a, b) => (ms(b.lastAt) || ms(b.createdAt)) - (ms(a.lastAt) || ms(a.createdAt)))),
+    (err) => { console.warn('[friends]', err); cb([]); });
+}
+
+/**
+ * Ajoute un ami avec son code.
+ * @returns {Promise<string>} nom de l'ami
+ */
+export async function addFriendByCode(user, rawCode, existing = []) {
+  const code = cleanCode(rawCode);
+  if (!CODE_RE.test(code)) throw new Error('Un code fait 6 caractères (lettres et chiffres).');
+  const snap = await getDoc(doc(db, 'friendCodes', code));
+  if (!snap.exists()) throw new Error('Code introuvable. Vérifie-le avec ton ami.');
+  const other = snap.data();
+  if (other.uid === user.uid) throw new Error("C'est ton propre code 🙂");
+  const pid = pairOf(user.uid, other.uid);
+  if (existing.some((f) => f.id === pid)) throw new Error(`${other.name} est déjà dans tes amis.`);
+  const members = [user.uid, other.uid].sort();
+  await setDoc(doc(db, 'friendships', pid), {
+    members,
+    names: { [user.uid]: (user.displayName || user.email || 'Moi').slice(0, 120), [other.uid]: other.name },
+    code,
+    createdAt: serverTimestamp(),
+  });
+  return other.name;
+}
+
+export function removeFriend(pid) {
+  return deleteDoc(doc(db, 'friendships', pid))
+    .catch((err) => { console.error(err); toast('Suppression impossible.', { type: 'error' }); });
+}
+
+// ── Discussion entre amis ───────────────────────────────────────────────
+
+export function watchFriendMessages(pid, cb) {
+  const q = query(collection(db, 'friendships', pid, 'messages'), orderBy('at', 'desc'), limit(100));
+  return onSnapshot(q, (snap) => cb(snap.docs.map(read).reverse()), (err) => { console.warn('[friends] msgs', err); cb([]); });
+}
+
+export function sendFriendMessage(uid, pid, text) {
+  const body = String(text || '').trim().slice(0, 2000);
+  if (!body) return false;
+  const batch = writeBatch(db);
+  batch.set(doc(collection(db, 'friendships', pid, 'messages')), { from: uid, text: body, at: serverTimestamp() });
+  batch.update(doc(db, 'friendships', pid), {
+    lastText: body.slice(0, 140), lastFrom: uid, lastAt: serverTimestamp(), [`readAt.${uid}`]: serverTimestamp(),
+  });
+  batch.commit().catch((err) => { console.error(err); toast('Message non envoyé.', { type: 'error' }); });
+  return true;
+}
+
+export function markFriendRead(uid, pid) {
+  updateDoc(doc(db, 'friendships', pid), { [`readAt.${uid}`]: serverTimestamp() }).catch(() => {});
+}
+
+// ── Activité ────────────────────────────────────────────────────────────
+
+/** Publie (ou retire) « séance faite aujourd'hui » pour les amis. */
+export function publishActivity(user, sessionName, done) {
+  setDoc(doc(db, 'activity', user.uid), {
+    name: (user.displayName || 'Utilisateur').slice(0, 120),
+    day: done ? localISODate() : null,
+    sessionName: done ? String(sessionName || '').slice(0, 60) : null,
+    at: serverTimestamp(),
+  }).catch((err) => console.warn('[friends] activité', err));
+}
+
+export function watchActivity(uid, cb) {
+  return onSnapshot(doc(db, 'activity', uid),
+    (snap) => cb(snap.exists() ? read(snap) : null),
+    () => cb(null));
+}

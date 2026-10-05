@@ -63,6 +63,9 @@ export function normalizeDiet(raw) {
       id: id(meal?.id, 'm'),
       name: str(meal?.name, 60) || 'Repas',
       time: /^\d{2}:\d{2}$/.test(str(meal?.time, 5)) ? str(meal.time, 5) : undefined,
+      supplements: arr(meal?.supplements).slice(0, 20).map((x) => ({
+        id: id(x?.id, 'sup'), name: str(x?.name, 80) || 'Complément', dose: str(x?.dose, 40),
+      })),
       foods: arr(meal?.foods).slice(0, 60).map((f) => compact({
         id: id(f?.id, 'f'),
         name: str(f?.name, 120) || 'Aliment',

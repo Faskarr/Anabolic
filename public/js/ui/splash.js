@@ -3,12 +3,12 @@
  *
  *  • Lancement à froid : le logo (déjà animé par le CSS en ligne d'index.html)
  *    reste au moins MIN_MS, puis s'efface dès que la session est connue.
- *  • Retour dans l'app après AWAY_MS d'absence : l'animation est rejouée et
- *    l'app revient sur l'accueil (comme une réouverture).
+ *  • Retour dans l'app après 1 min d'absence : l'animation est rejouée,
+ *    l'app revient sur l'accueil et les widgets se remettent en place.
  */
 const MIN_MS = 1500;
 const OUT_MS = 500;
-const AWAY_MS = 30 * 60 * 1000;
+const AWAY_MS = 60 * 1000; // revenir dans l'app après 1 min = « réouverture »
 
 const el = () => document.getElementById('splash');
 

@@ -3,7 +3,7 @@
  *
  * Routes (hash) :
  *   #/home  #/training  #/diet  #/protocol
- *   #/contact (utilisateur : conversation ; admin : boîte de réception)
+ *   #/contact (messagerie)  #/contact/coach  #/friends/<id>  #/admin/messages
  *   #/me  #/me/weight  #/me/share  #/me/check
  *   #/admin  #/admin/user/<uid>  #/admin/conv/<uid>  (administrateur uniquement)
  *
@@ -30,9 +30,10 @@ import { ShareView } from './views/share.js';
 import { ContactView, leaveContact } from './views/contact.js';
 import { AdminInboxView, AdminConversationView, leaveAdminConversation } from './views/admin-messages.js';
 import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
+import { MessagesHubView, FriendChatView, leaveFriendChat } from './views/messages-hub.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.5.0';
+export const ASSET_VERSION = '0.6.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
@@ -50,6 +51,11 @@ function ensureStyles() {
 }
 ensureStyles();
 
+// Safari (onglet) vs app installée sur l'écran d'accueil : dans Safari, la barre
+// d'adresse occupe déjà le bas de l'écran → pas de marge de sécurité en plus.
+const standalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+document.documentElement.classList.toggle('in-browser', !standalone);
+
 /**
  * Table de routage. `admin: true` = réservé à l'administrateur.
  * `leave` = nettoyage quand on quitte l'écran (abonnements temps réel).
@@ -62,8 +68,11 @@ const ROUTES = {
   me:             { view: MeView },
   'me/weight':    { view: WeightView },
   'me/share':     { view: ShareView },
-  // Contact : l'utilisateur écrit au coach ; l'admin voit sa boîte de réception.
-  contact:        { view: (s) => (s.isAdmin ? AdminInboxView(s) : ContactView(s)), leave: leaveContact, chatIf: (s) => !s.isAdmin },
+  // Contact = messagerie : coach (ou messages des utilisateurs pour l'admin) + amis.
+  contact:          { view: MessagesHubView },
+  'contact/coach':  { view: ContactView, leave: leaveContact, chat: true },
+  friends:          { view: FriendChatView, param: true, leave: leaveFriendChat, chat: true },
+  'admin/messages': { view: AdminInboxView, admin: true },
   'me/check':     { view: FoundationView },
   admin:          { view: AdminHomeView, admin: true },
   'admin/user':   { view: AdminUserView, admin: true, param: true, leave: leaveAdminUser },
@@ -78,7 +87,7 @@ const root = document.getElementById('app');
  * en plein milieu ne coupe pas l'animation, chaque rendu recalcule le délai
  * de chaque bloc par rapport à l'instant de départ (délai négatif = reprise).
  */
-const ENTER = { STEP_MS: 70, DURATION_MS: 560 };
+const ENTER = { STEP_MS: 90, DURATION_MS: 700 };
 let enter = { pending: true, at: 0 };
 
 function applyEnter() {
@@ -208,7 +217,7 @@ onSession((s) => {
 
   if (!wasActive) {
     enter = { pending: true, at: 0 };
-    startStore(s.user.uid);
+    startStore(s.user.uid, s.user);
     if (s.isAdmin) startAdminFeeds();
     unsubStore = subscribe(() => render());
     mountShell();
@@ -222,6 +231,7 @@ watchResume(() => {
   ROUTES[current.key]?.leave?.();
   enter = { pending: true, at: 0 };
   if (location.hash !== '#/home') location.hash = '#/home';
+  else render({ scrollTop: true }); // déjà sur l'accueil : rejoue l'entrée des widgets
 });
 
 // Service worker : cache de l'app pour un démarrage rapide et hors ligne.

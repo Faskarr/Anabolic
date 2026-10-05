@@ -39,6 +39,16 @@ service cloud.firestore {
     function isShortString(v, max) {
       return v is string && v.size() <= max;
     }
+    // Identifiant d'amitié : les deux uid triés, joints par « _ ».
+    function pairOf(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+    function isMessage(data, from) {
+      return data.keys().hasOnly(['from', 'text', 'at'])
+        && data.from == from
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 2000
+        && data.at == request.time;
+    }
 
     // ── Admins (lecture de son propre statut uniquement) ────────────────
     match /admins/{uid} {
@@ -64,7 +74,7 @@ service cloud.firestore {
       allow update: if
            (isOwner(uid)
              && resource.data.status == 'active'
-             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt']))
+             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt', 'friendCode']))
         || (isAdmin()
              && onlyChanges(['status', 'adminNote'])
              && request.resource.data.status in ['active', 'disabled']);
@@ -130,6 +140,59 @@ service cloud.firestore {
         // Historique immuable.
         allow update, delete: if false;
       }
+    }
+
+    // ── Amis ────────────────────────────────────────────────────────────
+    // Code ami : permet de retrouver un utilisateur. Lecture unitaire seulement
+    // (impossible de lister les codes), création par son propriétaire.
+    match /friendCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && code.matches('^[A-Z2-9]{6}$')
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && isShortString(request.resource.data.name, 120);
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // Amitié : créée par l'un des deux, UNIQUEMENT avec le code de l'autre.
+    match /friendships/{pid} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['members', 'names', 'code', 'createdAt', 'lastText', 'lastFrom', 'lastAt', 'readAt'])
+        && request.resource.data.members is list
+        && request.resource.data.members.size() == 2
+        && request.auth.uid in request.resource.data.members
+        && request.resource.data.members[0] != request.resource.data.members[1]
+        && pid == pairOf(request.resource.data.members[0], request.resource.data.members[1])
+        && get(/databases/$(database)/documents/friendCodes/$(request.resource.data.code)).data.uid != request.auth.uid
+        && get(/databases/$(database)/documents/friendCodes/$(request.resource.data.code)).data.uid in request.resource.data.members;
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.members
+        && request.resource.data.members == resource.data.members
+        && onlyChanges(['lastText', 'lastFrom', 'lastAt', 'readAt'])
+        && (request.resource.data.get('lastFrom', '') == resource.data.get('lastFrom', '')
+            || request.resource.data.lastFrom == request.auth.uid);
+      allow delete: if signedIn() && request.auth.uid in resource.data.members;
+
+      match /messages/{mid} {
+        allow read: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/friendships/$(pid)).data.members;
+        allow create: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/friendships/$(pid)).data.members
+          && isMessage(request.resource.data, request.auth.uid);
+        allow update, delete: if false;
+      }
+    }
+
+    // Activité visible par les amis (séance faite aujourd'hui).
+    match /activity/{uid} {
+      allow read: if isOwner(uid) || isAdmin()
+        || (signedIn() && exists(/databases/$(database)/documents/friendships/$(pairOf(request.auth.uid, uid))));
+      allow write: if ownerActive(uid)
+        && request.resource.data.keys().hasOnly(['name', 'day', 'sessionName', 'at']);
     }
   }
 }
