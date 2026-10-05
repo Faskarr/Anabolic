@@ -32,3 +32,31 @@ export function greeting(d = new Date()) {
   if (h < 18) return 'Bon après-midi';
   return 'Bonsoir';
 }
+
+const SHORT_DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+/** [1, 4] → « Lun · Jeu » */
+export function formatWeekdays(days) {
+  return (days || []).map((d) => SHORT_DAYS[d - 1]).filter(Boolean).join(' · ');
+}
+
+/** 'YYYY-MM-DD' → Date à midi local (évite les décalages de fuseau). */
+export function parseISODate(s) {
+  return new Date(`${s}T12:00:00`);
+}
+
+/** Format court français : « lun. 6 oct. » */
+export function formatShortDate(input, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
+  const d = typeof input === 'string' ? parseISODate(input) : new Date(input);
+  return d.toLocaleDateString('fr-FR', opts);
+}
+
+/** Nombre de jours entre deux dates ISO (b - a). */
+export function daysBetween(a, b) {
+  return Math.round((parseISODate(b) - parseISODate(a)) / 86400000);
+}
+
+/** Formate un nombre à la française : 82.5 → « 82,5 ». */
+export function frNum(n, decimals = 1) {
+  return Number(n).toFixed(decimals).replace('.', ',');
+}

@@ -11,25 +11,44 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v3';
+const VERSION = 'v4';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
 const APP_SHELL = [
   '/',
-  '/manifest.webmanifest',
-  '/css/tokens.css',
+  '/css/app.css',
   '/css/base.css',
   '/css/components.css',
+  '/css/tokens.css',
   '/js/app.js',
-  '/js/firebase.js',
   '/js/auth.js',
-  '/js/lib/dom.js',
+  '/js/data/importer.js',
+  '/js/data/repo.js',
+  '/js/firebase.js',
   '/js/lib/dates.js',
+  '/js/lib/dom.js',
+  '/js/lib/ids.js',
+  '/js/lib/schema.js',
+  '/js/store.js',
+  '/js/ui/chart.js',
+  '/js/ui/icons.js',
+  '/js/ui/layout.js',
+  '/js/ui/sheet.js',
+  '/js/ui/tabbar.js',
+  '/js/ui/timer.js',
   '/js/ui/toast.js',
-  '/js/views/login.js',
+  '/js/views/diet.js',
   '/js/views/disabled.js',
   '/js/views/foundation.js',
+  '/js/views/home.js',
+  '/js/views/login.js',
+  '/js/views/me.js',
+  '/js/views/protocol.js',
+  '/js/views/share.js',
+  '/js/views/training.js',
+  '/js/views/weight.js',
+  '/manifest.webmanifest',
   '/icons/apple-touch-icon.png',
 ];
 

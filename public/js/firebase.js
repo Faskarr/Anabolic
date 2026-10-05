@@ -53,10 +53,11 @@ function createDb() {
   try {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      ignoreUndefinedProperties: true, // un champ optionnel vide ne fait pas échouer l'écriture
     });
   } catch (err) {
     console.warn('[firebase] cache persistant indisponible, repli mémoire', err);
-    return initializeFirestore(app, {});
+    return initializeFirestore(app, { ignoreUndefinedProperties: true });
   }
 }
 export const db = createDb();

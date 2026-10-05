@@ -1,0 +1,254 @@
+/**
+ * Bottom sheets (panneaux qui montent du bas, style iOS).
+ * Remplacent les ~10 modales dupliquées de l'ancienne app + alert()/confirm().
+ *
+ *  openSheet()    panneau générique
+ *  formSheet()    formulaire → Promise<{ values } | { action: 'delete' } | null>
+ *  confirmSheet() confirmation → Promise<boolean>
+ *  actionSheet()  liste d'actions (menu)
+ *
+ * Fermeture : tap sur le fond, Échap, ou glisser la poignée vers le bas.
+ * Clavier iOS : le panneau remonte au-dessus du clavier (visualViewport).
+ */
+import { h } from '../lib/dom.js';
+import { icon } from './icons.js';
+
+let openCount = 0;
+
+export function openSheet({ title, subtitle, body, footer, onClose, label }) {
+  const previousFocus = document.activeElement;
+
+  const handle = h('div', { class: 'sheet__grab', 'aria-hidden': 'true' }, h('span'));
+  const panel = h('div', {
+    class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': label || title || 'Panneau', tabindex: '-1',
+  },
+    handle,
+    title || subtitle ? h('header', { class: 'sheet__head' },
+      title ? h('h2', { class: 'sheet__title' }, title) : null,
+      subtitle ? h('p', { class: 'sheet__sub' }, subtitle) : null) : null,
+    h('div', { class: 'sheet__body' }, body),
+    footer ? h('footer', { class: 'sheet__foot' }, footer) : null,
+  );
+  const overlay = h('div', { class: 'sheet-overlay' }, panel);
+
+  let closed = false;
+  function close(result) {
+    if (closed) return;
+    closed = true;
+    overlay.classList.add('sheet-overlay--out');
+    panel.style.transform = '';
+    panel.classList.add('sheet--out');
+    window.visualViewport?.removeEventListener('resize', onViewport);
+    window.visualViewport?.removeEventListener('scroll', onViewport);
+    document.removeEventListener('keydown', onKey);
+    setTimeout(() => {
+      overlay.remove();
+      openCount -= 1;
+      if (openCount === 0) document.documentElement.classList.remove('no-scroll');
+      previousFocus?.focus?.({ preventScroll: true });
+    }, 220);
+    onClose?.(result);
+  }
+
+  // Fond : ferme
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+  // Échap : ferme
+  const onKey = (e) => { if (e.key === 'Escape') close(null); };
+  document.addEventListener('keydown', onKey);
+
+  // Clavier iOS : décale le panneau au-dessus du clavier virtuel.
+  const onViewport = () => {
+    const vv = window.visualViewport;
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    panel.style.marginBottom = `${kb}px`;
+    panel.style.maxHeight = `${vv.height - 24}px`;
+  };
+  window.visualViewport?.addEventListener('resize', onViewport);
+  window.visualViewport?.addEventListener('scroll', onViewport);
+
+  // Glisser vers le bas pour fermer (poignée + en-tête).
+  let startY = null;
+  let dy = 0;
+  const dragZone = [handle, panel.querySelector('.sheet__head')].filter(Boolean);
+  for (const zone of dragZone) {
+    zone.addEventListener('pointerdown', (e) => {
+      startY = e.clientY; dy = 0;
+      panel.style.transition = 'none';
+      zone.setPointerCapture(e.pointerId);
+    });
+    zone.addEventListener('pointermove', (e) => {
+      if (startY == null) return;
+      dy = Math.max(0, e.clientY - startY);
+      panel.style.transform = `translateY(${dy}px)`;
+    });
+    const end = () => {
+      if (startY == null) return;
+      startY = null;
+      panel.style.transition = '';
+      if (dy > 110) close(null); else panel.style.transform = '';
+    };
+    zone.addEventListener('pointerup', end);
+    zone.addEventListener('pointercancel', end);
+  }
+
+  document.body.appendChild(overlay);
+  openCount += 1;
+  document.documentElement.classList.add('no-scroll');
+  requestAnimationFrame(() => panel.focus({ preventScroll: true }));
+
+  return { close, panel };
+}
+
+// ── Formulaire ──────────────────────────────────────────────────────────
+
+const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const WEEKDAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+function weekdaysField(field) {
+  const selected = new Set(field.value || []);
+  const buttons = WEEKDAY_LABELS.map((l, i) => {
+    const day = i + 1;
+    const b = h('button', {
+      type: 'button',
+      class: `daychip${selected.has(day) ? ' daychip--on' : ''}`,
+      'aria-pressed': String(selected.has(day)),
+      'aria-label': WEEKDAY_NAMES[i],
+      onclick: () => {
+        if (selected.has(day)) selected.delete(day); else selected.add(day);
+        b.classList.toggle('daychip--on', selected.has(day));
+        b.setAttribute('aria-pressed', String(selected.has(day)));
+      },
+    }, l);
+    return b;
+  });
+  return {
+    el: h('div', { class: 'field' },
+      h('span', { class: 'field__label' }, field.label),
+      h('div', { class: 'daychips', role: 'group', 'aria-label': field.label }, buttons),
+      field.hint ? h('span', { class: 'field__hint' }, field.hint) : null),
+    read: () => [...selected].sort(),
+  };
+}
+
+function inputField(field) {
+  const isNum = field.type === 'number';
+  const input = h(field.type === 'textarea' ? 'textarea' : 'input', {
+    class: `input${isNum ? ' input--num' : ''}`,
+    id: `f_${field.name}`,
+    name: field.name,
+    type: field.type === 'textarea' ? null : 'text',
+    inputmode: isNum ? (field.integer ? 'numeric' : 'decimal') : field.inputmode,
+    placeholder: field.placeholder ?? '',
+    maxlength: field.maxlength ?? (isNum ? 8 : 120),
+    autocomplete: 'off',
+    autocapitalize: isNum ? 'off' : 'sentences',
+    enterkeyhint: 'next',
+    rows: field.type === 'textarea' ? 3 : null,
+  });
+  input.value = field.value ?? '';
+  const wrap = h('label', { class: 'field', for: `f_${field.name}` },
+    h('span', { class: 'field__label' }, field.label),
+    input,
+    field.hint ? h('span', { class: 'field__hint' }, field.hint) : null);
+  return {
+    el: wrap,
+    input,
+    read: () => {
+      const v = input.value.trim();
+      if (!isNum) return v;
+      if (v === '') return null;
+      const n = parseFloat(v.replace(',', '.'));
+      return Number.isFinite(n) ? n : NaN;
+    },
+  };
+}
+
+/**
+ * @param {object} cfg
+ * @param {string} cfg.title
+ * @param {string} [cfg.subtitle]
+ * @param {Array} cfg.fields  [{ name, label, type:'text'|'number'|'textarea'|'weekdays', value, placeholder,
+ *                              required, integer, min, max, hint }] ou { type:'row', fields:[…] }
+ * @param {string} [cfg.submitLabel]
+ * @param {string} [cfg.deleteLabel]  affiche un bouton de suppression
+ */
+export function formSheet({ title, subtitle, fields, submitLabel = 'Enregistrer', deleteLabel }) {
+  return new Promise((resolve) => {
+    const controls = {};
+    const build = (f) => {
+      if (f.type === 'row') return h('div', { class: 'field-row' }, f.fields.map(build));
+      const c = f.type === 'weekdays' ? weekdaysField(f) : inputField(f);
+      controls[f.name] = { ...c, def: f };
+      return c.el;
+    };
+    const error = h('p', { class: 'form-error', role: 'alert' });
+    const form = h('form', { class: 'form', novalidate: true }, fields.map(build), error);
+
+    const submit = h('button', { class: 'btn btn--primary btn--block', type: 'submit' }, submitLabel);
+    const del = deleteLabel ? h('button', {
+      class: 'btn btn--danger-quiet btn--block', type: 'button',
+      onclick: () => { sheet.close({ action: 'delete' }); },
+    }, icon('trash', 18), deleteLabel) : null;
+
+    form.append(h('div', { class: 'form__actions' }, submit, del));
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const values = {};
+      for (const [name, c] of Object.entries(controls)) {
+        const v = c.read();
+        const { def } = c;
+        c.input?.classList.remove('input--invalid');
+        if (def.required && (v === '' || v == null)) {
+          error.textContent = `${def.label} est obligatoire.`;
+          c.input?.classList.add('input--invalid');
+          c.input?.focus();
+          return;
+        }
+        if (def.type === 'number' && v != null && (Number.isNaN(v)
+            || (def.min != null && v < def.min) || (def.max != null && v > def.max))) {
+          error.textContent = `${def.label} : valeur invalide${def.min != null ? ` (${def.min} – ${def.max})` : ''}.`;
+          c.input?.classList.add('input--invalid');
+          c.input?.focus();
+          return;
+        }
+        values[name] = def.integer && typeof v === 'number' ? Math.round(v) : v;
+      }
+      sheet.close({ values });
+    });
+
+    const sheet = openSheet({ title, subtitle, body: form, onClose: (r) => resolve(r || null) });
+  });
+}
+
+/** Confirmation (remplace confirm()). */
+export function confirmSheet({ title, message, confirmLabel = 'Supprimer', danger = true }) {
+  return new Promise((resolve) => {
+    let result = false;
+    const sheet = openSheet({
+      title,
+      subtitle: message,
+      body: h('div', { class: 'form__actions' },
+        h('button', {
+          class: `btn btn--block ${danger ? 'btn--danger' : 'btn--primary'}`, type: 'button',
+          onclick: () => { result = true; sheet.close(); },
+        }, confirmLabel),
+        h('button', { class: 'btn btn--ghost btn--block', type: 'button', onclick: () => sheet.close() }, 'Annuler')),
+      onClose: () => resolve(result),
+    });
+  });
+}
+
+/** Menu d'actions. actions: [{ label, icon, danger, onClick }] */
+export function actionSheet({ title, subtitle, actions }) {
+  const sheet = openSheet({
+    title,
+    subtitle,
+    body: h('div', { class: 'action-list' }, actions.filter(Boolean).map((a) =>
+      h('button', {
+        class: `action${a.danger ? ' action--danger' : ''}`, type: 'button',
+        onclick: () => { sheet.close(); setTimeout(a.onClick, 230); },
+      }, a.icon ? icon(a.icon, 20) : null, h('span', {}, a.label)))),
+  });
+  return sheet;
+}

@@ -2,7 +2,7 @@
  * Écran « socle » — PHASE 1 uniquement.
  * Vérifie en conditions réelles que toute la chaîne fonctionne :
  * Auth Google → profil Firestore → écriture → règles de sécurité → rôle admin.
- * Sera remplacé par la vraie page d'accueil en phase 3.
+ * Accessible depuis Moi › Diagnostic.
  */
 import { h, mount } from '../lib/dom.js';
 import { greeting } from '../lib/dates.js';
@@ -39,7 +39,19 @@ function CheckRow(label) {
   };
 }
 
+// Construit une seule fois par session : les tests (dont une écriture) ne
+// doivent pas se relancer à chaque mise à jour temps réel du store.
+let cached = null;
+let cachedUid = null;
+
 export function FoundationView(session) {
+  if (cached && cachedUid === session.user.uid) return cached;
+  cachedUid = session.user.uid;
+  cached = buildFoundation(session);
+  return cached;
+}
+
+function buildFoundation(session) {
   const { user, isAdmin, adminError, created } = session;
   const first = (user.displayName || '').split(' ')[0];
 

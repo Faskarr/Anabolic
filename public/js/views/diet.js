@@ -1,0 +1,200 @@
+/**
+ * Diet : profils, objectif calorique, objectifs macros, repas et aliments.
+ * Le « total » est celui du plan alimentaire (comme l'ancienne app).
+ */
+import { h } from '../lib/dom.js';
+import { uid } from '../lib/ids.js';
+import { frNum } from '../lib/dates.js';
+import { state, activeProfileId, profileData } from '../store.js';
+import { updateProfileData } from '../data/repo.js';
+import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, IconButton } from '../ui/layout.js';
+import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
+import { undoToast } from '../ui/toast.js';
+import { icon } from '../ui/icons.js';
+
+const CAT = 'diet';
+
+/** Totaux du plan : kcal + macros (g). */
+export function dietTotals(d) {
+  const t = { cal: 0, p: 0, g: 0, l: 0 };
+  for (const m of d?.meals || []) {
+    for (const f of m.foods || []) {
+      t.cal += Number(f.cal) || 0;
+      t.p += Number(f.p) || 0;
+      t.g += Number(f.g) || 0;
+      t.l += Number(f.l) || 0;
+    }
+  }
+  return t;
+}
+
+const mealCal = (m) => (m.foods || []).reduce((a, f) => a + (Number(f.cal) || 0), 0);
+
+// ── Édition ─────────────────────────────────────────────────────────────
+
+async function editTargets(d) {
+  const r = await formSheet({
+    title: 'Objectifs du jour',
+    subtitle: 'Laisse vide pour ne pas fixer de cible.',
+    fields: [
+      { name: 'objective', label: 'Calories (kcal)', type: 'number', integer: true, min: 0, max: 20000, value: d.objective || '', placeholder: '2800' },
+      { type: 'row', fields: [
+        { name: 'p', label: 'Protéines (g)', type: 'number', integer: true, min: 0, max: 2000, value: d.macros?.p || '', placeholder: '180' },
+        { name: 'g', label: 'Glucides (g)', type: 'number', integer: true, min: 0, max: 2000, value: d.macros?.g || '', placeholder: '300' },
+        { name: 'l', label: 'Lipides (g)', type: 'number', integer: true, min: 0, max: 2000, value: d.macros?.l || '', placeholder: '80' },
+      ] },
+    ],
+  });
+  if (!r?.values) return;
+  const v = r.values;
+  updateProfileData(CAT, (draft) => {
+    draft.objective = v.objective || 0;
+    draft.macros = { p: v.p || 0, g: v.g || 0, l: v.l || 0 };
+  });
+}
+
+async function editMeal(meal) {
+  const r = await formSheet({
+    title: meal ? 'Modifier le repas' : 'Nouveau repas',
+    fields: [{ name: 'name', label: 'Nom', value: meal?.name, required: true, maxlength: 60, placeholder: 'Petit-déjeuner' }],
+    deleteLabel: meal ? 'Supprimer le repas' : null,
+  });
+  if (!r) return;
+  if (r.action === 'delete') return deleteMeal(meal);
+  updateProfileData(CAT, (d) => {
+    if (meal) {
+      const m = d.meals.find((x) => x.id === meal.id);
+      if (m) m.name = r.values.name;
+    } else {
+      d.meals.push({ id: uid('m'), name: r.values.name, foods: [] });
+    }
+  });
+}
+
+async function deleteMeal(meal) {
+  const ok = await confirmSheet({ title: `Supprimer « ${meal.name} » ?`, message: 'Le repas et ses aliments seront supprimés.' });
+  if (!ok) return;
+  const undo = updateProfileData(CAT, (d) => { d.meals = d.meals.filter((m) => m.id !== meal.id); });
+  undoToast(`« ${meal.name} » supprimé`, undo);
+}
+
+async function editFood(meal, food) {
+  const r = await formSheet({
+    title: food ? "Modifier l'aliment" : `Ajouter à ${meal.name}`,
+    fields: [
+      { name: 'name', label: 'Aliment', value: food?.name, required: true, placeholder: 'Riz basmati' },
+      { type: 'row', fields: [
+        { name: 'qty', label: 'Quantité', value: food?.qty, placeholder: '150 g', maxlength: 40 },
+        { name: 'cal', label: 'Calories', type: 'number', integer: true, min: 0, max: 20000, value: food?.cal ?? '', placeholder: 'kcal' },
+      ] },
+      { type: 'row', fields: [
+        { name: 'p', label: 'Prot. (g)', type: 'number', min: 0, max: 2000, value: food?.p ?? '', placeholder: '—' },
+        { name: 'g', label: 'Gluc. (g)', type: 'number', min: 0, max: 2000, value: food?.g ?? '', placeholder: '—' },
+        { name: 'l', label: 'Lip. (g)', type: 'number', min: 0, max: 2000, value: food?.l ?? '', placeholder: '—' },
+      ] },
+    ],
+    deleteLabel: food ? "Supprimer l'aliment" : null,
+  });
+  if (!r) return;
+  if (r.action === 'delete') {
+    const undo = updateProfileData(CAT, (d) => {
+      const m = d.meals.find((x) => x.id === meal.id);
+      if (m) m.foods = m.foods.filter((f) => f.id !== food.id);
+    });
+    undoToast(`« ${food.name} » supprimé`, undo);
+    return;
+  }
+  const v = r.values;
+  const next = { id: food?.id || uid('f'), name: v.name, qty: v.qty, cal: v.cal || 0 };
+  // Macros optionnelles : stockées seulement si renseignées (format identique à l'ancienne app).
+  for (const k of ['p', 'g', 'l']) if (v[k] != null) next[k] = Math.round(v[k] * 10) / 10;
+  updateProfileData(CAT, (d) => {
+    const m = d.meals.find((x) => x.id === meal.id);
+    if (!m) return;
+    m.foods = m.foods || [];
+    const i = m.foods.findIndex((f) => f.id === next.id);
+    if (i >= 0) m.foods[i] = next; else m.foods.push(next);
+  });
+}
+
+// ── Composants ──────────────────────────────────────────────────────────
+
+export function MacroBar(label, value, target, tone) {
+  const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
+  return h('div', { class: 'macro' },
+    h('div', { class: 'macro__head' },
+      h('span', { class: 'macro__label' }, label),
+      h('span', { class: 'macro__value' }, `${Math.round(value)}${target ? ` / ${target}` : ''} g`)),
+    h('div', { class: 'bar', role: 'progressbar', 'aria-label': label, 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct },
+      h('div', { class: `bar__fill bar__fill--${tone}`, style: { width: `${pct}%` } })));
+}
+
+function CaloriesCard(d, totals) {
+  const obj = d.objective || 0;
+  const rest = obj - totals.cal;
+  const pct = obj > 0 ? Math.min(100, Math.round((totals.cal / obj) * 100)) : 0;
+  return h('section', { class: 'card' },
+    h('div', { class: 'card__row' },
+      h('p', { class: 'eyebrow' }, 'Plan du jour'),
+      h('button', { class: 'link-btn', type: 'button', onclick: () => editTargets(d) }, icon('edit', 16), 'Objectifs')),
+    obj
+      ? h('div', { class: 'kcal' },
+        h('div', {}, h('span', { class: 'kcal__big' }, String(totals.cal)), h('span', { class: 'kcal__unit' }, ` / ${obj} kcal`)),
+        h('span', { class: `kcal__rest${rest < 0 ? ' kcal__rest--over' : ''}` }, rest >= 0 ? `${rest} restantes` : `${-rest} en trop`))
+      : h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, String(totals.cal)), h('span', { class: 'kcal__unit' }, ' kcal')),
+    obj ? h('div', { class: 'bar bar--lg' }, h('div', { class: 'bar__fill', style: { width: `${pct}%` } })) : null,
+    h('div', { class: 'macros' },
+      MacroBar('Protéines', totals.p, d.macros?.p || 0, 'p'),
+      MacroBar('Glucides', totals.g, d.macros?.g || 0, 'g'),
+      MacroBar('Lipides', totals.l, d.macros?.l || 0, 'l')));
+}
+
+function MealCard(meal) {
+  const foods = meal.foods || [];
+  return h('section', { class: 'card card--flush' },
+    h('header', { class: 'meal__head' },
+      h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, `${mealCal(meal)} kcal`)),
+      h('div', { class: 'row-gap' },
+        IconButton('plus', `Ajouter un aliment à ${meal.name}`, () => editFood(meal, null), 'icon-btn--soft'),
+        IconButton('more', `Options de ${meal.name}`, () => actionSheet({
+          title: meal.name,
+          actions: [
+            { label: 'Renommer', icon: 'edit', onClick: () => editMeal(meal) },
+            { label: 'Supprimer le repas', icon: 'trash', danger: true, onClick: () => deleteMeal(meal) },
+          ],
+        }), 'icon-btn--soft'))),
+    foods.length
+      ? h('ul', { class: 'list' }, foods.map((f) => {
+        const hasMacros = [f.p, f.g, f.l].some((x) => x != null && x !== '');
+        return h('li', {},
+          h('button', { class: 'food', type: 'button', onclick: () => editFood(meal, f) },
+            h('span', { class: 'food__body' },
+              h('span', { class: 'food__name' }, f.name),
+              h('span', { class: 'food__meta' }, [f.qty, hasMacros ? `P ${frNum(f.p || 0, 0)} · G ${frNum(f.g || 0, 0)} · L ${frNum(f.l || 0, 0)}` : null].filter(Boolean).join(' · '))),
+            h('span', { class: 'food__kcal' }, String(f.cal || 0))));
+      }))
+      : h('button', { class: 'meal__empty', type: 'button', onclick: () => editFood(meal, null) }, 'Aucun aliment — appuie pour ajouter'));
+}
+
+// ── Vue ─────────────────────────────────────────────────────────────────
+
+export function DietView() {
+  const header = PageHeader({ eyebrow: 'Alimentation', title: 'Diet' });
+  if (!state.ready) return [header, Skeleton(4)];
+  if (!activeProfileId(CAT)) return [header, NoProfile(CAT, 'leaf')];
+
+  const d = profileData(CAT);
+  const totals = dietTotals(d);
+  const meals = d.meals || [];
+
+  return [
+    header,
+    ProfileBar(CAT),
+    CaloriesCard(d, totals),
+    meals.length
+      ? h('div', { class: 'stack' }, meals.map(MealCard))
+      : Empty({ iconName: 'leaf', title: 'Aucun repas', text: 'Ajoute tes repas puis leurs aliments.' }),
+    h('button', { class: 'btn btn--ghost btn--block add-btn', type: 'button', onclick: () => editMeal(null) },
+      icon('plus', 18), 'Ajouter un repas'),
+  ];
+}
