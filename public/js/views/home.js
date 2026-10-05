@@ -4,12 +4,14 @@
  *   · prochain repas + macros · poids.
  */
 import { h } from '../lib/dom.js';
-import { greeting, isoWeekday, formatShortDate, frNum } from '../lib/dates.js';
+import { greeting, formatShortDate, frNum, formatWeekdays } from '../lib/dates.js';
 import { nextMeal, nextProtocolItems, formatMinutes } from '../lib/schedule.js';
 import { state, activeProfileId, profileData, sessionWeekKey, sessionCount } from '../store.js';
+import { setWeekItem } from '../data/repo.js';
+import { LiveLogo } from '../ui/logo.js';
 import { Skeleton } from '../ui/layout.js';
 import { icon } from '../ui/icons.js';
-import { selectSession } from './training.js';
+import { selectSession, nextSession } from './training.js';
 import { effectiveWeekdays, ItemRow, itemKey } from './protocol.js';
 import { dietTotals } from './diet.js';
 import { weightStats, WeightInput } from './weight.js';
@@ -64,34 +66,44 @@ function MessagesWidget(session) {
     icon('chevron', 20));
 }
 
-// ── Séance du jour ──────────────────────────────────────────────────────
+// ── Séance du jour : la prochaine séance à faire ────────────────────────
 
 function TodaySession() {
-  const pid = activeProfileId('workout');
-  const sessions = pid ? profileData('workout').sessions || [] : [];
-  const today = isoWeekday();
-  const planned = sessions.filter((s) => s.weekdays?.includes(today));
+  const { session, plannedToday, sessions, doneToday, pid } = nextSession();
 
-  if (!sessions.length) {
+  if (!sessions?.length) {
     return Widget({ eyebrow: 'Séance du jour', children: [
       h('p', { class: 'muted' }, 'Aucun programme pour le moment.'), cta('Créer mon programme', '#/training')] });
   }
-  if (!planned.length) {
-    const anyScheduled = sessions.some((s) => s.weekdays?.length);
-    return Widget({ eyebrow: 'Séance du jour', action: link('Programme', '#/training'), children: [
-      h('p', { class: 'widget__title' }, anyScheduled ? 'Repos' : 'Pas de planning'),
-      h('p', { class: 'muted' }, anyScheduled
-        ? 'Aucune séance prévue aujourd’hui. Récupère bien.'
-        : 'Assigne des jours à tes séances (Séances › ⋯ › Modifier) pour les voir ici.')] });
+
+  const doneLine = doneToday.length
+    ? h('p', { class: 'today-session__done' }, icon('check', 16), `${doneToday.map((s) => s.name).join(', ')} terminée${doneToday.length > 1 ? 's' : ''} aujourd’hui`)
+    : null;
+
+  if (!session) {
+    return Widget({ eyebrow: 'Séances de la semaine', tone: 'ink', action: link('Programme', '#/training'), children: [
+      doneLine,
+      h('p', { class: 'widget__title' }, 'Semaine bouclée'),
+      h('p', { class: 'today-session__meta' }, `${sessions.length}/${sessions.length} séances faites. Repos bien mérité.`)] });
   }
-  return Widget({ eyebrow: 'Séance du jour', tone: 'ink', children: planned.map((s) => {
-    const done = state.week[sessionWeekKey(pid, s.id)]?.done;
-    return h('a', { class: 'today-session', href: '#/training', onclick: () => selectSession(s.id) },
-      h('span', {},
-        h('span', { class: 'today-session__name' }, s.name),
-        h('span', { class: 'today-session__meta' }, `${(s.exercises || []).length} exercices${done ? ' · terminée' : ''}`)),
-      h('span', { class: `today-session__go${done ? ' today-session__go--done' : ''}` }, icon(done ? 'check' : 'chevron', 22)));
-  }) });
+
+  const n = (session.exercises || []).length;
+  return Widget({
+    eyebrow: plannedToday ? 'Séance du jour' : 'Prochaine séance',
+    tone: 'ink',
+    children: [
+      doneLine,
+      h('a', { class: 'today-session', href: '#/training', onclick: () => selectSession(session.id) },
+        h('span', {},
+          h('span', { class: 'today-session__name' }, session.name),
+          h('span', { class: 'today-session__meta' }, `${n} exercice${n > 1 ? 's' : ''}${session.weekdays?.length ? ` · ${formatWeekdays(session.weekdays)}` : ''}`)),
+        h('span', { class: 'today-session__go' }, icon('chevron', 22))),
+      h('button', {
+        class: 'today-session__check', type: 'button',
+        onclick: () => setWeekItem(sessionWeekKey(pid, session.id), { done: true, ts: Date.now() }),
+      }, icon('check', 18), 'Marquer comme faite'),
+    ],
+  });
 }
 
 // ── Protocole : 2 prochaines prises ─────────────────────────────────────
@@ -189,25 +201,20 @@ export function HomeView(session) {
   const first = (session.user.displayName || '').split(' ')[0];
   const head = h('header', { class: 'home-head' },
     h('div', { class: 'topbar' },
-      h('span', { class: 'brand brand--sm' }, 'Anabolic', h('span', { class: 'brand__accent' }, 'OS')),
+      LiveLogo(),
       h('a', { class: 'counter', href: '#/training', 'aria-label': 'Séances effectuées' },
         h('span', { class: 'counter__value' }, String(sessionCount())), h('span', { class: 'counter__label' }, 'séances'))),
     h('p', { class: 'eyebrow' }, `${greeting()} · ${formatShortDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`),
     h('h1', { class: 'page-title' }, first || 'Athlète'));
 
   if (!state.ready) return [head, Skeleton(5)];
-  const unread = session.isAdmin
-    ? (state.adminConversations || []).some(unreadForAdmin)
-    : unreadForUser(state.conversation);
-
   return [
     head,
+    MessagesWidget(session),     // toujours en premier
     CoachSends(session),
-    unread ? MessagesWidget(session) : null,   // non lu → tout en haut
     TodaySession(),
     ProtocolWidget(),
     DietWidget(),
     WeightWidget(),
-    unread ? null : MessagesWidget(session),
   ];
 }

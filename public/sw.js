@@ -11,7 +11,7 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v7';
+const VERSION = 'v8';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
@@ -42,6 +42,7 @@ const APP_SHELL = [
   '/js/ui/chat.js',
   '/js/ui/icons.js',
   '/js/ui/layout.js',
+  '/js/ui/logo.js',
   '/js/ui/sheet.js',
   '/js/ui/splash.js',
   '/js/ui/tabbar.js',

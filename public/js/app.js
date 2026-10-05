@@ -11,10 +11,10 @@
  * à chaque changement du store (temps réel) ou de route.
  */
 // En premier : le splash doit s'afficher avant l'initialisation de Firebase.
-import { hideSplash, watchResume } from './ui/splash.js';
+import { hideSplash, watchResume, splashOutAt } from './ui/splash.js';
 import { mount, h } from './lib/dom.js';
 import { onSession } from './auth.js';
-import { startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
+import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
 import { TabBar } from './ui/tabbar.js';
 import { showTimer, stopTimer } from './ui/timer.js';
 import { LoginView } from './views/login.js';
@@ -32,7 +32,7 @@ import { AdminInboxView, AdminConversationView, leaveAdminConversation } from '.
 import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.4.0';
+export const ASSET_VERSION = '0.5.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
@@ -71,6 +71,29 @@ const ROUTES = {
 };
 
 const root = document.getElementById('app');
+
+/**
+ * Entrée de l'accueil : les widgets glissent en place l'un après l'autre.
+ * Les vues sont re-rendues à chaque mise à jour temps réel ; pour qu'un rendu
+ * en plein milieu ne coupe pas l'animation, chaque rendu recalcule le délai
+ * de chaque bloc par rapport à l'instant de départ (délai négatif = reprise).
+ */
+const ENTER = { STEP_MS: 70, DURATION_MS: 560 };
+let enter = { pending: true, at: 0 };
+
+function applyEnter() {
+  if (current.key !== 'home' || !state.ready) { viewEl.classList.remove('view--enter'); return; }
+  const now = performance.now();
+  if (enter.pending) {
+    // Départ juste après l'effacement du splash (ou tout de suite s'il est parti).
+    enter = { pending: false, at: Math.max(now, splashOutAt() + 120) };
+  }
+  const kids = [...viewEl.children];
+  const total = enter.at + kids.length * ENTER.STEP_MS + ENTER.DURATION_MS;
+  if (now > total) { viewEl.classList.remove('view--enter'); return; }
+  viewEl.classList.add('view--enter');
+  kids.forEach((el, i) => { el.style.animationDelay = `${Math.round(enter.at - now + i * ENTER.STEP_MS)}ms`; });
+}
 let session = null;
 let current = { key: 'home', param: null };
 let viewEl = null;
@@ -136,6 +159,7 @@ function render({ scrollTop = false } = {}) {
     console.error('[render]', err);
     mount(viewEl, h('div', { class: 'card' }, h('p', { class: 'card__title' }, 'Erreur d’affichage'), h('p', { class: 'card__text' }, String(err.message))));
   }
+  applyEnter();
   mount(tabHost, TabBar(current.key, { contact: unreadCount() }));
 
   if (keep) {
@@ -154,6 +178,7 @@ window.addEventListener('hashchange', () => {
   const prev = ROUTES[current.key];
   if (prev?.leave && (next.key !== current.key || next.param !== current.param)) prev.leave();
   current = next;
+  if (current.key === 'home') enter = { pending: true, at: 0 };
   render({ scrollTop: true });
 });
 window.addEventListener('app:render', () => render());
@@ -182,6 +207,7 @@ onSession((s) => {
   }
 
   if (!wasActive) {
+    enter = { pending: true, at: 0 };
     startStore(s.user.uid);
     if (s.isAdmin) startAdminFeeds();
     unsubStore = subscribe(() => render());
@@ -194,6 +220,7 @@ onSession((s) => {
 // Retour dans l'app après une longue absence : animation rejouée + accueil.
 watchResume(() => {
   ROUTES[current.key]?.leave?.();
+  enter = { pending: true, at: 0 };
   if (location.hash !== '#/home') location.hash = '#/home';
 });
 

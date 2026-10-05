@@ -1,6 +1,7 @@
 import { h } from '../lib/dom.js';
 import { signIn } from '../auth.js';
 import { toast } from '../ui/toast.js';
+import { LiveLogo } from '../ui/logo.js';
 
 const GOOGLE_ICON = () => {
   const ns = 'http://www.w3.org/2000/svg';
@@ -44,8 +45,7 @@ export function LoginView() {
     h('div', { class: 'center-stack' },
       h('div', {},
         h('p', { class: 'eyebrow' }, 'Entraînement · Nutrition · Protocole'),
-        h('h1', { class: 'brand brand--hero', style: { marginTop: '12px' } },
-          'Anabolic', h('br'), h('span', { class: 'brand__accent' }, 'OS')),
+        h('h1', { style: { marginTop: '12px' } }, LiveLogo({ size: 'hero' })),
       ),
       h('div', {},
         button,

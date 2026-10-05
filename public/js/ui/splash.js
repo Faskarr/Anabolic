@@ -46,11 +46,25 @@ let shownAt = performance.now();
 let hiddenAt = null;
 
 /** Masque le splash en respectant la durée minimale de l'animation. */
+let outAt = 0;
+
 export function hideSplash() {
   const s = el();
   if (!s || s.classList.contains('splash--out')) return;
+  if (outAt > performance.now()) return; // déjà programmé
   const wait = Math.max(0, MIN_MS - (performance.now() - shownAt));
+  outAt = performance.now() + wait;
   setTimeout(() => s.classList.add('splash--out'), wait);
+}
+
+/**
+ * Instant (performance.now) où le splash commence à s'effacer — 0 s'il est
+ * déjà parti. Sert à caler l'entrée des widgets juste derrière.
+ */
+export function splashOutAt() {
+  const s = el();
+  if (!s || (s.classList.contains('splash--out') && outAt <= performance.now())) return 0;
+  return outAt || performance.now() + MIN_MS;
 }
 
 /** Rejoue l'animation (retour après une longue absence). */
@@ -61,6 +75,7 @@ export function replaySplash(onShown) {
   s.querySelectorAll('.splash__logo, .splash__line span').forEach((n) => n.replaceWith(n.cloneNode(true)));
   s.classList.remove('splash--out');
   shownAt = performance.now();
+  outAt = 0;
   onShown?.();
   hideSplash();
 }

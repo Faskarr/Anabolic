@@ -26,6 +26,53 @@ let selectedSid = null;
 /** Permet à l'accueil d'ouvrir directement une séance. */
 export function selectSession(sid) { selectedSid = sid; }
 
+/**
+ * Prochaine séance à faire :
+ *  1. une séance prévue AUJOURD'HUI et pas encore cochée ;
+ *  2. sinon la première séance du programme (dans l'ordre) pas encore cochée cette semaine ;
+ *  3. sinon null (semaine terminée).
+ * Cocher une séance la fait donc passer automatiquement à la suivante.
+ */
+export function nextSession(pid = activeProfileId(CAT)) {
+  if (!pid) return { session: null, sessions: [] };
+  const sessions = profileData(CAT, pid).sessions || [];
+  const today = isoWeekday();
+  const isDone = (s) => Boolean(state.week[sessionWeekKey(pid, s.id)]?.done);
+  const planned = sessions.find((s) => s.weekdays?.includes(today) && !isDone(s));
+  const session = planned || sessions.find((s) => !isDone(s)) || null;
+  const todayStr = new Date().toDateString();
+  const doneToday = sessions.filter((s) => {
+    const ts = state.week[sessionWeekKey(pid, s.id)]?.ts;
+    return isDone(s) && ts && new Date(ts).toDateString() === todayStr;
+  });
+  return { session, plannedToday: Boolean(planned), sessions, doneToday, isDone, pid };
+}
+
+const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+/** Jours de la séance, modifiables d'un tap (plus besoin de passer par un menu). */
+function WeekdayPicker(session) {
+  const days = new Set(session.weekdays || []);
+  return h('div', { class: 'day-picker' },
+    h('span', { class: 'day-picker__label' }, 'Jours'),
+    h('div', { class: 'daychips daychips--inline', role: 'group', 'aria-label': `Jours prévus pour ${session.name}` },
+      DAY_LETTERS.map((l, i) => {
+        const d = i + 1;
+        const on = days.has(d);
+        return h('button', {
+          type: 'button', class: `daychip${on ? ' daychip--on' : ''}`, 'aria-pressed': String(on), 'aria-label': DAY_NAMES[i],
+          onclick: () => updateProfileData(CAT, (draft) => {
+            const s = draft.sessions.find((x) => x.id === session.id);
+            if (!s) return;
+            const set = new Set(s.weekdays || []);
+            if (set.has(d)) set.delete(d); else set.add(d);
+            s.weekdays = set.size ? [...set].sort() : null;
+          }),
+        }, l);
+      })));
+}
+
 // 1RM estimé — formule d'Epley (identique à l'ancienne app).
 export const est1RM = (w, r) => (r <= 1 ? w : w * (1 + r / 30));
 
@@ -256,8 +303,7 @@ export function TrainingView() {
   const data = profileData(CAT);
   const sessions = data.sessions || [];
   if (!sessions.some((s) => s.id === selectedSid)) {
-    const today = isoWeekday();
-    selectedSid = (sessions.find((s) => s.weekdays?.includes(today)) || sessions[0])?.id || null;
+    selectedSid = (nextSession(pid).session || sessions[0])?.id || null;
   }
   const session = sessions.find((s) => s.id === selectedSid);
 
@@ -298,7 +344,6 @@ export function TrainingView() {
     doneCard,
     SectionTitle(session.name,
       h('div', { class: 'row-gap' },
-        session.weekdays?.length ? h('span', { class: 'tag' }, formatWeekdays(session.weekdays)) : null,
         IconButton('more', 'Options de la séance', () => actionSheet({
           title: session.name,
           actions: [
@@ -306,6 +351,7 @@ export function TrainingView() {
             { label: 'Supprimer la séance', icon: 'trash', danger: true, onClick: () => deleteSession(session) },
           ],
         }), 'icon-btn--soft'))),
+    WeekdayPicker(session),
     exercises.length
       ? h('div', { class: 'stack' }, exercises.map((e, i) => ExerciseCard(session, e, i, exercises.length)))
       : Empty({ iconName: 'dumbbell', title: 'Aucun exercice', text: 'Ajoute le premier exercice de cette séance.' }),
