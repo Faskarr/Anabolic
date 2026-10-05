@@ -100,7 +100,7 @@ async function runChecks(user, created, isAdmin, checks) {
   // 2. Lecture du profil d'un AUTRE utilisateur (doit être REFUSÉE).
   //    Si elle passe, les règles ne sont pas déployées (mode test).
   try {
-    await withTimeout(getDoc(doc(db, 'users', '__probe_other_user__')), 8000, 'Règles');
+    await withTimeout(getDoc(doc(db, 'users', 'probe-other-user')), 8000, 'Règles');
     checks.rules.set(false, 'NON PROTÉGÉ');
   } catch (err) {
     if (err.code === 'permission-denied') checks.rules.set(true, 'actives');
