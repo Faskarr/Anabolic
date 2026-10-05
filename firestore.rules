@@ -1,0 +1,133 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════
+//  AnabolicOS — règles de sécurité Firestore
+//
+//  Principes :
+//   • Chaque utilisateur ne voit et ne modifie QUE ses propres données.
+//   • L'admin est défini par un document admins/{uid} créé à la main dans
+//     la console Firebase. Aucun client ne peut écrire dans /admins.
+//   • Un compte désactivé (users/{uid}.status == 'disabled') ne peut plus
+//     lire ni écrire ses données. Rien n'est supprimé.
+//   • Tout ce qui n'est pas explicitement autorisé est refusé.
+// ═══════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isActive(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.status == 'active';
+    }
+    function ownerActive(uid) {
+      return isOwner(uid) && isActive(uid);
+    }
+    // Vrai si la mise à jour ne touche QUE les champs listés.
+    function onlyChanges(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+    function isShortString(v, max) {
+      return v is string && v.size() <= max;
+    }
+
+    // ── Admins (lecture de son propre statut uniquement) ────────────────
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // ── Profil racine de l'utilisateur ──────────────────────────────────
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Création au premier login : champs imposés, statut forcé à 'active'.
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'email', 'photoURL', 'createdAt', 'lastActiveAt', 'status'])
+        && request.resource.data.status == 'active'
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.createdAt == request.time
+        && isShortString(request.resource.data.get('displayName', ''), 120);
+
+      // L'utilisateur ne peut jamais toucher à son statut ;
+      // l'admin ne peut toucher qu'au statut et à sa note.
+      allow update: if
+           (isOwner(uid)
+             && resource.data.status == 'active'
+             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt']))
+        || (isAdmin()
+             && onlyChanges(['status', 'adminNote'])
+             && request.resource.data.status in ['active', 'disabled']);
+
+      allow delete: if false;
+
+      // Données métier (même chemins que l'ancienne app → import direct).
+      match /data/{docId} {
+        allow read: if ownerActive(uid) || isAdmin();
+        allow write: if ownerActive(uid)
+          || (isAdmin() && docId in ['workouts', 'diet', 'protocol', 'profiles']);
+      }
+
+      // Cases cochées de la semaine.
+      match /weeks/{weekId} {
+        allow read: if ownerActive(uid) || isAdmin();
+        allow write: if ownerActive(uid);
+      }
+
+      // Envois de l'admin (programme, diet, protocole, note).
+      match /inbox/{itemId} {
+        allow read: if ownerActive(uid) || isAdmin();
+        allow create, delete: if isAdmin();
+        allow update: if (ownerActive(uid) && onlyChanges(['status', 'handledAt'])
+                           && request.resource.data.status in ['accepted', 'dismissed'])
+                      || isAdmin();
+      }
+    }
+
+    // ── Messagerie : une conversation par utilisateur ───────────────────
+    match /conversations/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+
+      // L'utilisateur peut :
+      //  (a) poster (met à jour l'aperçu du dernier message, en tant que 'user')
+      //  (b) marquer comme lu (userReadAt uniquement)
+      allow create: if ownerActive(uid)
+        && request.resource.data.keys().hasOnly(
+             ['userName', 'lastText', 'lastFrom', 'lastAt', 'userReadAt', 'adminReadAt', 'status'])
+        && request.resource.data.lastFrom == 'user'
+        && request.resource.data.status == 'open';
+
+      allow update: if isAdmin()
+        || (ownerActive(uid) && onlyChanges(['userReadAt']))
+        || (ownerActive(uid)
+             && onlyChanges(['userName', 'lastText', 'lastFrom', 'lastAt', 'userReadAt', 'status'])
+             && request.resource.data.lastFrom == 'user'
+             && request.resource.data.status == 'open');
+
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if request.resource.data.keys().hasOnly(['from', 'text', 'at'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.at == request.time
+          && ((ownerActive(uid) && request.resource.data.from == 'user')
+              || (isAdmin() && request.resource.data.from == 'admin'));
+        // Historique immuable.
+        allow update, delete: if false;
+      }
+    }
+  }
+}

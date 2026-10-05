@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AnabolicOS</title>
+  <meta name="description" content="Entraînement, nutrition et protocole — ton suivi personnel.">
+
+  <!-- PWA / iOS -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#F7F6F3">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="AnabolicOS">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+
+  <!-- Typo d'affichage (le texte courant utilise la police système iOS) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&display=swap">
+
+  <!-- Préchargement du SDK Firebase (gagne ~1 aller-retour réseau) -->
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js">
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js">
+
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Affiché pendant le chargement du JS -->
+    <main class="screen" aria-busy="true">
+      <div class="center-stack" style="align-items:center"><div class="spinner"></div></div>
+    </main>
+  </div>
+  <noscript><p style="padding:24px">AnabolicOS nécessite JavaScript.</p></noscript>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

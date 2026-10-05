@@ -1,0 +1,64 @@
+/* ═══════════════════════════════════════════════════════════════
+   AnabolicOS — design tokens
+   Identité : blanc cassé, gris minéraux, encre, un seul accent bordeaux.
+   Tous les composants consomment UNIQUEMENT ces variables.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Couleurs */
+  --paper:         #F7F6F3;  /* fond de l'app */
+  --card:          #FFFFFF;  /* cartes */
+  --mist:          #EDECE8;  /* fonds secondaires, champs */
+  --line:          #E2E0DB;  /* séparateurs */
+  --stone:         #75736E;  /* texte secondaire (≥ 4.5:1 sur --card) */
+  --ink:           #151515;  /* texte, chiffres */
+  --ink-soft:      #3A3936;
+  --bordeaux:      #6E1F2C;  /* accent unique */
+  --bordeaux-ink:  #561722;  /* état pressé */
+  --bordeaux-tint: #F3E9EA;  /* fond des états actifs */
+  --ok:            #2F6B4F;  /* succès (usage parcimonieux) */
+  --danger:        #9B2C2C;
+
+  /* Typographie */
+  --font-text:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  --font-display: "Barlow Condensed", "SF Pro Display", -apple-system, sans-serif;
+
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-md:   15px;
+  --fs-lg:   17px;
+  --fs-xl:   22px;
+  --fs-2xl:  32px;
+  --fs-hero: 56px;
+
+  /* Espacements (échelle 4 px) */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px;
+
+  /* Formes */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-pill: 999px;
+
+  /* Ombres très douces, en couches */
+  --shadow-card: 0 1px 1px rgba(21,21,21,.03), 0 4px 16px rgba(21,21,21,.04);
+  --shadow-float: 0 2px 4px rgba(21,21,21,.04), 0 12px 32px rgba(21,21,21,.10);
+
+  /* Mouvement */
+  --ease-out:    cubic-bezier(.22, 1, .36, 1);
+  --ease-spring: cubic-bezier(.34, 1.36, .64, 1);
+  --t-fast: 140ms;
+  --t-base: 240ms;
+  --t-slow: 380ms;
+
+  /* Zones tactiles */
+  --tap: 48px;
+
+  /* Safe areas iPhone */
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast: 0ms; --t-base: 0ms; --t-slow: 0ms; }
+}
