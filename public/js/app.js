@@ -21,6 +21,25 @@ import { MeView } from './views/me.js';
 import { WeightView } from './views/weight.js';
 import { ShareView } from './views/share.js';
 
+// Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
+export const ASSET_VERSION = '0.2.1';
+
+/**
+ * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
+ * nouveau JavaScript, les feuilles de style récentes manquent. On les ajoute.
+ */
+function ensureStyles() {
+  for (const name of ['tokens', 'base', 'components', 'app']) {
+    if (!document.querySelector(`link[href^="/css/${name}.css"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `/css/${name}.css?v=${ASSET_VERSION}`;
+      document.head.appendChild(link);
+    }
+  }
+}
+ensureStyles();
+
 const ROUTES = {
   home: HomeView,
   training: TrainingView,

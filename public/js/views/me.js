@@ -10,7 +10,7 @@ import { confirmSheet } from '../ui/sheet.js';
 import { icon } from '../ui/icons.js';
 import { weightStats } from './weight.js';
 
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.2.1';
 
 function Row({ href, onclick, iconName, label, value, danger }) {
   const inner = [
