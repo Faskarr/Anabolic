@@ -1,3 +1,16 @@
+/* Polices auto-hébergées (licence SIL OFL — voir /fonts/OFL-BarlowCondensed.txt).
+   Plus de dépendance à Google Fonts : affichage immédiat, fonctionne hors ligne. */
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/barlow-condensed-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('/fonts/barlow-condensed-latin-600-normal.woff2') format('woff2');
+}
+
 /* ═══════════════════════════════════════════════════════════════
    AnabolicOS — design tokens
    Identité : blanc cassé, gris minéraux, encre, un seul accent bordeaux.

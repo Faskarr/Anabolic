@@ -14,6 +14,7 @@
  */
 import { db, fs } from './firebase.js';
 import { weekKey } from './lib/dates.js';
+import { watchConversation, watchAllConversations, unreadForUser, unreadForAdmin } from './data/messages.js';
 
 const { doc, onSnapshot } = fs;
 
@@ -38,6 +39,8 @@ export const state = {
   counterBase: 0,
   week: {},         // cases cochées de la semaine courante
   weekKey: weekKey(),
+  conversation: null,        // ma conversation avec l'admin (métadonnées)
+  adminConversations: null,  // ADMIN : toutes les conversations (null = non chargé)
   error: null,
 };
 
@@ -120,7 +123,29 @@ export function startStore(uid) {
     listen(doc(db, 'users', uid, 'data', name), apply);
   }
   listenWeek();
+  unsubs.push(watchConversation(uid, (c) => { state.conversation = c; emit(); updateAppBadge(); }));
   document.addEventListener('visibilitychange', onVisible);
+}
+
+/** ADMIN : écoute toutes les conversations (badge + boîte de réception). */
+export function startAdminFeeds() {
+  unsubs.push(watchAllConversations((list) => { state.adminConversations = list; emit(); updateAppBadge(); }));
+}
+
+/** Nombre de non-lus à afficher (badge onglet « Moi » et icône de l'app). */
+export function unreadCount() {
+  const mine = unreadForUser(state.conversation) ? 1 : 0;
+  const admin = (state.adminConversations || []).filter(unreadForAdmin).length;
+  return mine + admin;
+}
+
+/** Pastille sur l'icône de l'app (iOS 16.4+, app installée sur l'écran d'accueil). */
+function updateAppBadge() {
+  const n = unreadCount();
+  try {
+    if (n > 0) navigator.setAppBadge?.(n)?.catch?.(() => {});
+    else navigator.clearAppBadge?.()?.catch?.(() => {});
+  } catch { /* non supporté */ }
 }
 
 export function stopStore() {
@@ -131,6 +156,7 @@ export function stopStore() {
   Object.assign(state, {
     uid: null, ready: false, profiles: emptyProfiles(), workouts: {}, diet: {}, protocol: {},
     weights: [], exlogs: {}, counterBase: 0, week: {}, error: null,
+    conversation: null, adminConversations: null,
   });
 }
 

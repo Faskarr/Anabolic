@@ -16,29 +16,81 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 
-  <!-- Typo d'affichage (le texte courant utilise la police système iOS) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&display=swap">
+  <!-- Police du logo préchargée : l'animation d'ouverture s'affiche sans saut -->
+  <link rel="preload" href="/fonts/barlow-condensed-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 
   <!-- Préchargement du SDK Firebase (gagne ~1 aller-retour réseau) -->
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js">
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js">
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js">
 
-  <link rel="stylesheet" href="/css/tokens.css?v=0.2.1">
-  <link rel="stylesheet" href="/css/base.css?v=0.2.1">
-  <link rel="stylesheet" href="/css/components.css?v=0.2.1">
-  <link rel="stylesheet" href="/css/app.css?v=0.2.1">
+  <!--
+    Animation d'ouverture : CSS critique en ligne pour qu'elle démarre AVANT
+    le chargement des feuilles de style et du JavaScript.
+  -->
+  <style>
+    @font-face { font-family: 'Barlow Condensed'; font-weight: 600; font-display: block;
+      src: url('/fonts/barlow-condensed-latin-600-normal.woff2') format('woff2'); }
+    #splash {
+      position: fixed; inset: 0; z-index: 2000;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+      background: #F7F6F3; perspective: 900px;
+      transition: opacity .45s cubic-bezier(.22,1,.36,1), visibility .45s;
+    }
+    .splash__logo {
+      font-family: 'Barlow Condensed', -apple-system, sans-serif; font-weight: 600;
+      font-size: clamp(52px, 17vw, 84px); line-height: .9; letter-spacing: .01em;
+      text-transform: uppercase; color: #151515; white-space: nowrap;
+      transform-style: preserve-3d; will-change: transform, opacity;
+      animation: splash-rock 1.5s cubic-bezier(.45,.05,.35,1) both;
+    }
+    .splash__os { color: #6E1F2C; }
+    .splash__line { width: 64px; height: 3px; border-radius: 2px; background: #E2E0DB; overflow: hidden; }
+    .splash__line span {
+      display: block; height: 100%; width: 100%; background: #6E1F2C;
+      transform-origin: left; animation: splash-load 1.5s cubic-bezier(.65,0,.35,1) both;
+    }
+    /* Oscillation d'avant en arrière, amortie (rotation 3D sur l'axe vertical) */
+    @keyframes splash-rock {
+      0%   { opacity: 0; transform: rotateY(-38deg) scale(.9); }
+      18%  { opacity: 1; }
+      30%  { transform: rotateY(24deg) scale(1); }
+      52%  { transform: rotateY(-13deg); }
+      72%  { transform: rotateY(6deg); }
+      88%  { transform: rotateY(-2deg); }
+      100% { opacity: 1; transform: rotateY(0) scale(1); }
+    }
+    @keyframes splash-load { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+    /* Sortie : le logo grossit et s'efface, révélant l'accueil */
+    #splash.splash--out { opacity: 0; visibility: hidden; pointer-events: none; }
+    #splash.splash--out .splash__logo {
+      animation: none; transform: scale(1.35); opacity: 0;
+      transition: transform .5s cubic-bezier(.22,1,.36,1), opacity .4s ease;
+    }
+    #splash.splash--out .splash__line { opacity: 0; transition: opacity .2s; }
+    @media (prefers-reduced-motion: reduce) {
+      .splash__logo { animation: splash-fade .6s ease both; }
+      #splash.splash--out .splash__logo { transform: none; }
+      @keyframes splash-fade { from { opacity: 0; } }
+    }
+  </style>
+
+  <link rel="stylesheet" href="/css/tokens.css?v=0.3.0">
+  <link rel="stylesheet" href="/css/base.css?v=0.3.0">
+  <link rel="stylesheet" href="/css/components.css?v=0.3.0">
+  <link rel="stylesheet" href="/css/app.css?v=0.3.0">
 </head>
 <body>
-  <div id="app">
-    <!-- Affiché pendant le chargement du JS -->
-    <main class="screen" aria-busy="true">
-      <div class="center-stack" style="align-items:center"><div class="spinner"></div></div>
-    </main>
+  <div id="splash" role="presentation" aria-hidden="true">
+    <div class="splash__logo">Anabolic<span class="splash__os">OS</span></div>
+    <div class="splash__line"><span></span></div>
   </div>
+
+  <div id="app"></div>
+
+  <!-- Filet de sécurité : si le JavaScript ne démarre pas, on ne reste pas bloqué sur le logo -->
+  <script>setTimeout(function () { var s = document.getElementById('splash'); if (s) s.classList.add('splash--out'); }, 7000);</script>
   <noscript><p style="padding:24px">AnabolicOS nécessite JavaScript.</p></noscript>
-  <script type="module" src="/js/app.js"></script>
+  <script type="module" src="/js/app.js?v=0.3.0"></script>
 </body>
 </html>

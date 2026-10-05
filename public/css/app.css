@@ -10,7 +10,9 @@ html.no-scroll, html.no-scroll body { overflow: hidden; }
   margin: 0 auto;
   padding: calc(var(--safe-top) + var(--s5)) var(--s4) calc(var(--safe-bottom) + 112px);
   display: flex; flex-direction: column; gap: var(--s3);
-  animation: screen-in var(--t-base) var(--ease-out) both;
+  /* fill-mode « backwards » : aucun transform résiduel après l'animation,
+     sinon les éléments position:fixed (zone de saisie) seraient piégés dans la vue. */
+  animation: screen-in var(--t-base) var(--ease-out) backwards;
 }
 .view > .screen { padding: 0; min-height: 0; }
 
@@ -405,3 +407,95 @@ html.no-scroll, html.no-scroll body { overflow: hidden; }
   .tabbar { left: 50%; right: auto; transform: translateX(-50%); width: 560px; bottom: var(--s4); border-radius: 22px; border: .5px solid var(--line); padding-bottom: 6px; box-shadow: var(--shadow-float); }
   .sheet { border-radius: 24px; margin-bottom: var(--s6); }
 }
+
+/* ═══ Messagerie ═══════════════════════════════════════════════ */
+.thread { display: flex; flex-direction: column; gap: 6px; padding-top: var(--s2); }
+.thread__day {
+  align-self: center; margin: var(--s3) 0 var(--s1);
+  font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--stone);
+  text-align: center;
+}
+.bubble {
+  max-width: 82%; align-self: flex-start;
+  padding: 10px 14px 6px; border-radius: 20px 20px 20px 6px;
+  background: var(--card); box-shadow: var(--shadow-card);
+  animation: bubble-in var(--t-base) var(--ease-spring) both;
+}
+.bubble--mine { align-self: flex-end; background: var(--ink); color: var(--paper); border-radius: 20px 20px 6px 20px; box-shadow: none; }
+.bubble__text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 16px; line-height: 1.4; }
+.bubble__time { display: block; text-align: right; font-size: 11px; margin-top: 2px; color: var(--stone); font-variant-numeric: tabular-nums; }
+.bubble--mine .bubble__time { color: rgba(247,246,243,.55); }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+
+.contact-intro { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s2); padding: var(--s6) var(--s5); }
+
+/* Zone de saisie fixée au-dessus de la barre d'onglets */
+.composer-spacer { height: 64px; }
+.composer {
+  position: fixed; left: 0; right: 0; z-index: 55;
+  bottom: calc(var(--safe-bottom) + 70px);
+  display: flex; align-items: flex-end; gap: var(--s2);
+  max-width: 560px; margin: 0 auto; padding: var(--s2) var(--s3);
+  background: linear-gradient(to top, var(--paper) 70%, rgba(247,246,243,0));
+}
+.composer__input {
+  flex: 1; min-height: 46px; max-height: 140px; resize: none;
+  padding: 11px 16px; border-radius: 23px; border: 1px solid var(--line);
+  background: var(--card); font-size: 17px; line-height: 1.35; box-shadow: var(--shadow-card);
+}
+.composer__input:focus { outline: none; border-color: var(--ink); }
+.composer__send {
+  width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center;
+  background: var(--bordeaux); color: #fff; transition: transform var(--t-fast) var(--ease-out), opacity var(--t-fast);
+}
+.composer__send:disabled { opacity: .35; }
+.composer__send:active { transform: scale(.92); }
+
+/* Clavier ouvert dans une conversation : on masque la barre d'onglets
+   et la zone de saisie descend juste au-dessus du clavier. */
+html.route-chat.kb-open .tabbar { display: none; }
+html.route-chat.kb-open .composer { bottom: 0; padding-bottom: var(--s2); }
+
+/* Liste des conversations (admin) */
+.conv {
+  display: flex; align-items: center; gap: var(--s3); min-height: 72px; padding: var(--s3) var(--s4);
+  color: var(--ink); text-decoration: none;
+}
+.conv + .conv { border-top: .5px solid var(--line); }
+.conv:active { background: var(--paper); }
+.conv .avatar { flex-shrink: 0; }
+.conv__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.conv__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); }
+.conv__name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv__when { font-size: var(--fs-xs); color: var(--stone); flex-shrink: 0; }
+.conv__preview { font-size: var(--fs-sm); color: var(--stone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv--unread .conv__name, .conv--unread .conv__preview { color: var(--ink); font-weight: 600; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bordeaux); flex-shrink: 0; }
+input[type="search"].input { -webkit-appearance: none; }
+
+.status-toggle {
+  display: inline-flex; align-items: center; gap: var(--s2); align-self: flex-start;
+  min-height: 40px; padding: 0 14px; border-radius: var(--r-pill);
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--fs-sm); font-weight: 600;
+}
+.status-toggle--done { background: var(--bordeaux-tint); color: var(--bordeaux); box-shadow: inset 0 0 0 1px var(--bordeaux); }
+
+/* Badges de non-lus */
+.tab__icon { position: relative; display: grid; }
+.tab__badge {
+  position: absolute; top: -5px; right: -10px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; background: var(--bordeaux); color: #fff; border: 2px solid var(--paper);
+  font-size: 10px; font-weight: 700; line-height: 14px; text-align: center;
+}
+.count-badge {
+  min-width: 22px; height: 22px; padding: 0 7px; border-radius: 11px;
+  background: var(--bordeaux); color: #fff; font-size: 12px; font-weight: 700;
+  display: inline-grid; place-items: center;
+}
+
+/* Accueil : message du coach */
+.coach-msg { display: flex; align-items: center; gap: var(--s3); text-decoration: none; color: var(--ink); background: var(--bordeaux-tint); box-shadow: inset 0 0 0 1px rgba(110,31,44,.18); }
+.coach-msg__icon { width: 44px; height: 44px; border-radius: 50%; background: var(--bordeaux); color: #fff; display: grid; place-items: center; flex-shrink: 0; }
+.coach-msg__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.coach-msg .eyebrow { color: var(--bordeaux); }
+.coach-msg__text { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

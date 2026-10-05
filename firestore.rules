@@ -101,11 +101,13 @@ service cloud.firestore {
       // L'utilisateur peut :
       //  (a) poster (met à jour l'aperçu du dernier message, en tant que 'user')
       //  (b) marquer comme lu (userReadAt uniquement)
-      allow create: if ownerActive(uid)
-        && request.resource.data.keys().hasOnly(
-             ['userName', 'lastText', 'lastFrom', 'lastAt', 'userReadAt', 'adminReadAt', 'status'])
-        && request.resource.data.lastFrom == 'user'
-        && request.resource.data.status == 'open';
+      // (c) l'admin peut ouvrir une conversation (premier message à un utilisateur)
+      allow create: if isAdmin()
+        || (ownerActive(uid)
+            && request.resource.data.keys().hasOnly(
+                 ['userName', 'lastText', 'lastFrom', 'lastAt', 'userReadAt', 'adminReadAt', 'status'])
+            && request.resource.data.lastFrom == 'user'
+            && request.resource.data.status == 'open');
 
       allow update: if isAdmin()
         || (ownerActive(uid) && onlyChanges(['userReadAt']))

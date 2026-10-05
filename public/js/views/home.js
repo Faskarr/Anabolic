@@ -12,6 +12,7 @@ import { selectSession } from './training.js';
 import { todaysProtocolDays, ItemRow } from './protocol.js';
 import { dietTotals } from './diet.js';
 import { weightStats, WeightInput } from './weight.js';
+import { unreadForUser } from '../data/messages.js';
 
 function Widget({ eyebrow, action, children, tone }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''}` },
@@ -20,6 +21,18 @@ function Widget({ eyebrow, action, children, tone }) {
 }
 
 const link = (label, href) => h('a', { class: 'link-btn', href }, label, icon('chevron', 16));
+
+/** Réponse du coach non lue → en tête de l'accueil. */
+function CoachMessage() {
+  const c = state.conversation;
+  if (!unreadForUser(c)) return null;
+  return h('a', { class: 'card widget coach-msg', href: '#/me/contact' },
+    h('span', { class: 'coach-msg__icon' }, icon('message', 22)),
+    h('span', { class: 'coach-msg__body' },
+      h('span', { class: 'eyebrow' }, 'Nouveau message du coach'),
+      h('span', { class: 'coach-msg__text' }, c.lastText || '')),
+    icon('chevron', 20));
+}
 
 function TodaySession() {
   const pid = activeProfileId('workout');
@@ -114,6 +127,6 @@ export function HomeView(session) {
     h('h1', { class: 'page-title' }, first || 'Athlète'));
 
   if (!state.ready) return [head, Skeleton(5)];
-  return [head, TodaySession(), TodayProtocol(), WeightWidget(), MacrosWidget()];
+  return [head, CoachMessage(), TodaySession(), TodayProtocol(), WeightWidget(), MacrosWidget()];
 }
 

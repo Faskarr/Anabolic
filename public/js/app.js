@@ -1,15 +1,20 @@
 /**
- * Point d'entrée de l'app utilisateur : session → store → routeur → vues.
+ * Point d'entrée de l'app : session → store → routeur → vues.
  *
- * Routes (hash) : #/home  #/training  #/diet  #/protocol  #/me  #/me/weight  #/me/share  #/me/check
- * Chaque vue est une fonction pure (session) => Node[] ; elle est ré-exécutée
+ * Routes (hash) :
+ *   #/home  #/training  #/diet  #/protocol
+ *   #/me  #/me/weight  #/me/share  #/me/contact  #/me/check
+ *   #/admin  #/admin/conv/<uid>                      (administrateur uniquement)
+ *
+ * Chaque vue est une fonction (session, param?) => Node[] ; elle est ré-exécutée
  * à chaque changement du store (temps réel) ou de route.
  */
 import { mount, h } from './lib/dom.js';
 import { onSession } from './auth.js';
-import { startStore, stopStore, subscribe } from './store.js';
+import { startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
 import { TabBar } from './ui/tabbar.js';
 import { showTimer, stopTimer } from './ui/timer.js';
+import { hideSplash, watchResume } from './ui/splash.js';
 import { LoginView } from './views/login.js';
 import { DisabledView } from './views/disabled.js';
 import { FoundationView } from './views/foundation.js';
@@ -20,9 +25,11 @@ import { ProtocolView } from './views/protocol.js';
 import { MeView } from './views/me.js';
 import { WeightView } from './views/weight.js';
 import { ShareView } from './views/share.js';
+import { ContactView, leaveContact } from './views/contact.js';
+import { AdminInboxView, AdminConversationView, leaveAdminConversation } from './views/admin-messages.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.2.1';
+export const ASSET_VERSION = '0.3.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
@@ -40,33 +47,47 @@ function ensureStyles() {
 }
 ensureStyles();
 
+/**
+ * Table de routage. `admin: true` = réservé à l'administrateur.
+ * `leave` = nettoyage quand on quitte l'écran (abonnements temps réel).
+ */
 const ROUTES = {
-  home: HomeView,
-  training: TrainingView,
-  diet: DietView,
-  protocol: ProtocolView,
-  me: MeView,
-  'me/weight': WeightView,
-  'me/share': ShareView,
-  'me/check': FoundationView,
+  home:           { view: HomeView },
+  training:       { view: TrainingView },
+  diet:           { view: DietView },
+  protocol:       { view: ProtocolView },
+  me:             { view: MeView },
+  'me/weight':    { view: WeightView },
+  'me/share':     { view: ShareView },
+  'me/contact':   { view: ContactView, leave: leaveContact, chat: true },
+  'me/check':     { view: FoundationView },
+  admin:          { view: AdminInboxView, admin: true },
+  'admin/conv':   { view: AdminConversationView, admin: true, param: true, leave: leaveAdminConversation, chat: true },
 };
 
 const root = document.getElementById('app');
 let session = null;
-let route = 'home';
+let current = { key: 'home', param: null };
 let viewEl = null;
 let tabHost = null;
 let unsubStore = null;
 
+/** '#/admin/conv/abc' → { key: 'admin/conv', param: 'abc' } */
 function parseRoute() {
-  const r = location.hash.replace(/^#\/?/, '');
-  return ROUTES[r] ? r : 'home';
+  const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  for (let n = parts.length; n > 0; n -= 1) {
+    const key = parts.slice(0, n).join('/');
+    const def = ROUTES[key];
+    if (!def) continue;
+    const rest = parts.slice(n);
+    if (def.param && rest.length === 1) return { key, param: decodeURIComponent(rest[0]) };
+    if (!def.param && rest.length === 0) return { key, param: null };
+  }
+  return { key: 'home', param: null };
 }
 
 function LoadingView() {
-  return h('main', { class: 'screen', 'aria-busy': 'true' },
-    h('div', { class: 'center-stack', style: { alignItems: 'center' } },
-      h('div', { class: 'spinner', role: 'progressbar', 'aria-label': 'Chargement' })));
+  return h('main', { class: 'screen', 'aria-busy': 'true' });
 }
 
 function ErrorView(error) {
@@ -94,19 +115,23 @@ function mountShell() {
 function render({ scrollTop = false } = {}) {
   if (!session || session.state !== 'active' || !viewEl) return;
 
+  const def = ROUTES[current.key];
+  if (def.admin && !session.isAdmin) { location.hash = '#/home'; return; }
+
   const active = document.activeElement;
   const keep = active && active.id && viewEl.contains(active) && 'value' in active
     ? { id: active.id, value: active.value, start: active.selectionStart, end: active.selectionEnd }
     : null;
 
-  showTimer(route === 'training');
+  showTimer(current.key === 'training');
+  document.documentElement.classList.toggle('route-chat', Boolean(def.chat));
   try {
-    mount(viewEl, [ROUTES[route](session)].flat(Infinity));
+    mount(viewEl, [def.view(session, current.param)].flat(Infinity));
   } catch (err) {
     console.error('[render]', err);
     mount(viewEl, h('div', { class: 'card' }, h('p', { class: 'card__title' }, 'Erreur d’affichage'), h('p', { class: 'card__text' }, String(err.message))));
   }
-  mount(tabHost, TabBar(route));
+  mount(tabHost, TabBar(current.key, { me: unreadCount() }));
 
   if (keep) {
     const el = document.getElementById(keep.id);
@@ -119,16 +144,29 @@ function render({ scrollTop = false } = {}) {
   if (scrollTop) window.scrollTo(0, 0);
 }
 
-window.addEventListener('hashchange', () => { route = parseRoute(); render({ scrollTop: true }); });
+window.addEventListener('hashchange', () => {
+  const next = parseRoute();
+  const prev = ROUTES[current.key];
+  if (prev?.leave && (next.key !== current.key || next.param !== current.param)) prev.leave();
+  current = next;
+  render({ scrollTop: true });
+});
 window.addEventListener('app:render', () => render());
 
 onSession((s) => {
   const wasActive = session?.state === 'active';
   session = s;
 
+  // Dès que l'état de session est connu, l'animation d'ouverture s'efface.
+  if (s.state !== 'loading') hideSplash();
+
   if (s.state !== 'active') {
-    if (wasActive) { unsubStore?.(); unsubStore = null; stopStore(); stopTimer(); showTimer(false); }
+    if (wasActive) {
+      ROUTES[current.key]?.leave?.();
+      unsubStore?.(); unsubStore = null; stopStore(); stopTimer(); showTimer(false);
+    }
     viewEl = null;
+    document.documentElement.classList.remove('route-chat', 'kb-open');
     switch (s.state) {
       case 'loading':    mount(root, LoadingView()); break;
       case 'signed-out': mount(root, LoginView()); break;
@@ -140,11 +178,18 @@ onSession((s) => {
 
   if (!wasActive) {
     startStore(s.user.uid);
+    if (s.isAdmin) startAdminFeeds();
     unsubStore = subscribe(() => render());
     mountShell();
   }
-  route = parseRoute();
+  current = parseRoute();
   render({ scrollTop: true });
+});
+
+// Retour dans l'app après une longue absence : animation rejouée + accueil.
+watchResume(() => {
+  ROUTES[current.key]?.leave?.();
+  if (location.hash !== '#/home') location.hash = '#/home';
 });
 
 // Service worker : cache de l'app pour un démarrage rapide et hors ligne.

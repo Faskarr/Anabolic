@@ -11,7 +11,7 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v5';
+const VERSION = 'v6';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
@@ -21,9 +21,12 @@ const APP_SHELL = [
   '/css/base.css',
   '/css/components.css',
   '/css/tokens.css',
+  '/fonts/barlow-condensed-latin-500-normal.woff2',
+  '/fonts/barlow-condensed-latin-600-normal.woff2',
   '/js/app.js',
   '/js/auth.js',
   '/js/data/importer.js',
+  '/js/data/messages.js',
   '/js/data/repo.js',
   '/js/firebase.js',
   '/js/lib/dates.js',
@@ -32,12 +35,16 @@ const APP_SHELL = [
   '/js/lib/schema.js',
   '/js/store.js',
   '/js/ui/chart.js',
+  '/js/ui/chat.js',
   '/js/ui/icons.js',
   '/js/ui/layout.js',
   '/js/ui/sheet.js',
+  '/js/ui/splash.js',
   '/js/ui/tabbar.js',
   '/js/ui/timer.js',
   '/js/ui/toast.js',
+  '/js/views/admin-messages.js',
+  '/js/views/contact.js',
   '/js/views/diet.js',
   '/js/views/disabled.js',
   '/js/views/foundation.js',
@@ -52,7 +59,7 @@ const APP_SHELL = [
   '/icons/apple-touch-icon.png',
 ];
 
-const CDN_HOSTS = ['www.gstatic.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const CDN_HOSTS = ['www.gstatic.com'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
