@@ -4,14 +4,13 @@
 import { h } from '../lib/dom.js';
 import { frNum } from '../lib/dates.js';
 import { state } from '../store.js';
-import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import { signOut } from '../auth.js';
 import { PageHeader } from '../ui/layout.js';
 import { confirmSheet } from '../ui/sheet.js';
 import { icon } from '../ui/icons.js';
 import { weightStats } from './weight.js';
 
-export const APP_VERSION = '0.3.0';
+export const APP_VERSION = '0.4.0';
 
 function Row({ href, onclick, iconName, label, value, badge, danger }) {
   const inner = [
@@ -41,13 +40,12 @@ export function MeView(session) {
         h('p', { class: 'muted' }, user.email))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
-      Row({ href: '#/me/contact', iconName: 'message', label: 'Contact', value: 'Ton coach', badge: unreadForUser(state.conversation) ? 1 : 0 }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),
       Row({ href: '#/me/check', iconName: 'shield', label: 'Diagnostic' })),
     isAdmin ? h('nav', { class: 'menu card card--flush', 'aria-label': 'Administration' },
       Row({
-        href: '#/admin', iconName: 'shield', label: 'Espace admin', value: 'Messages',
-        badge: (state.adminConversations || []).filter(unreadForAdmin).length,
+        href: '#/admin', iconName: 'shield', label: 'Espace admin',
+        value: state.adminUsers ? `${state.adminUsers.length} utilisateur${state.adminUsers.length > 1 ? 's' : ''}` : null,
       })) : null,
     h('nav', { class: 'menu card card--flush' },
       Row({

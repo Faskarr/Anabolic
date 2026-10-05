@@ -11,7 +11,7 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v6';
+const VERSION = 'v7';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
@@ -20,18 +20,22 @@ const APP_SHELL = [
   '/css/app.css',
   '/css/base.css',
   '/css/components.css',
+  '/css/splash.css',
   '/css/tokens.css',
   '/fonts/barlow-condensed-latin-500-normal.woff2',
   '/fonts/barlow-condensed-latin-600-normal.woff2',
   '/js/app.js',
   '/js/auth.js',
+  '/js/data/admin.js',
   '/js/data/importer.js',
+  '/js/data/inbox.js',
   '/js/data/messages.js',
   '/js/data/repo.js',
   '/js/firebase.js',
   '/js/lib/dates.js',
   '/js/lib/dom.js',
   '/js/lib/ids.js',
+  '/js/lib/schedule.js',
   '/js/lib/schema.js',
   '/js/store.js',
   '/js/ui/chart.js',
@@ -44,6 +48,7 @@ const APP_SHELL = [
   '/js/ui/timer.js',
   '/js/ui/toast.js',
   '/js/views/admin-messages.js',
+  '/js/views/admin.js',
   '/js/views/contact.js',
   '/js/views/diet.js',
   '/js/views/disabled.js',

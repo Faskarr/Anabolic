@@ -15,6 +15,8 @@
 import { db, fs } from './firebase.js';
 import { weekKey } from './lib/dates.js';
 import { watchConversation, watchAllConversations, unreadForUser, unreadForAdmin } from './data/messages.js';
+import { watchPendingInbox } from './data/inbox.js';
+import { watchUsers } from './data/admin.js';
 
 const { doc, onSnapshot } = fs;
 
@@ -40,6 +42,8 @@ export const state = {
   week: {},         // cases cochées de la semaine courante
   weekKey: weekKey(),
   conversation: null,        // ma conversation avec l'admin (métadonnées)
+  inbox: [],                 // envois du coach en attente
+  adminUsers: null,          // ADMIN : tous les utilisateurs (null = non chargé)
   adminConversations: null,  // ADMIN : toutes les conversations (null = non chargé)
   error: null,
 };
@@ -124,12 +128,14 @@ export function startStore(uid) {
   }
   listenWeek();
   unsubs.push(watchConversation(uid, (c) => { state.conversation = c; emit(); updateAppBadge(); }));
+  unsubs.push(watchPendingInbox(uid, (items) => { state.inbox = items; emit(); }));
   document.addEventListener('visibilitychange', onVisible);
 }
 
 /** ADMIN : écoute toutes les conversations (badge + boîte de réception). */
 export function startAdminFeeds() {
   unsubs.push(watchAllConversations((list) => { state.adminConversations = list; emit(); updateAppBadge(); }));
+  unsubs.push(watchUsers((list) => { state.adminUsers = list; emit(); }));
 }
 
 /** Nombre de non-lus à afficher (badge onglet « Moi » et icône de l'app). */
@@ -156,7 +162,7 @@ export function stopStore() {
   Object.assign(state, {
     uid: null, ready: false, profiles: emptyProfiles(), workouts: {}, diet: {}, protocol: {},
     weights: [], exlogs: {}, counterBase: 0, week: {}, error: null,
-    conversation: null, adminConversations: null,
+    conversation: null, adminConversations: null, inbox: [], adminUsers: null,
   });
 }
 

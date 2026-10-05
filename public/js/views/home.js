@@ -1,38 +1,70 @@
 /**
- * Accueil — widgets du jour.
- * Version phase 2 : contenu utile immédiatement. La phase 3 ajoutera le logo
- * animé et le geste « tirer vers le bas » pour révéler la navigation.
+ * Accueil — widgets du jour, toujours visibles (avec un état « vide » utile) :
+ *   envois du coach · message · séance du jour · protocole (2 prochaines prises)
+ *   · prochain repas + macros · poids.
  */
 import { h } from '../lib/dom.js';
 import { greeting, isoWeekday, formatShortDate, frNum } from '../lib/dates.js';
+import { nextMeal, nextProtocolItems, formatMinutes } from '../lib/schedule.js';
 import { state, activeProfileId, profileData, sessionWeekKey, sessionCount } from '../store.js';
 import { Skeleton } from '../ui/layout.js';
 import { icon } from '../ui/icons.js';
 import { selectSession } from './training.js';
-import { todaysProtocolDays, ItemRow } from './protocol.js';
+import { effectiveWeekdays, ItemRow, itemKey } from './protocol.js';
 import { dietTotals } from './diet.js';
 import { weightStats, WeightInput } from './weight.js';
-import { unreadForUser } from '../data/messages.js';
+import { unreadForUser, unreadForAdmin } from '../data/messages.js';
+import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
 
-function Widget({ eyebrow, action, children, tone }) {
-  return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''}` },
+function Widget({ eyebrow, action, children, tone, cls = '' }) {
+  return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
     h('div', { class: 'card__row' }, h('p', { class: 'eyebrow' }, eyebrow), action || null),
     children);
 }
 
 const link = (label, href) => h('a', { class: 'link-btn', href }, label, icon('chevron', 16));
+const cta = (label, href) => h('a', { class: 'btn btn--ghost btn--block', href }, icon('plus', 18), label);
 
-/** Réponse du coach non lue → en tête de l'accueil. */
-function CoachMessage() {
+// ── Envois du coach ─────────────────────────────────────────────────────
+
+function CoachSends(session) {
+  if (!state.inbox.length) return null;
+  return state.inbox.map((it) => Widget({
+    eyebrow: `${TYPE_LABEL[it.type] || 'Envoi'} de ton coach`,
+    cls: 'coach-send',
+    children: [
+      h('p', { class: 'widget__title' }, it.title),
+      it.message ? h('p', { class: 'muted' }, it.message) : null,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn btn--primary', type: 'button', onclick: () => acceptItem(session.user.uid, it) }, icon('check', 18), 'Ajouter et activer'),
+        h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => dismissItem(session.user.uid, it) }, 'Ignorer')),
+    ],
+  }));
+}
+
+// ── Messages ────────────────────────────────────────────────────────────
+
+function MessagesWidget(session) {
+  if (session.isAdmin) {
+    const n = (state.adminConversations || []).filter(unreadForAdmin).length;
+    return h('a', { class: `card widget coach-msg${n ? '' : ' coach-msg--calm'}`, href: '#/contact' },
+      h('span', { class: 'coach-msg__icon' }, icon('message', 22)),
+      h('span', { class: 'coach-msg__body' },
+        h('span', { class: 'eyebrow' }, 'Messages'),
+        h('span', { class: 'coach-msg__text' }, n ? `${n} conversation${n > 1 ? 's' : ''} non lue${n > 1 ? 's' : ''}` : 'Aucun message non lu')),
+      icon('chevron', 20));
+  }
   const c = state.conversation;
-  if (!unreadForUser(c)) return null;
-  return h('a', { class: 'card widget coach-msg', href: '#/me/contact' },
+  const unread = unreadForUser(c);
+  return h('a', { class: `card widget coach-msg${unread ? '' : ' coach-msg--calm'}`, href: '#/contact' },
     h('span', { class: 'coach-msg__icon' }, icon('message', 22)),
     h('span', { class: 'coach-msg__body' },
-      h('span', { class: 'eyebrow' }, 'Nouveau message du coach'),
-      h('span', { class: 'coach-msg__text' }, c.lastText || '')),
+      h('span', { class: 'eyebrow' }, unread ? 'Nouveau message du coach' : 'Messages'),
+      h('span', { class: 'coach-msg__text' }, unread ? (c.lastText || '') : 'Aucun message non lu · écrire au coach')),
     icon('chevron', 20));
 }
+
+// ── Séance du jour ──────────────────────────────────────────────────────
 
 function TodaySession() {
   const pid = activeProfileId('workout');
@@ -41,46 +73,100 @@ function TodaySession() {
   const planned = sessions.filter((s) => s.weekdays?.includes(today));
 
   if (!sessions.length) {
-    return Widget({ eyebrow: 'Séance du jour', action: link('Créer', '#/training'),
-      children: h('p', { class: 'muted' }, 'Aucun programme pour le moment.') });
+    return Widget({ eyebrow: 'Séance du jour', children: [
+      h('p', { class: 'muted' }, 'Aucun programme pour le moment.'), cta('Créer mon programme', '#/training')] });
   }
   if (!planned.length) {
     const anyScheduled = sessions.some((s) => s.weekdays?.length);
-    return Widget({ eyebrow: 'Séance du jour', action: link('Programme', '#/training'),
-      children: [
-        h('p', { class: 'widget__title' }, anyScheduled ? 'Repos' : 'Pas de planning'),
-        h('p', { class: 'muted' }, anyScheduled
-          ? 'Aucune séance prévue aujourd’hui. Récupère bien.'
-          : 'Assigne des jours à tes séances (Entraînement › ⋯ › Modifier) pour les voir ici.'),
-      ] });
+    return Widget({ eyebrow: 'Séance du jour', action: link('Programme', '#/training'), children: [
+      h('p', { class: 'widget__title' }, anyScheduled ? 'Repos' : 'Pas de planning'),
+      h('p', { class: 'muted' }, anyScheduled
+        ? 'Aucune séance prévue aujourd’hui. Récupère bien.'
+        : 'Assigne des jours à tes séances (Séances › ⋯ › Modifier) pour les voir ici.')] });
   }
-
   return Widget({ eyebrow: 'Séance du jour', tone: 'ink', children: planned.map((s) => {
     const done = state.week[sessionWeekKey(pid, s.id)]?.done;
-    return h('a', {
-      class: 'today-session', href: '#/training',
-      onclick: () => selectSession(s.id),
-    },
-    h('span', {},
-      h('span', { class: 'today-session__name' }, s.name),
-      h('span', { class: 'today-session__meta' }, `${(s.exercises || []).length} exercices${done ? ' · terminée' : ''}`)),
-    h('span', { class: `today-session__go${done ? ' today-session__go--done' : ''}` }, icon(done ? 'check' : 'chevron', 22)));
+    return h('a', { class: 'today-session', href: '#/training', onclick: () => selectSession(s.id) },
+      h('span', {},
+        h('span', { class: 'today-session__name' }, s.name),
+        h('span', { class: 'today-session__meta' }, `${(s.exercises || []).length} exercices${done ? ' · terminée' : ''}`)),
+      h('span', { class: `today-session__go${done ? ' today-session__go--done' : ''}` }, icon(done ? 'check' : 'chevron', 22)));
   }) });
 }
 
-function TodayProtocol() {
+// ── Protocole : 2 prochaines prises ─────────────────────────────────────
+
+function ProtocolWidget() {
   const pid = activeProfileId('protocol');
-  if (!pid) return null;
-  const days = todaysProtocolDays();
-  const items = days.flatMap((d) => d.injections || []);
+  if (!pid) {
+    return Widget({ eyebrow: 'Protocole', children: [
+      h('p', { class: 'muted' }, 'Aucun protocole pour le moment.'), cta('Créer mon protocole', '#/protocol')] });
+  }
+  const days = profileData('protocol').days || [];
+  const dayOf = (it) => days.find((d) => (d.injections || []).includes(it));
+  const { items, todayTotal, todayDone } = nextProtocolItems(
+    days, (it) => Boolean(state.week[itemKey(pid, dayOf(it), it)]?.done), effectiveWeekdays, 2);
+
+  const progress = todayTotal ? `${todayDone}/${todayTotal} aujourd’hui` : null;
   return Widget({
-    eyebrow: 'Protocole du jour',
-    action: link('Planning', '#/protocol'),
+    eyebrow: 'Prochaines prises',
+    action: link(progress || 'Planning', '#/protocol'),
     children: items.length
-      ? h('div', { class: 'check-list check-list--flat' }, items.map((it) => ItemRow(pid, it)))
-      : h('p', { class: 'muted' }, 'Rien de prévu aujourd’hui.'),
+      ? h('div', { class: 'check-list check-list--flat' }, items.map(({ item, day, minutes, tomorrow }) => (tomorrow
+        ? h('div', { class: 'check-item check-item--later' },
+          h('div', { class: 'check-item__toggle' },
+            h('span', { class: 'check-item__box' }),
+            h('span', { class: 'check-item__body' }, h('span', { class: 'check-item__name' }, item.name), item.type ? h('span', { class: 'check-item__meta' }, item.type) : null),
+            h('span', { class: 'check-item__time' }, `Demain · ${item.time || formatMinutes(minutes)}`)))
+        : ItemRow(pid, day, item, null, h('span', { class: 'check-item__time' }, item.time || formatMinutes(minutes))))))
+      : h('p', { class: 'muted' }, todayTotal ? 'Tout est fait pour aujourd’hui ✓' : 'Rien de prévu aujourd’hui ni demain.'),
   });
 }
+
+// ── Diet : prochain repas + macros du jour ──────────────────────────────
+
+function DietWidget() {
+  if (!activeProfileId('diet')) {
+    return Widget({ eyebrow: 'Nutrition', children: [
+      h('p', { class: 'muted' }, 'Aucune diet pour le moment.'), cta('Créer ma diet', '#/diet')] });
+  }
+  const d = profileData('diet');
+  const totals = dietTotals(d);
+  const target = { cal: d.objective || totals.cal, p: d.macros?.p || totals.p, g: d.macros?.g || totals.g, l: d.macros?.l || totals.l };
+  const next = nextMeal(d.meals || []);
+
+  let mealBlock;
+  if (!next) {
+    mealBlock = h('p', { class: 'muted' }, 'Ajoute tes repas dans Diet pour voir le prochain ici.');
+  } else {
+    const m = next.meal;
+    const foods = m.foods || [];
+    const mt = dietTotals({ meals: [m] });
+    mealBlock = h('a', { class: 'next-meal', href: '#/diet' },
+      h('div', { class: 'next-meal__head' },
+        h('span', { class: 'next-meal__name' }, m.name),
+        h('span', { class: 'next-meal__time' }, `${next.tomorrow ? 'Demain · ' : ''}${m.time || `~${formatMinutes(next.minutes)}`}`)),
+      foods.length
+        ? h('ul', { class: 'next-meal__foods' }, foods.slice(0, 5).map((f) => h('li', {}, h('span', {}, f.name), h('span', { class: 'muted' }, f.qty || ''))),
+          foods.length > 5 ? h('li', { class: 'muted' }, `+ ${foods.length - 5} autre(s)`) : null)
+        : h('p', { class: 'muted small' }, 'Aucun aliment dans ce repas.'),
+      h('p', { class: 'next-meal__macros' }, `${mt.cal} kcal · P ${Math.round(mt.p)} · G ${Math.round(mt.g)} · L ${Math.round(mt.l)}`));
+  }
+
+  return Widget({
+    eyebrow: 'Prochain repas',
+    action: link('Diet', '#/diet'),
+    children: [
+      mealBlock,
+      h('p', { class: 'eyebrow', style: { marginTop: '16px' } }, 'Objectifs du jour'),
+      h('div', { class: 'macro-grid macro-grid--4' },
+        [['kcal', target.cal], ['Prot. (g)', target.p], ['Gluc. (g)', target.g], ['Lip. (g)', target.l]]
+          .map(([l, v]) => h('div', { class: 'macro-tile' }, h('span', { class: 'macro-tile__v' }, `${Math.round(v || 0)}`), h('span', { class: 'macro-tile__l' }, l)))),
+    ],
+  });
+}
+
+// ── Poids ───────────────────────────────────────────────────────────────
 
 function WeightWidget() {
   const s = weightStats();
@@ -92,26 +178,9 @@ function WeightWidget() {
         h('span', { class: 'kcal__big' }, frNum(s.last.kg)),
         h('span', { class: 'kcal__unit' }, ' kg'),
         s.delta7 != null ? h('span', { class: `trend${s.delta7 > 0 ? ' up' : s.delta7 < 0 ? ' down' : ''}` },
-          `${s.delta7 > 0 ? '+' : ''}${frNum(s.delta7)} kg / 7 j`) : null) : null,
+          `${s.delta7 > 0 ? '+' : ''}${frNum(s.delta7)} kg / 7 j`) : null) : h('p', { class: 'muted' }, 'Première pesée ? Le matin, à jeun.'),
       s ? h('p', { class: 'muted small' }, `Dernière pesée : ${formatShortDate(s.last.date)}`) : null,
       WeightInput({ compact: true }),
-    ],
-  });
-}
-
-function MacrosWidget() {
-  if (!activeProfileId('diet')) return null;
-  const d = profileData('diet');
-  const t = dietTotals(d);
-  const obj = d.objective || t.cal;
-  return Widget({
-    eyebrow: 'Objectifs nutrition',
-    action: link('Diet', '#/diet'),
-    children: [
-      h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, String(obj || 0)), h('span', { class: 'kcal__unit' }, ' kcal')),
-      h('div', { class: 'macro-grid' },
-        [['Protéines', d.macros?.p || t.p], ['Glucides', d.macros?.g || t.g], ['Lipides', d.macros?.l || t.l]]
-          .map(([l, v]) => h('div', { class: 'macro-tile' }, h('span', { class: 'macro-tile__v' }, `${Math.round(v)}`), h('span', { class: 'macro-tile__l' }, `${l} (g)`)))),
     ],
   });
 }
@@ -127,6 +196,18 @@ export function HomeView(session) {
     h('h1', { class: 'page-title' }, first || 'Athlète'));
 
   if (!state.ready) return [head, Skeleton(5)];
-  return [head, CoachMessage(), TodaySession(), TodayProtocol(), WeightWidget(), MacrosWidget()];
-}
+  const unread = session.isAdmin
+    ? (state.adminConversations || []).some(unreadForAdmin)
+    : unreadForUser(state.conversation);
 
+  return [
+    head,
+    CoachSends(session),
+    unread ? MessagesWidget(session) : null,   // non lu → tout en haut
+    TodaySession(),
+    ProtocolWidget(),
+    DietWidget(),
+    WeightWidget(),
+    unread ? null : MessagesWidget(session),
+  ];
+}

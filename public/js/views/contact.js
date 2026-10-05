@@ -4,7 +4,7 @@
 import { h } from '../lib/dom.js';
 import { state } from '../store.js';
 import { watchMessages, sendUserMessage, markReadByUser, unreadForUser } from '../data/messages.js';
-import { PageHeader, IconButton, Skeleton } from '../ui/layout.js';
+import { PageHeader, Skeleton } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd } from '../ui/chat.js';
 import { icon } from '../ui/icons.js';
 
@@ -42,10 +42,7 @@ export function ContactView(session) {
   // Ouvrir l'écran = lire la réponse.
   if (unreadForUser(state.conversation)) markReadByUser(uid);
 
-  const header = PageHeader({
-    eyebrow: 'Ton coach', title: 'Contact',
-    trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
-  });
+  const header = PageHeader({ eyebrow: 'Ton coach', title: 'Contact' });
 
   if (messages === null) return [header, Skeleton(2)];
 

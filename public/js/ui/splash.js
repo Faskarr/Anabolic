@@ -11,6 +11,37 @@ const OUT_MS = 500;
 const AWAY_MS = 30 * 60 * 1000;
 
 const el = () => document.getElementById('splash');
+
+/**
+ * Filet de sécurité : si iOS sert un ancien index.html (sans le splash), on
+ * l'injecte ici. Ce module est importé EN PREMIER par app.js pour s'exécuter
+ * avant l'initialisation de Firebase.
+ */
+(function ensureSplashMarkup() {
+  if (el()) return;
+  if (!document.querySelector('link[href^="/css/splash.css"]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/css/splash.css';
+    document.head.appendChild(link);
+  }
+  const s = document.createElement('div');
+  s.id = 'splash';
+  s.setAttribute('aria-hidden', 'true');
+  const logo = document.createElement('div');
+  logo.className = 'splash__logo';
+  logo.append('Anabolic');
+  const os = document.createElement('span');
+  os.className = 'splash__os';
+  os.textContent = 'OS';
+  logo.appendChild(os);
+  const line = document.createElement('div');
+  line.className = 'splash__line';
+  line.appendChild(document.createElement('span'));
+  s.append(logo, line);
+  document.body.prepend(s);
+}());
+
 let shownAt = performance.now();
 let hiddenAt = null;
 

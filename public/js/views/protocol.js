@@ -4,7 +4,7 @@
  */
 import { h } from '../lib/dom.js';
 import { uid } from '../lib/ids.js';
-import { formatWeekdays, isoWeekday } from '../lib/dates.js';
+import { formatWeekdays, isoWeekday, localISODate } from '../lib/dates.js';
 import { guessWeekdays } from '../lib/schema.js';
 import { state, activeProfileId, profileData, injectionWeekKey } from '../store.js';
 import { updateProfileData, setWeekItem, resetWeek } from '../data/repo.js';
@@ -87,9 +87,21 @@ async function editItem(day, item) {
   });
 }
 
+/**
+ * Clé de la case cochée d'un produit.
+ *  • jour prévu une seule fois par semaine → clé hebdomadaire (format historique) ;
+ *  • jour récurrent (ex. « Quotidien ») → clé par DATE, sinon une prise cochée
+ *    lundi resterait cochée toute la semaine.
+ */
+export function itemKey(pid, day, item, date = localISODate()) {
+  return effectiveWeekdays(day).length > 1
+    ? `${injectionWeekKey(pid, item.id)}_${date}`
+    : injectionWeekKey(pid, item.id);
+}
+
 /** Ligne cochable d'un produit (réutilisée par l'accueil). */
-export function ItemRow(pid, item, onEdit) {
-  const key = injectionWeekKey(pid, item.id);
+export function ItemRow(pid, day, item, onEdit, extra) {
+  const key = itemKey(pid, day, item);
   const on = Boolean(state.week[key]?.done);
   return h('div', { class: `check-item${on ? ' check-item--on' : ''}` },
     h('button', {
@@ -100,7 +112,7 @@ export function ItemRow(pid, item, onEdit) {
     h('span', { class: 'check-item__body' },
       h('span', { class: 'check-item__name' }, item.name),
       item.type ? h('span', { class: 'check-item__meta' }, item.type) : null),
-    item.time ? h('span', { class: 'check-item__time' }, item.time) : null),
+    extra || (item.time ? h('span', { class: 'check-item__time' }, item.time) : null)),
     onEdit ? IconButton('edit', `Modifier ${item.name}`, onEdit, 'icon-btn--ghost') : null);
 }
 
@@ -122,7 +134,7 @@ function DayCard(pid, day, isToday) {
           ],
         }), 'icon-btn--soft'))),
     items.length
-      ? h('div', { class: 'check-list' }, items.map((it) => ItemRow(pid, it, () => editItem(day, it))))
+      ? h('div', { class: 'check-list' }, items.map((it) => ItemRow(pid, day, it, () => editItem(day, it))))
       : h('button', { class: 'meal__empty', type: 'button', onclick: () => editItem(day, null) }, 'Aucun produit — appuie pour ajouter'));
 }
 
@@ -134,8 +146,8 @@ export function ProtocolView() {
 
   const days = profileData(CAT).days || [];
   const today = isoWeekday();
-  const allItems = days.flatMap((d) => d.injections || []);
-  const doneCount = allItems.filter((i) => state.week[injectionWeekKey(pid, i.id)]?.done).length;
+  const allItems = days.flatMap((d) => (d.injections || []).map((i) => ({ d, i })));
+  const doneCount = allItems.filter(({ d, i }) => state.week[itemKey(pid, d, i)]?.done).length;
   const pct = allItems.length ? Math.round((doneCount / allItems.length) * 100) : 0;
 
   return [
@@ -143,7 +155,7 @@ export function ProtocolView() {
     ProfileBar(CAT),
     h('section', { class: 'card' },
       h('div', { class: 'card__row' },
-        h('p', { class: 'eyebrow' }, 'Cette semaine'),
+        h('p', { class: 'eyebrow' }, 'Progression'),
         h('span', { class: 'muted' }, `${doneCount} / ${allItems.length}`)),
       h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, `${pct}`), h('span', { class: 'kcal__unit' }, ' % complété')),
       h('div', { class: 'bar bar--lg' }, h('div', { class: 'bar__fill', style: { width: `${pct}%` } }))),

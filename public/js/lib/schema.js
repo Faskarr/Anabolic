@@ -59,9 +59,10 @@ export function normalizeDiet(raw) {
   return {
     objective: int(raw?.objective, 0, 20000) || 0,
     macros: { p: int(m.p, 0, 2000) || 0, g: int(m.g, 0, 2000) || 0, l: int(m.l, 0, 2000) || 0 },
-    meals: arr(raw?.meals).slice(0, 20).map((meal) => ({
+    meals: arr(raw?.meals).slice(0, 20).map((meal) => compact({
       id: id(meal?.id, 'm'),
       name: str(meal?.name, 60) || 'Repas',
+      time: /^\d{2}:\d{2}$/.test(str(meal?.time, 5)) ? str(meal.time, 5) : undefined,
       foods: arr(meal?.foods).slice(0, 60).map((f) => compact({
         id: id(f?.id, 'f'),
         name: str(f?.name, 120) || 'Aliment',

@@ -28,7 +28,7 @@ const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
 export function AdminInboxView() {
   const header = PageHeader({
     eyebrow: 'Admin', title: 'Messages',
-    trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
+    trailing: IconButton('user', 'Utilisateurs', () => { location.hash = '#/admin'; }, 'icon-btn--soft'),
   });
   const list = state.adminConversations;
   if (list === null) return [header, Skeleton(4)];
@@ -109,7 +109,7 @@ export function AdminConversationView(session, uid) {
   const header = PageHeader({
     eyebrow: 'Conversation',
     title: conv?.userName || 'Utilisateur',
-    trailing: IconButton('back', 'Retour aux messages', () => { location.hash = '#/admin'; }, 'icon-btn--soft'),
+    trailing: IconButton('back', 'Retour aux messages', () => { history.length > 1 ? history.back() : (location.hash = '#/contact'); }, 'icon-btn--soft'),
   });
 
   if (messages === null) return [header, Skeleton(3)];
@@ -119,6 +119,7 @@ export function AdminConversationView(session, uid) {
 
   return [
     header,
+    h('a', { class: 'link-btn', href: `#/admin/user/${encodeURIComponent(uid)}` }, 'Voir la fiche', icon('chevron', 16)),
     conv ? h('button', {
       class: `status-toggle${done ? ' status-toggle--done' : ''}`, type: 'button',
       onclick: () => setConversationStatus(uid, done ? 'open' : 'done'),

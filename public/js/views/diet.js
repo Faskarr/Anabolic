@@ -9,7 +9,8 @@ import { state, activeProfileId, profileData } from '../store.js';
 import { updateProfileData } from '../data/repo.js';
 import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, IconButton } from '../ui/layout.js';
 import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
-import { undoToast } from '../ui/toast.js';
+import { undoToast, toast } from '../ui/toast.js';
+import { parseTimeOfDay, formatMinutes } from '../lib/schedule.js';
 import { icon } from '../ui/icons.js';
 
 const CAT = 'diet';
@@ -56,18 +57,27 @@ async function editTargets(d) {
 async function editMeal(meal) {
   const r = await formSheet({
     title: meal ? 'Modifier le repas' : 'Nouveau repas',
-    fields: [{ name: 'name', label: 'Nom', value: meal?.name, required: true, maxlength: 60, placeholder: 'Petit-déjeuner' }],
+    fields: [
+      { name: 'name', label: 'Nom', value: meal?.name, required: true, maxlength: 60, placeholder: 'Petit-déjeuner' },
+      { name: 'time', label: 'Heure (optionnel)', value: meal?.time, maxlength: 5, placeholder: '12:30', inputmode: 'numeric',
+        hint: "Sert à afficher le prochain repas sur l'accueil. Sans heure, elle est déduite du nom." },
+    ],
     deleteLabel: meal ? 'Supprimer le repas' : null,
   });
   if (!r) return;
   if (r.action === 'delete') return deleteMeal(meal);
+  const t = parseTimeOfDay(r.values.time);
+  const time = t == null ? '' : formatMinutes(t);
+  if (r.values.time && t == null) toast('Heure non reconnue (format 12:30) — ignorée.', { type: 'error' });
   updateProfileData(CAT, (d) => {
     if (meal) {
       const m = d.meals.find((x) => x.id === meal.id);
-      if (m) m.name = r.values.name;
+      if (m) { m.name = r.values.name; m.time = time; }
     } else {
-      d.meals.push({ id: uid('m'), name: r.values.name, foods: [] });
+      d.meals.push({ id: uid('m'), name: r.values.name, ...(time ? { time } : {}), foods: [] });
     }
+    // Repas triés par heure quand elles sont renseignées.
+    d.meals.sort((a, b) => (parseTimeOfDay(a.time) ?? 9999) - (parseTimeOfDay(b.time) ?? 9999));
   });
 }
 
@@ -153,7 +163,7 @@ function MealCard(meal) {
   const foods = meal.foods || [];
   return h('section', { class: 'card card--flush' },
     h('header', { class: 'meal__head' },
-      h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, `${mealCal(meal)} kcal`)),
+      h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, [meal.time, `${mealCal(meal)} kcal`].filter(Boolean).join(' · '))),
       h('div', { class: 'row-gap' },
         IconButton('plus', `Ajouter un aliment à ${meal.name}`, () => editFood(meal, null), 'icon-btn--soft'),
         IconButton('more', `Options de ${meal.name}`, () => actionSheet({

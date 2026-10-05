@@ -3,18 +3,20 @@
  *
  * Routes (hash) :
  *   #/home  #/training  #/diet  #/protocol
- *   #/me  #/me/weight  #/me/share  #/me/contact  #/me/check
- *   #/admin  #/admin/conv/<uid>                      (administrateur uniquement)
+ *   #/contact (utilisateur : conversation ; admin : boîte de réception)
+ *   #/me  #/me/weight  #/me/share  #/me/check
+ *   #/admin  #/admin/user/<uid>  #/admin/conv/<uid>  (administrateur uniquement)
  *
  * Chaque vue est une fonction (session, param?) => Node[] ; elle est ré-exécutée
  * à chaque changement du store (temps réel) ou de route.
  */
+// En premier : le splash doit s'afficher avant l'initialisation de Firebase.
+import { hideSplash, watchResume } from './ui/splash.js';
 import { mount, h } from './lib/dom.js';
 import { onSession } from './auth.js';
 import { startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
 import { TabBar } from './ui/tabbar.js';
 import { showTimer, stopTimer } from './ui/timer.js';
-import { hideSplash, watchResume } from './ui/splash.js';
 import { LoginView } from './views/login.js';
 import { DisabledView } from './views/disabled.js';
 import { FoundationView } from './views/foundation.js';
@@ -27,16 +29,17 @@ import { WeightView } from './views/weight.js';
 import { ShareView } from './views/share.js';
 import { ContactView, leaveContact } from './views/contact.js';
 import { AdminInboxView, AdminConversationView, leaveAdminConversation } from './views/admin-messages.js';
+import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.3.0';
+export const ASSET_VERSION = '0.4.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
  * nouveau JavaScript, les feuilles de style récentes manquent. On les ajoute.
  */
 function ensureStyles() {
-  for (const name of ['tokens', 'base', 'components', 'app']) {
+  for (const name of ['splash', 'tokens', 'base', 'components', 'app']) {
     if (!document.querySelector(`link[href^="/css/${name}.css"]`)) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
@@ -59,9 +62,11 @@ const ROUTES = {
   me:             { view: MeView },
   'me/weight':    { view: WeightView },
   'me/share':     { view: ShareView },
-  'me/contact':   { view: ContactView, leave: leaveContact, chat: true },
+  // Contact : l'utilisateur écrit au coach ; l'admin voit sa boîte de réception.
+  contact:        { view: (s) => (s.isAdmin ? AdminInboxView(s) : ContactView(s)), leave: leaveContact, chatIf: (s) => !s.isAdmin },
   'me/check':     { view: FoundationView },
-  admin:          { view: AdminInboxView, admin: true },
+  admin:          { view: AdminHomeView, admin: true },
+  'admin/user':   { view: AdminUserView, admin: true, param: true, leave: leaveAdminUser },
   'admin/conv':   { view: AdminConversationView, admin: true, param: true, leave: leaveAdminConversation, chat: true },
 };
 
@@ -124,14 +129,14 @@ function render({ scrollTop = false } = {}) {
     : null;
 
   showTimer(current.key === 'training');
-  document.documentElement.classList.toggle('route-chat', Boolean(def.chat));
+  document.documentElement.classList.toggle('route-chat', Boolean(def.chat || def.chatIf?.(session)));
   try {
     mount(viewEl, [def.view(session, current.param)].flat(Infinity));
   } catch (err) {
     console.error('[render]', err);
     mount(viewEl, h('div', { class: 'card' }, h('p', { class: 'card__title' }, 'Erreur d’affichage'), h('p', { class: 'card__text' }, String(err.message))));
   }
-  mount(tabHost, TabBar(current.key, { me: unreadCount() }));
+  mount(tabHost, TabBar(current.key, { contact: unreadCount() }));
 
   if (keep) {
     const el = document.getElementById(keep.id);
