@@ -1,5 +1,5 @@
 /**
- * Barre d'onglets inférieure (6 grandes zones tactiles, safe-area iPhone).
+ * Barre d'onglets inférieure (7 zones tactiles, safe-area iPhone).
  * `badges` : { [route]: nombre } — ex. messages non lus sur « Contact ».
  *
  * Animation au tap : l'icône s'enfonce puis rebondit (ressort), une pastille
@@ -13,6 +13,7 @@ export const TABS = [
   { route: 'training', label: 'Séances',   icon: 'dumbbell' },
   { route: 'diet',     label: 'Diet',      icon: 'leaf' },
   { route: 'protocol', label: 'Protocole', icon: 'pill' },
+  { route: 'goals',    label: 'Habitudes', icon: 'target' },
   { route: 'contact',  label: 'Contact',   icon: 'message' },
   { route: 'me',       label: 'Moi',       icon: 'user' },
 ];
@@ -24,6 +25,7 @@ let justTapped = null;
 function tabOf(current) {
   if (current.startsWith('contact') || current.startsWith('friends')
     || current === 'admin/messages' || current.startsWith('admin/conv')) return 'contact';
+  if (current === 'me/goals') return 'goals';
   if (current.startsWith('admin') || current.startsWith('me')) return 'me';
   return current.split('/')[0];
 }

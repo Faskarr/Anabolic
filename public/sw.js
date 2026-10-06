@@ -47,6 +47,7 @@ const APP_SHELL = [
   '/js/ui/avatar.js',
   '/js/ui/chart.js',
   '/js/ui/chat.js',
+  '/js/ui/cropper.js',
   '/js/ui/feed.js',
   '/js/ui/icons.js',
   '/js/ui/install.js',

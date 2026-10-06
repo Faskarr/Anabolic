@@ -19,7 +19,7 @@ html.no-scroll, html.no-scroll body { overflow: hidden; }
 /* ── Tab bar ──────────────────────────────────────────────────── */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(7, 1fr);
   /* App installée (iPhone) : safe-area ≈ 34 px dont ~20 px réellement occupés
      par la barre d'accueil → les onglets descendent dans la zone libre. */
   padding: 0 max(var(--s2), env(safe-area-inset-left)) max(6px, calc(var(--safe-bottom) - 16px));
@@ -37,7 +37,7 @@ html.no-scroll, html.no-scroll body { overflow: hidden; }
 .tab:active { transform: scale(.94); }
 .tab--on { color: var(--ink); }
 .tab--on .icon { stroke-width: 2.2; color: var(--bordeaux); }
-.tab__label { font-size: 11px; font-weight: 600; letter-spacing: 0; white-space: nowrap; }
+.tab__label { font-size: 10.5px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; }
 
 /* ── En-têtes ─────────────────────────────────────────────────── */
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s3); margin: var(--s2) 0 var(--s2); }
@@ -763,10 +763,9 @@ img.avatar { object-fit: cover; }
 .tab::before { top: 7px; }
 html.in-browser .tabbar { padding-top: 0; }
 
-/* Accueil : logo centré, compteur à droite */
-.topbar--center { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
-.topbar--center > :last-child { justify-self: end; }
-.topbar--center .brand { font-size: 30px; }
+/* Accueil : grand logo à gauche, compteur à droite */
+.topbar--home { align-items: center; }
+.topbar--home .brand { font-size: 38px; line-height: 1; }
 
 /* Titres « Mon entraînement » : retour à la ligne propre sur deux lignes */
 .page-title { font-size: clamp(32px, 9.6vw, 42px); overflow-wrap: anywhere; hyphens: none; }
@@ -1000,3 +999,130 @@ html[data-theme="dark"] .music-tag--apple { color: #fb7185; }
 
 a.btn { text-decoration: none; }
 
+
+/* Bouton d'action dans l'en-tête de page (ex. « Calculer ma diet ») */
+.head-action {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 14px 6px 10px;
+  border-radius: var(--r-pill); background: var(--bordeaux); color: #fff; text-decoration: none;
+  font-size: 12.5px; font-weight: 700; line-height: 1.15; box-shadow: var(--shadow-card);
+}
+.head-action:active { transform: scale(.96); }
+.tab::before { width: 46px; margin-left: -23px; }
+
+/* ═══ Recadrage de la photo de profil ═══════════════════════════ */
+.crop { display: flex; flex-direction: column; align-items: center; gap: var(--s4); }
+.crop__stage { position: relative; overflow: hidden; border-radius: var(--r-lg); background: #000; touch-action: none; cursor: grab; -webkit-user-select: none; user-select: none; }
+.crop__stage:active { cursor: grabbing; }
+.crop__img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; will-change: transform; pointer-events: none; }
+.crop__mask { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 999px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.9); pointer-events: none; }
+.crop__bar { display: flex; align-items: center; gap: var(--s3); width: 100%; max-width: 300px; color: var(--stone); }
+.crop__zoom { flex: 1; accent-color: var(--bordeaux); height: 32px; }
+.crop .form__actions { width: 100%; }
+
+/* ═══ Accueil compact : tout tient sur un écran ═════════════════ */
+.home-head { margin-bottom: 0; }
+.home-head .topbar { margin-bottom: var(--s3); }
+.topbar--home .brand { font-size: 46px; line-height: .9; }
+.home-hello { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s3); }
+.home-hello .page-title { margin-top: 2px; }
+
+.msg-btn {
+  position: relative; flex-shrink: 0; display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 64px; padding: 8px 10px 6px; border-radius: var(--r-md);
+  background: var(--card); color: var(--ink-soft); box-shadow: var(--shadow-card); text-decoration: none;
+}
+.msg-btn--unread { background: var(--bordeaux); color: #fff; }
+.msg-btn:active { transform: scale(.95); }
+.msg-btn__label { font-size: 10.5px; font-weight: 700; }
+.msg-btn__badge {
+  position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px;
+  background: var(--ink-surface); color: var(--on-ink); border: 2px solid var(--paper);
+  font-size: 11px; font-weight: 800; display: grid; place-items: center;
+}
+
+.widget--compact { padding: 14px 16px; }
+.widget--compact .card__row { margin-bottom: 8px; }
+.widget--compact .link-btn { min-height: 28px; }
+
+/* Séance : une ligne  [nom / méta]  [✓]  [›] */
+.today-row { display: flex; align-items: center; gap: 10px; }
+.today-row__main { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.today-row .today-session__name { font-size: 34px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-session__name--sm { font-size: 28px; }
+.today-row__check {
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center;
+  color: var(--on-ink); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--on-ink) 35%, transparent);
+}
+.today-row__check:active { transform: scale(.9); background: var(--ok); box-shadow: none; }
+.today-row .today-session__go { width: 44px; height: 44px; }
+
+/* Amis : bandeau d'avatars (coche verte = entraîné aujourd'hui) */
+.fstrip { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px; }
+.fstrip::-webkit-scrollbar { display: none; }
+.fstrip__item { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 52px; flex-shrink: 0; color: var(--ink); text-decoration: none; }
+.fstrip__ava { position: relative; display: grid; }
+.fstrip__ava .avatar { width: 44px; height: 44px; font-size: 17px; opacity: .55; filter: grayscale(.5); }
+.fstrip__item--done .avatar { opacity: 1; filter: none; box-shadow: 0 0 0 2.5px var(--paper), 0 0 0 4.5px var(--ok); }
+.fstrip__ok { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; border: 2px solid var(--card); }
+.fstrip__name { font-size: 11px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+.records--one { margin-top: 6px; border-top: .5px solid var(--line); }
+.records--one .record { min-height: 48px; border-top: 0; }
+
+/* Protocole & habitudes compacts */
+.widget--compact .pr-list { margin-top: 0; }
+.widget--compact .pr-row { min-height: 48px; padding-top: 2px; padding-bottom: 2px; }
+.widget--compact .pr-row__name { font-size: 16px; }
+.widget--compact .pr-check { width: 36px; height: 36px; }
+.widget--compact .goal { min-height: 44px; padding: 2px 0; }
+.widget--compact .goal__check { width: 28px; height: 28px; }
+
+/* ═══ Protocole : catalogue de produits ═════════════════════════ */
+.pcards { display: flex; flex-direction: column; gap: 8px; }
+.pcard {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; color: var(--ink);
+  padding: 12px 12px 12px 0; border-radius: var(--r-lg); background: var(--card); box-shadow: var(--shadow-card); overflow: hidden;
+}
+.pcard:active { transform: scale(.99); }
+.pcard > .icon { color: var(--stone); flex-shrink: 0; }
+.pcard__bar { align-self: stretch; width: 5px; margin: -12px 0; background: var(--c); flex-shrink: 0; }
+.pcard__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pcard__name { font-weight: 700; font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+.pcard__dose { font-size: var(--fs-sm); color: var(--stone); }
+.pcard__slots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.pcard__slot {
+  display: inline-flex; align-items: baseline; gap: 2px; padding: 3px 9px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--c) 13%, transparent); color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.pcard__slot strong { color: var(--c); font-weight: 800; }
+.pcard__slot--none { background: var(--mist); color: var(--stone); font-style: italic; }
+
+/* ═══ Protocole : tableau de la semaine (produits × jours) ══════ */
+.plan { padding: 6px 8px 8px; overflow: hidden; }
+.plan__row { display: grid; grid-template-columns: minmax(84px, 1fr) repeat(7, 38px); align-items: stretch; gap: 3px; }
+.plan__row + .plan__row { margin-top: 3px; }
+.plan__row--head { margin-bottom: 2px; }
+.plan__corner { align-self: end; padding: 0 0 4px 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--stone); }
+.plan__wd { display: grid; place-items: center; height: 30px; border-radius: 9px; font-size: 12px; font-weight: 800; color: var(--stone); }
+.plan__wd--today { background: var(--ink-surface); color: var(--on-ink); }
+.plan__name { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 4px 4px; text-align: left; color: var(--ink); border-radius: 10px; }
+.plan__name:active { background: var(--paper); }
+.plan__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex-shrink: 0; }
+.plan__label { display: flex; flex-direction: column; min-width: 0; }
+.plan__pname { font-size: 13px; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan__dose { font-size: 10.5px; color: var(--stone); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan__cell {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-height: 44px; padding: 2px 0; border-radius: 10px; background: var(--paper);
+  transition: background-color var(--t-fast), transform 160ms var(--ease-spring);
+}
+.plan__cell:active { transform: scale(.9); }
+.plan__cell--today { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
+.plan__cell--on { background: var(--c); color: #fff; }
+.plan__time { font-size: 10.5px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.plan__more { font-size: 9px; font-weight: 700; opacity: .85; }
+.plan__plus { font-size: 16px; font-weight: 500; color: var(--line); line-height: 1; }
+html[data-theme="dark"] .plan__plus { color: var(--stone); opacity: .5; }
+@media (max-width: 380px) {
+  .plan__row { grid-template-columns: minmax(70px, 1fr) repeat(7, 34px); }
+  .plan__time { font-size: 9.5px; }
+}

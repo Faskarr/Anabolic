@@ -271,20 +271,14 @@ function MealCard(meal) {
 
 // ── Vue ─────────────────────────────────────────────────────────────────
 
-/** Lien vers le calculateur (BMR, dépense, sèche / maintien / prise de masse). */
-function CalcCta() {
-  return h('a', { class: 'card calc-cta', href: '#/diet/calc' },
-    h('span', { class: 'calc-cta__icon' }, icon('calc', 22)),
-    h('span', { class: 'calc-cta__body' },
-      h('span', { class: 'calc-cta__title' }, 'Calculer ma diet'),
-      h('span', { class: 'muted small' }, 'Métabolisme, dépense du jour, calories et macros selon ton objectif')),
-    icon('chevron', 20));
-}
-
 export function DietView() {
-  const header = PageHeader({ eyebrow: 'Alimentation', title: 'Ma nutrition' });
+  const header = PageHeader({
+    eyebrow: 'Alimentation', title: 'Ma nutrition',
+    trailing: h('a', { class: 'head-action', href: '#/diet/calc', 'aria-label': 'Calculer ma diet' },
+      icon('calc', 20), h('span', {}, 'Calculer', h('br'), 'ma diet')),
+  });
   if (!state.ready) return [header, Skeleton(4)];
-  if (!activeProfileId(CAT)) return [header, NoProfile(CAT, 'leaf'), CalcCta()];
+  if (!activeProfileId(CAT)) return [header, NoProfile(CAT, 'leaf')];
 
   const d = profileData(CAT);
   const totals = dietTotals(d);
@@ -299,6 +293,5 @@ export function DietView() {
       : Empty({ iconName: 'leaf', title: 'Aucun repas', text: 'Ajoute tes repas puis leurs aliments.' }),
     h('button', { class: 'btn btn--ghost btn--block add-btn', type: 'button', onclick: () => editMeal(null) },
       icon('plus', 18), 'Ajouter un repas'),
-    CalcCta(),
   ];
 }

@@ -12,6 +12,7 @@ import { weightStats } from './weight.js';
 import { Avatar } from '../ui/avatar.js';
 import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
 import { toast } from '../ui/toast.js';
+import { cropAvatar } from '../ui/cropper.js';
 import { getThemePref, setThemePref } from '../ui/theme.js';
 
 export const APP_VERSION = '0.9.0';
@@ -37,11 +38,15 @@ function AvatarPicker(user) {
     type: 'file', accept: 'image/*', class: 'sr-only', id: 'avatar-file',
     onchange: async () => {
       const file = input.files?.[0];
+      input.value = '';                 // permet de re-choisir la même photo
       if (!file) return;
+      let img;
+      try { img = await cropAvatar(file); } catch (err) { toast(err.message, { type: 'error' }); return; }
+      if (!img) return;                 // recadrage annulé
       uploading = true;
       window.dispatchEvent(new Event('app:render'));
       try {
-        await uploadMyAvatar(user.uid, file);
+        await uploadMyAvatar(user.uid, img);
         toast('Photo de profil mise à jour');
       } catch (err) {
         toast(err.message || 'Envoi impossible.', { type: 'error' });
@@ -92,10 +97,6 @@ export function MeView(session) {
         h('p', { class: 'profile-card__name' }, user.displayName || 'Athlète', isAdmin ? h('span', { class: 'badge badge--inline' }, 'Admin') : null),
         h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
         h('p', { class: 'muted small' }, 'Photo visible par tes amis et ton coach.'))),
-    h('a', { class: 'card goals-link', href: '#/me/goals' },
-      h('span', { class: 'menu-row__icon' }, icon('target', 20)),
-      h('span', { class: 'menu-row__label' }, 'Mes objectifs', h('span', { class: 'menu-row__sub' }, 'Quotidiens, hebdomadaires, mensuels')),
-      h('span', { class: 'menu-row__chevron' }, icon('chevron', 18))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),

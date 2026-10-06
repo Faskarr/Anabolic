@@ -6,7 +6,7 @@
 import { h } from '../lib/dom.js';
 import { greeting, formatShortDate, frNum, formatWeekdays } from '../lib/dates.js';
 import { nextMeal, nextProtocolItems, formatMinutes } from '../lib/schedule.js';
-import { state, activeProfileId, profileData, sessionWeekKey, sessionCount } from '../store.js';
+import { state, activeProfileId, profileData, sessionWeekKey, sessionCount, unreadCount } from '../store.js';
 import { LiveLogo } from '../ui/logo.js';
 import { Skeleton } from '../ui/layout.js';
 import { icon } from '../ui/icons.js';
@@ -53,39 +53,33 @@ function CoachSends(session) {
 
 // ── Messages ────────────────────────────────────────────────────────────
 
-function MessagesWidget(session) {
+/**
+ * Bouton messages compact (à droite du prénom) : pastille du nombre de non-lus,
+ * ouvre directement la bonne conversation quand il n'y en a qu'une.
+ */
+function MessagesButton(session) {
   const me = session.user.uid;
   const friendUnread = state.friendships.filter((f) => unreadFriend(f, me));
-  let title = 'Messages';
-  let text = 'Aucun message non lu';
-  let unread = false;
-  let href = '#/contact';
-
-  if (session.isAdmin) {
-    const n = (state.adminConversations || []).filter(unreadForAdmin).length;
-    if (n) { unread = true; href = '#/admin/messages'; text = `${n} conversation${n > 1 ? 's' : ''} d’utilisateur non lue${n > 1 ? 's' : ''}`; }
-  } else if (unreadForUser(state.conversation)) {
-    unread = true; href = '#/contact/coach'; title = 'Nouveau message du coach'; text = state.conversation.lastText || '';
-  }
   const requests = state.friendships.filter((f) => isIncoming(f, me));
-  if (!unread && requests.length) {
-    unread = true; href = '#/contact';
-    title = requests.length > 1 ? `${requests.length} demandes d’ami` : 'Demande d’ami';
-    text = requests.length > 1 ? 'À accepter ou refuser' : `${requests[0].names?.[friendOf(requests[0], me)] || 'Quelqu’un'} veut t’ajouter`;
+  let n = friendUnread.length + requests.length;
+  let href = '#/contact';
+  if (session.isAdmin) {
+    const a = (state.adminConversations || []).filter(unreadForAdmin).length;
+    if (a && !n) href = '#/admin/messages';
+    n += a;
+  } else if (unreadForUser(state.conversation)) {
+    if (!n) href = '#/contact/coach';
+    n += 1;
   }
-  if (!unread && friendUnread.length) {
-    const f = friendUnread[0];
-    unread = true;
-    if (friendUnread.length === 1) href = `#/friends/${encodeURIComponent(f.id)}`;
-    title = friendUnread.length > 1 ? `${friendUnread.length} amis t’ont écrit` : `Message de ${f.names?.[friendOf(f, me)] || 'ton ami'}`;
-    text = f.lastText || '';
-  }
-  return h('a', { class: `card widget coach-msg${unread ? '' : ' coach-msg--calm'}`, href },
-    h('span', { class: 'coach-msg__icon' }, icon('message', 22)),
-    h('span', { class: 'coach-msg__body' },
-      h('span', { class: 'eyebrow' }, title),
-      h('span', { class: 'coach-msg__text' }, text)),
-    icon('chevron', 20));
+  n = unreadCount();   // même total que la pastille de l'onglet Contact
+  if (n === 1 && friendUnread.length === 1) href = `#/friends/${encodeURIComponent(friendUnread[0].id)}`;
+  return h('a', {
+    class: `msg-btn${n ? ' msg-btn--unread' : ''}`, href,
+    'aria-label': n ? `${n} message${n > 1 ? 's' : ''} non lu${n > 1 ? 's' : ''}` : 'Messages',
+  },
+  icon('message', 22),
+  n ? h('span', { class: 'msg-btn__badge' }, n > 9 ? '9+' : String(n)) : null,
+  h('span', { class: 'msg-btn__label' }, n ? (n > 1 ? 'Nouveaux' : 'Nouveau') : 'Messages'));
 }
 
 // ── Amis entraînés aujourd'hui ──────────────────────────────────────────
@@ -97,35 +91,27 @@ function FriendsWidget(session) {
     return { f, uid, name: f.names?.[uid] || 'Ami', act: state.friendActivity[uid] };
   });
   if (!friends.length) {
-    return Widget({ eyebrow: 'Séances de mes amis', children: [
-      h('p', { class: 'muted' }, 'Ajoute tes partenaires d’entraînement avec leur code ami pour voir qui s’est entraîné chaque jour.'),
-      h('a', { class: 'btn btn--ghost btn--block', href: '#/contact' }, icon('plus', 18), 'Ajouter un ami')] });
+    return Widget({ eyebrow: 'Mes amis', cls: 'widget--compact', action: link('Ajouter', '#/contact'), children: [
+      h('p', { class: 'muted small' }, 'Ajoute tes partenaires avec leur code ami pour voir qui s’est entraîné.')] });
   }
-  // Ceux qui se sont entraînés d'abord.
   friends.sort((a, b) => Number(trainedToday(b.act)) - Number(trainedToday(a.act)));
   const trainedN = friends.filter((x) => trainedToday(x.act)).length;
-  const posts = recentPosts(7, 5);
-
+  const last = recentPosts(7, 1)[0];
   return Widget({
     eyebrow: 'Mes amis aujourd’hui',
+    cls: 'widget--compact',
     action: link(`${trainedN}/${friends.length} entraîné${trainedN > 1 ? 's' : ''}`, '#/contact'),
     children: [
-      h('ul', { class: 'friends-today' }, friends.map((x) => {
+      h('div', { class: 'fstrip' }, friends.slice(0, 7).map((x) => {
         const done = trainedToday(x.act);
-        return h('li', {},
-          h('a', { href: `#/friends/${encodeURIComponent(x.f.id)}` },
-            Avatar({ uid: x.uid, name: x.name, size: 'sm' }),
-            h('span', { class: 'friends-today__name' }, x.name),
-            done
-              ? h('span', { class: 'tag tag--ok' }, icon('check', 14), `Entraîné · ${x.act.sessionName || 'séance faite'}`)
-              : h('span', { class: 'tag' }, 'Pas encore')));
+        return h('a', {
+          class: `fstrip__item${done ? ' fstrip__item--done' : ''}`, href: `#/friends/${encodeURIComponent(x.f.id)}`,
+          'aria-label': `${x.name} : ${done ? `entraîné (${x.act.sessionName || 'séance faite'})` : 'pas encore entraîné'}`,
+        },
+        h('span', { class: 'fstrip__ava' }, Avatar({ uid: x.uid, name: x.name, size: 'sm' }), done ? h('span', { class: 'fstrip__ok' }, icon('check', 10)) : null),
+        h('span', { class: 'fstrip__name' }, x.name.split(' ')[0]));
       })),
-      h('div', { class: 'card__row', style: { marginTop: '18px', marginBottom: '4px' } },
-        h('p', { class: 'eyebrow' }, 'Partages de la semaine'),
-        h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow, 'aria-label': 'Partager un son' }, icon('music', 16), 'Un son')),
-      posts.length
-        ? h('ul', { class: 'records' }, posts.map((p) => PostRow(p, me)))
-        : h('p', { class: 'muted small' }, 'Partage un record depuis ton carnet de charges, ou ta musique du moment.'),
+      last ? h('ul', { class: 'records records--one' }, PostRow(last, me)) : null,
     ],
   });
 }
@@ -134,39 +120,29 @@ function FriendsWidget(session) {
 
 function TodaySession() {
   const { session, plannedToday, sessions, doneToday, pid } = nextSession();
-
   if (!sessions?.length) {
-    return Widget({ eyebrow: 'Séance du jour', children: [
-      h('p', { class: 'muted' }, 'Aucun programme pour le moment.'), cta('Créer mon programme', '#/training')] });
+    return Widget({ eyebrow: 'Séance du jour', cls: 'widget--compact', tone: 'ink', action: link('Créer', '#/training'), children: [
+      h('p', { class: 'today-session__meta' }, 'Aucun programme pour le moment.')] });
   }
-
-  const doneLine = doneToday.length
-    ? h('p', { class: 'today-session__done' }, icon('check', 16), `${doneToday.map((s) => s.name).join(', ')} terminée${doneToday.length > 1 ? 's' : ''} aujourd’hui`)
-    : null;
-
   if (!session) {
-    return Widget({ eyebrow: 'Séances de la semaine', tone: 'ink', action: link('Programme', '#/training'), children: [
-      doneLine,
-      h('p', { class: 'widget__title' }, 'Semaine bouclée'),
+    return Widget({ eyebrow: 'Séances de la semaine', cls: 'widget--compact', tone: 'ink', action: link('Programme', '#/training'), children: [
+      h('p', { class: 'today-session__name today-session__name--sm' }, 'Semaine bouclée ✓'),
       h('p', { class: 'today-session__meta' }, `${sessions.length}/${sessions.length} séances faites. Repos bien mérité.`)] });
   }
-
   const n = (session.exercises || []).length;
   return Widget({
-    eyebrow: plannedToday ? 'Séance du jour' : 'Prochaine séance',
+    eyebrow: doneToday.length ? `${doneToday.map((x) => x.name).join(', ')} faite · ensuite` : plannedToday ? 'Séance du jour' : 'Prochaine séance',
+    cls: 'widget--compact',
     tone: 'ink',
-    children: [
-      doneLine,
-      h('a', { class: 'today-session', href: '#/training', onclick: () => selectSession(session.id) },
-        h('span', {},
-          h('span', { class: 'today-session__name' }, session.name),
-          h('span', { class: 'today-session__meta' }, `${n} exercice${n > 1 ? 's' : ''}${session.weekdays?.length ? ` · ${formatWeekdays(session.weekdays)}` : ''}`)),
-        h('span', { class: 'today-session__go' }, icon('chevron', 22))),
+    children: h('div', { class: 'today-row' },
+      h('a', { class: 'today-row__main', href: '#/training', onclick: () => selectSession(session.id) },
+        h('span', { class: 'today-session__name' }, session.name),
+        h('span', { class: 'today-session__meta' }, `${n} exercice${n > 1 ? 's' : ''}${session.weekdays?.length ? ` · ${formatWeekdays(session.weekdays)}` : ''}`)),
       h('button', {
-        class: 'today-session__check', type: 'button',
+        class: 'today-row__check', type: 'button', 'aria-label': `Marquer ${session.name} comme faite`,
         onclick: () => setSessionDone(pid, session, true),
-      }, icon('check', 18), 'Marquer comme faite'),
-    ],
+      }, icon('check', 22)),
+      h('a', { class: 'today-session__go', href: '#/training', 'aria-label': `Ouvrir ${session.name}`, onclick: () => selectSession(session.id) }, icon('chevron', 22))),
   });
 }
 
@@ -175,8 +151,8 @@ function TodaySession() {
 function ProtocolWidget() {
   const pid = activeProfileId('protocol');
   if (!pid) {
-    return Widget({ eyebrow: 'Protocole', children: [
-      h('p', { class: 'muted' }, 'Aucun protocole pour le moment.'), cta('Créer mon protocole', '#/protocol')] });
+    return Widget({ eyebrow: 'Protocole', cls: 'widget--compact', action: link('Créer', '#/protocol'), children: [
+      h('p', { class: 'muted small' }, 'Aucun protocole pour le moment.')] });
   }
   const days = profileData('protocol').days || [];
   const dayOf = (it) => days.find((d) => (d.injections || []).includes(it));
@@ -186,6 +162,7 @@ function ProtocolWidget() {
   const progress = todayTotal ? `${todayDone}/${todayTotal} aujourd’hui` : null;
   return Widget({
     eyebrow: 'Prochaines prises',
+    cls: 'widget--compact',
     action: link(progress || 'Planning', '#/protocol'),
     children: items.length
       ? h('div', { class: 'pr-list' }, items.map(({ item, day, minutes, tomorrow }) => (tomorrow
@@ -265,22 +242,21 @@ function WeightWidget() {
 function GoalsWidget() {
   const goals = state.goals;
   if (!goals.items.length) {
-    return Widget({ eyebrow: 'Objectifs & habitudes', children: [
-      h('p', { class: 'muted' }, 'Fixe-toi des habitudes à cocher : pas, eau, sommeil, séances…'),
-      cta('Créer mes objectifs', '#/me/goals')] });
+    return Widget({ eyebrow: 'Habitudes', cls: 'widget--compact', action: link('Créer', '#/goals'), children: [
+      h('p', { class: 'muted small' }, 'Fixe-toi des habitudes à cocher : eau, sommeil, séances…')] });
   }
-  const { day, list, more } = GoalsCompact(goals);
+  const { day, list, more } = GoalsCompact(goals, 3);
   return Widget({
-    eyebrow: 'Objectifs & habitudes',
-    action: link(day.total ? `${day.done}/${day.total} aujourd’hui` : 'Tout voir', '#/me/goals'),
-    children: [list, more ? h('a', { class: 'link-btn', href: '#/me/goals', style: { marginTop: '8px' } }, `+ ${more} autre(s)`, icon('chevron', 16)) : null],
+    eyebrow: 'Habitudes du jour',
+    cls: 'widget--compact',
+    action: link(day.total ? `${day.done}/${day.total} aujourd’hui` : 'Tout voir', '#/goals'),
+    children: [list, more ? h('a', { class: 'link-btn', href: '#/goals', style: { marginTop: '8px' } }, `+ ${more} autre(s)`, icon('chevron', 16)) : null],
   });
 }
 
 // ── Widgets personnalisables ────────────────────────────────────────────
 
 export const WIDGETS = {
-  messages: { label: 'Messages',              icon: 'message',  render: (s) => MessagesWidget(s) },
   session:  { label: 'Séance du jour',        icon: 'dumbbell', render: () => TodaySession() },
   goals:    { label: 'Objectifs & habitudes', icon: 'target',   render: () => GoalsWidget() },
   friends:  { label: 'Amis, records & sons',  icon: 'user',     render: (s) => FriendsWidget(s) },
@@ -288,11 +264,13 @@ export const WIDGETS = {
   diet:     { label: 'Prochain repas',        icon: 'leaf',     render: () => DietWidget() },
   weight:   { label: 'Poids',                 icon: 'scale',    render: () => WeightWidget() },
 };
-const DEFAULT_ORDER = ['messages', 'session', 'goals', 'friends', 'protocol', 'diet', 'weight'];
+const DEFAULT_ORDER = ['session', 'friends', 'protocol', 'goals', 'diet', 'weight'];
+/** Masqués tant que l'accueil n'a pas été personnalisé (pour tenir sur un écran). */
+const DEFAULT_HIDDEN = ['diet', 'weight'];
 
 /** Widgets visibles, dans l'ordre choisi (les nouveaux widgets s'ajoutent à la fin). */
 function layout(home = state.home) {
-  const hidden = new Set((home.hidden || []).filter((id) => WIDGETS[id]));
+  const hidden = new Set((home.order ? home.hidden || [] : DEFAULT_HIDDEN).filter((id) => WIDGETS[id]));
   const order = (home.order || DEFAULT_ORDER).filter((id, i, a) => WIDGETS[id] && a.indexOf(id) === i);
   // Widget ajouté dans une nouvelle version : inséré à sa place par défaut.
   DEFAULT_ORDER.forEach((id, i) => { if (!order.includes(id) && !hidden.has(id)) order.splice(Math.min(i, order.length), 0, id); });
@@ -327,7 +305,7 @@ function customize() {
         h('span', { class: 'wedit__label' }, WIDGETS[id].label),
         h('span', { class: 'wedit__plus' }, icon('plus', 18), 'Ajouter')))),
       ] : null,
-      h('button', { class: 'btn btn--quiet btn--block', type: 'button', style: { marginTop: '16px' }, onclick: () => save([...DEFAULT_ORDER], []) },
+      h('button', { class: 'btn btn--quiet btn--block', type: 'button', style: { marginTop: '16px' }, onclick: () => save([...DEFAULT_ORDER], [...DEFAULT_HIDDEN]) },
         icon('reset', 18), 'Disposition par défaut'));
   }
   draw();
@@ -337,22 +315,24 @@ function customize() {
 export function HomeView(session) {
   const first = (session.user.displayName || '').split(' ')[0];
   const head = h('header', { class: 'home-head' },
-    h('div', { class: 'topbar topbar--center' },
-      h('span', { 'aria-hidden': 'true' }),
+    h('div', { class: 'topbar topbar--home' },
       LiveLogo(),
-      h('a', { class: 'counter', href: '#/training', 'aria-label': 'Séances effectuées' },
-        h('span', { class: 'counter__value' }, String(sessionCount())), h('span', { class: 'counter__label' }, 'séances'))),
-    h('p', { class: 'eyebrow' }, `${greeting()} · ${formatShortDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`),
-    h('h1', { class: 'page-title' }, first || 'Athlète'));
+      h('div', { class: 'row-gap' },
+        h('a', { class: 'counter', href: '#/training', 'aria-label': 'Séances effectuées' },
+          h('span', { class: 'counter__value' }, String(sessionCount())), h('span', { class: 'counter__label' }, 'séances')),
+        h('button', { class: 'icon-btn icon-btn--soft', type: 'button', 'aria-label': 'Personnaliser l’accueil', onclick: customize }, icon('layout', 20)))),
+    h('div', { class: 'home-hello' },
+      h('div', { style: { minWidth: 0 } },
+        h('p', { class: 'eyebrow' }, `${greeting()} · ${formatShortDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`),
+        h('h1', { class: 'page-title' }, first || 'Athlète')),
+      state.ready ? MessagesButton(session) : null));
 
   if (!state.ready) return [head, Skeleton(5)];
   const { visible } = layout();
   return [
     head,
     InstallCard(),               // seulement hors app installée
-    CoachSends(session),         // envois du coach : toujours visibles en haut
+    CoachSends(session),         // envois du coach : visibles en haut quand il y en a
     visible.map((id) => WIDGETS[id].render(session)),
-    h('button', { class: 'btn btn--quiet btn--block home-edit', type: 'button', onclick: customize },
-      icon('layout', 18), 'Personnaliser l’accueil'),
   ];
 }

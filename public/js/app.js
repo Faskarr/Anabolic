@@ -74,7 +74,8 @@ const ROUTES = {
   me:             { view: MeView },
   'me/weight':    { view: WeightView },
   'me/share':     { view: ShareView },
-  'me/goals':     { view: GoalsView },
+  goals:          { view: GoalsView },
+  'me/goals':     { view: GoalsView },   // ancien lien
   // Contact = messagerie : coach (ou messages des utilisateurs pour l'admin) + amis.
   contact:          { view: MessagesHubView },
   'contact/coach':  { view: ContactView, leave: leaveContact, chat: true },

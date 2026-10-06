@@ -82,6 +82,13 @@ export function normalizeDiet(raw) {
 
 export function normalizeProtocol(raw) {
   return {
+    // Catalogue de produits (nouveau format) ; absent des anciennes données.
+    products: arr(raw?.products).slice(0, 60).map((p) => ({
+      id: id(p?.id, 'prd'),
+      name: str(p?.name, 120) || 'Produit',
+      dose: str(p?.dose, 120),
+      color: /^#[0-9a-f]{6}$/i.test(str(p?.color, 7)) ? str(p.color, 7) : undefined,
+    })).map(compact),
     days: arr(raw?.days).slice(0, 31).map((d) => compact({
       id: id(d?.id, 'day'),
       name: str(d?.name, 60) || 'Jour',
@@ -93,6 +100,7 @@ export function normalizeProtocol(raw) {
         name: str(i?.name, 120) || 'Produit',
         type: str(i?.type, 120),
         time: str(i?.time, 40),
+        ...(i?.pid ? { pid: id(i.pid, 'prd') } : {}),
       })),
     })),
   };

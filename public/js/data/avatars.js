@@ -4,7 +4,6 @@
  * Cache mémoire : une seule lecture par utilisateur et par session.
  */
 import { db, fs } from '../firebase.js';
-import { squareJpeg } from '../lib/image.js';
 
 const { doc, getDoc, setDoc, deleteDoc, serverTimestamp } = fs;
 
@@ -25,9 +24,9 @@ export function avatarOf(uid) {
   return null;
 }
 
-/** Compresse et enregistre MA photo. */
-export async function uploadMyAvatar(uid, file) {
-  const img = await squareJpeg(file);
+/** Enregistre MA photo (JPEG carré déjà recadré, en data URL). */
+export async function uploadMyAvatar(uid, img) {
+  if (!/^data:image\/jpeg;base64,/.test(img) || img.length >= 150000) throw new Error('Image invalide.');
   await setDoc(doc(db, 'avatars', uid), { img, at: serverTimestamp() });
   cache.set(uid, img);
   rerender();

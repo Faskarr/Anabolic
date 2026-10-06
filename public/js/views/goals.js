@@ -100,14 +100,15 @@ export function GoalsBoard({ goals, onToggle, onEdit, onAdd }) {
 }
 
 /** Version compacte pour l'accueil : objectifs du jour + de la semaine. */
-export function GoalsCompact(goals) {
-  const list = (goals?.items || []).filter((x) => x.period !== 'month' || !isDone(goals, x));
+export function GoalsCompact(goals, max = 6) {
+  const list = (goals?.items || []).filter((x) => x.period !== 'month' || !isDone(goals, x))
+    .sort((a, b) => PERIOD_ORDER.indexOf(a.period) - PERIOD_ORDER.indexOf(b.period));
   const day = progress(goals, 'day');
   return {
     day,
     list: h('div', { class: 'goals goals--compact' },
-      list.slice(0, 6).map((x) => GoalRow(goals, x, { onToggle: (it) => toggleGoal(it), compact: true }))),
-    more: Math.max(0, list.length - 6),
+      list.slice(0, max).map((x) => GoalRow(goals, x, { onToggle: (it) => toggleGoal(it), compact: true }))),
+    more: Math.max(0, list.length - max),
   };
 }
 
@@ -118,10 +119,7 @@ export function GoalsView() {
   const items = goals.items || [];
   const add = (period) => editGoal(null, apply, period);
   return [
-    PageHeader({
-      eyebrow: 'Habitudes', title: 'Mes objectifs',
-      trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
-    }),
+    PageHeader({ eyebrow: 'Objectifs', title: 'Mes habitudes' }),
     items.length
       ? GoalsBoard({ goals, onToggle: (it) => toggleGoal(it), onEdit: (it) => editGoal(it, apply), onAdd: add })
       : Empty({ iconName: 'target', title: 'Aucun objectif', text: 'Ajoute des habitudes à cocher chaque jour, chaque semaine ou chaque mois.', actionLabel: 'Ajouter un objectif', onAction: () => add('day') }),

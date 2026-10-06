@@ -135,9 +135,8 @@ export function suggestLoad(ex, logs = state.exlogs[ex.id] || []) {
   return { w: topW, r: Math.min(max, Math.max(min, repsAtTop + 1)), up: false };
 }
 
-/** Recherche vidéo de l'exercice : ouvre TikTok / YouTube (l'app si installée). */
+/** Recherche vidéo de l'exercice : ouvre YouTube (l'app si installée). */
 const VIDEO = {
-  tiktok:  { label: 'TikTok',  url: (q) => `https://www.tiktok.com/search?q=${encodeURIComponent(q)}` },
   youtube: { label: 'YouTube', url: (q) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}` },
 };
 
@@ -415,7 +414,7 @@ function ExerciseCard(session, ex, index, total, ssLabel) {
       IconButton('more', `Options de ${ex.n}`, more, 'icon-btn--ghost exercise__more')),
     h('div', { class: 'exercise__video' },
       h('span', { class: 'exercise__video-label' }, 'Technique'),
-      VideoButton('tiktok', ex.n), VideoButton('youtube', ex.n)));
+      VideoButton('youtube', ex.n)));
 }
 
 /** Liste des exercices : les supersets sont regroupés dans un même cadre relié. */
