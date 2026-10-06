@@ -93,7 +93,7 @@ function FxToggle() {
   input.checked = ambientEnabled();
   return h('label', { class: 'theme-row', for: 'fx-cracks', style: { position: 'relative' } },
     h('span', { class: 'menu-row__icon' }, icon('flame', 20)),
-    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Halos de couleur en mouvement')),
+    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Étoiles filantes')),
     input, h('span', { class: 'switch', 'aria-hidden': 'true' }));
 }
 

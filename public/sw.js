@@ -1,17 +1,20 @@
 /**
- * Service worker AnabolicOS.
+ * Service worker AnabolicOS — démarrage instantané.
  *
  * Stratégies :
- *  • Fichiers de l'app (même origine) : réseau d'abord, cache en secours
- *    → une mise à jour déployée est visible dès la réouverture, et l'app
- *      s'ouvre quand même hors ligne.
- *  • SDK Firebase (gstatic, URL versionnée) et polices : cache d'abord
- *    → ces fichiers ne changent jamais pour une version donnée.
+ *  • Fichiers de l'app (même origine) : CACHE D'ABORD. Chaque version (VERSION)
+ *    est téléchargée EN ENTIER à l'installation du service worker, puis servie
+ *    depuis le téléphone → plus aucune requête réseau au lancement, et jamais de
+ *    mélange ancienne / nouvelle version (cause des pages blanches).
+ *  • Nouvelle version déployée : le navigateur la détecte (sw.js modifié), la
+ *    télécharge en arrière-plan, puis l'app se recharge d'elle-même si elle
+ *    vient d'être ouverte, ou propose « Recharger » (voir app.js).
+ *  • SDK Firebase (gstatic, URL versionnée) : cache d'abord.
  *  • Tout le reste (API Firestore, Auth, /__/auth/…) : NON intercepté.
  *
- * Incrémente VERSION pour forcer la purge des anciens caches.
+ * Incrémente VERSION à chaque déploiement (fait automatiquement avec la liste).
  */
-const VERSION = 'v13';
+const VERSION = 'v7d466ef637';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
@@ -84,8 +87,13 @@ const APP_SHELL = [
 const CDN_HOSTS = ['www.gstatic.com'];
 
 self.addEventListener('install', (event) => {
+  // cache: 'reload' → on télécharge vraiment la nouvelle version (pas le cache HTTP).
+  // Si un seul fichier manque, l'installation échoue et l'ancienne version reste
+  // servie intacte : pas de page blanche.
   event.waitUntil(
-    caches.open(APP_CACHE).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches.open(APP_CACHE)
+      .then((c) => c.addAll(APP_SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -105,7 +113,7 @@ self.addEventListener('fetch', (event) => {
 
   // Same origin, hors routes réservées Firebase.
   if (url.origin === self.location.origin && !url.pathname.startsWith('/__/')) {
-    event.respondWith(networkFirst(request));
+    event.respondWith(appFirst(request, event));
     return;
   }
   if (CDN_HOSTS.includes(url.hostname)) {
@@ -114,18 +122,22 @@ self.addEventListener('fetch', (event) => {
   // Sinon : laisser passer (Firestore, Auth, Google…).
 });
 
-async function networkFirst(request) {
+/**
+ * Cache d'abord pour les fichiers de l'app (version complète téléchargée à
+ * l'installation). Fichier absent du cache (ex. image) : réseau, puis mis en cache.
+ */
+async function appFirst(request, event) {
   const cache = await caches.open(APP_CACHE);
+  const url = new URL(request.url);
+  const key = request.mode === 'navigate' ? '/' : url.pathname;
+  const cached = await cache.match(key, { ignoreSearch: true });
+  if (cached) return cached;
   try {
-    // cache: 'no-cache' → revalidation systématique auprès du serveur
-    // (évite qu'iOS serve un index.html périmé avec du JS récent).
-    const response = await fetch(request, { cache: 'no-cache' });
-    if (response.ok) cache.put(request, response.clone());
+    const response = await fetch(request);
+    if (response.ok && request.mode !== 'navigate') event.waitUntil(cache.put(request, response.clone()));
     return response;
   } catch {
-    const cached = await cache.match(request, { ignoreSearch: true })
-      || (request.mode === 'navigate' ? await cache.match('/') : undefined);
-    return cached || Response.error();
+    return (await cache.match('/')) || Response.error();
   }
 }
 
