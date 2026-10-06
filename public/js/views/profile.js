@@ -9,7 +9,7 @@
 import { h } from '../lib/dom.js';
 import { frNum, formatWeekdays, formatShortDate } from '../lib/dates.js';
 import { state } from '../store.js';
-import { watchShared } from '../data/shared.js';
+import { watchShared, SHARE_ITEMS, sharePrefs, setSharePrefs, setNote, myNote, cleanNote } from '../data/shared.js';
 import { watchPosts } from '../data/posts.js';
 import { friendOf, isAccepted, pairOf } from '../data/friends.js';
 import { normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schema.js';
@@ -18,7 +18,7 @@ import { PageHeader, IconButton, Skeleton } from '../ui/layout.js';
 import { Avatar } from '../ui/avatar.js';
 import { PostRow } from '../ui/feed.js';
 import { icon } from '../ui/icons.js';
-import { confirmSheet } from '../ui/sheet.js';
+import { confirmSheet, formSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { dietTotals } from './diet.js';
 import { trainedToday } from './messages-hub.js';
@@ -59,6 +59,31 @@ async function copyToMine(cat, data, title, owner) {
   if (!(await confirmSheet({ title: `Ajouter ce ${label} ?`, message: `« ${name} » sera ajouté à tes ${label}s et activé. Rien n’est remplacé.`, confirmLabel: 'Ajouter', danger: false }))) return;
   applyImport({ name, [cat]: structuredClone(data) }, { [cat]: true });
   toast(`${label[0].toUpperCase()}${label.slice(1)} « ${name} » ajouté`);
+}
+
+/** Ce que voient mes amis (rien n'est envoyé sans être coché). */
+async function editSharing() {
+  const cur = sharePrefs();
+  const r = await formSheet({
+    title: 'Ce que voient mes amis',
+    subtitle: 'Sur ton profil. Tes records et sons partagés y apparaissent toujours. Ce qui n’est pas coché n’est jamais envoyé.',
+    fields: SHARE_ITEMS.map(([key, label, hint]) => ({ name: key, type: 'toggle', label, hint, value: cur[key] })),
+    submitLabel: 'Enregistrer',
+  });
+  if (!r?.values) return;
+  try { await setSharePrefs(r.values); toast('Partage mis à jour'); } catch { toast('Enregistrement impossible. Vérifie ta connexion.', { type: 'error' }); }
+}
+
+/** Note affichée en haut de mon profil (humeur, objectif du moment…). */
+async function editNote(current) {
+  const r = await formSheet({
+    title: 'Ma note',
+    subtitle: 'Affichée en haut de ton profil pour tes amis. Laisse vide pour la retirer.',
+    fields: [{ name: 'note', type: 'textarea', label: 'Note', maxlength: 200, value: current || '', placeholder: 'Ex. Objectif 140 kg au DC avant l’été 💪' }],
+    submitLabel: 'Publier',
+  });
+  if (!r?.values) return;
+  try { await setNote(r.values.note); toast(cleanNote(r.values.note) ? 'Note publiée' : 'Note retirée'); } catch { toast('Enregistrement impossible. Vérifie ta connexion.', { type: 'error' }); }
 }
 
 const Stat = (value, label) => h('div', { class: 'pstat' }, h('span', { class: 'pstat__value' }, value), h('span', { class: 'pstat__label' }, label));
@@ -135,7 +160,7 @@ export function ProfileView(session, uid) {
         : h('p', { class: 'muted small' }, isMe ? 'Voici ce que voient tes amis.' : 'Pas encore entraîné aujourd’hui.'),
       h('div', { class: 'phero__actions' },
         isMe
-          ? h('a', { class: 'btn btn--ghost', href: '#/me' }, icon('edit', 16), 'Choisir ce que je partage')
+          ? h('button', { class: 'btn btn--ghost', type: 'button', onclick: editSharing }, icon('eye', 16), 'Ce que voient mes amis')
           : h('a', { class: 'btn btn--ghost', href: `#/friends/${encodeURIComponent(f.id)}` }, icon('message', 16), 'Message'))));
 
   if (sh === undefined && !view.denied) return [header, hero, Skeleton(3)];
@@ -147,8 +172,7 @@ export function ProfileView(session, uid) {
   const weight = sh?.weight && Number(sh.weight.kg) > 0 ? sh.weight : null;
   const posts = (view.posts || []);
   const prs = posts.filter((x) => x.type === 'pr');
-  const music = posts.filter((x) => x.type === 'music');
-
+  const noteText = cleanNote(sh?.note ?? (isMe ? myNote() : ''));
   const stats = [
     Number.isInteger(sh?.sessions) ? Stat(String(sh.sessions), 'séances') : null,
     weight ? Stat(`${frNum(weight.kg, weight.kg % 1 ? 1 : 0)} kg`, weight.date ? `poids · ${formatShortDate(weight.date, { day: 'numeric', month: 'short' })}` : 'poids') : null,
@@ -157,21 +181,24 @@ export function ProfileView(session, uid) {
   ].filter(Boolean);
 
   const nothing = !w && !d && !p && !weight && !Number.isInteger(sh?.sessions);
+  const noteCard = noteText || isMe ? h('section', { class: `card pnote${noteText ? '' : ' pnote--empty'}` },
+    h('p', { class: 'pnote__text' }, noteText || 'Ajoute une note pour tes amis : ton objectif, ta prépa, ton mood du moment…'),
+    isMe ? h('button', { class: 'link-btn pnote__edit', type: 'button', onclick: () => editNote(noteText) }, icon('edit', 15), noteText ? 'Modifier' : 'Écrire une note') : null) : null;
+
   return [
     header,
     hero,
+    noteCard,
     h('div', { class: 'pstats' }, stats),
-    prs.length ? h('section', { class: 'card pcard-sec' },
-      h('p', { class: 'eyebrow' }, icon('flame', 13), ' Records partagés'),
-      h('ul', { class: 'records' }, prs.map((x) => PostRow(x, me)))) : null,
-    music.length ? h('section', { class: 'card pcard-sec' },
-      h('p', { class: 'eyebrow' }, icon('music', 13), ' Sons partagés'),
-      h('ul', { class: 'records' }, music.map((x) => PostRow(x, me)))) : null,
+    // Records et sons réunis, du plus récent au plus ancien.
+    posts.length ? h('section', { class: 'card pcard-sec' },
+      h('p', { class: 'eyebrow' }, icon('flame', 13), ' Records & sons partagés'),
+      h('ul', { class: 'records' }, posts.map((x) => PostRow(x, me)))) : null,
     w ? WorkoutCard(w, first, isMe) : null,
     d ? DietCard(d, first, isMe) : null,
     p ? ProtocolCard(p, first, isMe) : null,
     nothing ? h('p', { class: 'muted center' }, isMe
-      ? 'Tu ne partages rien pour l’instant. Choisis quoi montrer dans Moi › Ce que voient mes amis.'
+      ? 'Tu ne partages rien pour l’instant. Touche « Ce que voient mes amis » en haut pour choisir.'
       : `${first} ne partage pas encore son programme, sa diet ou son protocole.`) : null,
   ];
 }

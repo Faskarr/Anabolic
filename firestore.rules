@@ -152,8 +152,9 @@ service cloud.firestore {
         && d.get('diet', {}) is map
         && d.get('protocol', {}) is map
         && d.get('updatedAt', request.time) is timestamp
-        && d.keys().hasOnly(['name', 'share', 'sessions', 'weight', 'workout', 'diet', 'protocol', 'updatedAt'])
-        && isShortString(d.get('name', ''), 120);
+        && d.keys().hasOnly(['name', 'note', 'share', 'sessions', 'weight', 'workout', 'diet', 'protocol', 'updatedAt'])
+        && isShortString(d.get('name', ''), 120)
+        && isShortString(d.get('note', ''), 200);
     }
     // Conversation avec le coach, écrite par l'utilisateur.
     function isUserConv(d) {

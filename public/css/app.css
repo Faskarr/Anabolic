@@ -1416,3 +1416,9 @@ html[data-theme="dark"] .music-tag--youtube { color: #f87171; }
 .plist li + li { border-top: .5px solid var(--line); }
 .plist__main { min-width: 0; overflow-wrap: anywhere; }
 .plist__meta { color: var(--stone); font-size: 13px; text-align: right; flex-shrink: 0; max-width: 50%; }
+
+/* Note en haut du profil */
+.pnote { background: var(--bordeaux-tint); box-shadow: none; }
+.pnote__text { margin: 0; font-size: 16.5px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+.pnote--empty .pnote__text { color: var(--stone); font-size: 15px; }
+.pnote__edit { margin-top: 8px; }

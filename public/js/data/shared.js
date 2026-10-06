@@ -1,6 +1,6 @@
 /**
  * Profil visible par les amis : shared/{uid}
- *   { name, share: { sessions, weight, diet, workout, protocol },
+ *   { name, note?, share: { sessions, weight, diet, workout, protocol },
  *     sessions?, weight?: { kg, date }, diet?: {...}, workout?: {...}, protocol?: {...}, updatedAt }
  *
  * CONFIDENTIALITÉ : seul ce que l'utilisateur a choisi de partager est ÉCRIT dans
@@ -41,6 +41,7 @@ function stable(v) {
 const withoutStamp = ({ updatedAt, ...rest }) => rest;
 
 let prefs = null;        // préférences connues (null = pas encore lues)
+let note = '';           // note affichée en haut de mon profil
 let lastSent = null;     // dernier contenu écrit (JSON stable)
 let timer = 0;
 let unsub = null;
@@ -54,6 +55,7 @@ function nameOf(cat) {
 /** Contenu à publier, d'après les préférences (rien de ce qui n'est pas coché). */
 function build() {
   const out = { name: String(state.me?.displayName || 'Ami').slice(0, 120), share: { ...prefs } };
+  if (note) out.note = note;
   if (prefs.sessions) out.sessions = Math.max(0, Math.round(sessionCount() || 0));
   if (prefs.weight) {
     const last = [...(state.weights || [])].sort((a, b) => (a.date < b.date ? -1 : 1)).at(-1);
@@ -67,16 +69,18 @@ function build() {
 
 async function publish() {
   timer = 0;
-  if (!uid || !prefs || state.uid !== uid) return;
+  if (!uid || !prefs || state.uid !== uid) return false;
   const data = build();
   const json = stable(data);
-  if (json === lastSent) return;            // rien n'a changé : aucune écriture
+  if (json === lastSent) return true;       // rien n'a changé : aucune écriture
   lastSent = json;
   try {
     await setDoc(ref(uid), { ...data, updatedAt: serverTimestamp() });
+    return true;
   } catch (err) {
     lastSent = null;                         // réessaiera au prochain changement
     console.warn('[shared] publication', err);
+    return false;
   }
 }
 const schedule = (ms) => { clearTimeout(timer); timer = setTimeout(publish, ms); };
@@ -91,6 +95,7 @@ export function startSharedPublisher(myUid) {
     try { const s = await getDoc(ref(myUid)); current = s.exists() ? s.data() : null; } catch { /* hors ligne */ }
     if (uid !== myUid) return;
     prefs = { ...DEFAULT_SHARE, ...(current?.share || {}) };
+    note = cleanNote(current?.note);
     lastSent = current ? stable(withoutStamp(current)) : null;
     schedule(1500);
     unsub = subscribe(() => schedule(4000));
@@ -100,7 +105,21 @@ export function startSharedPublisher(myUid) {
 export function stopSharedPublisher() {
   clearTimeout(timer);
   unsub?.(); unsub = null;
-  uid = null; prefs = null; lastSent = null;
+  uid = null; prefs = null; lastSent = null; note = '';
+}
+
+/** Note de profil : 200 caractères max, sans caractères de contrôle (sauts de ligne gardés). */
+export function cleanNote(v) {
+  return String(v || '').replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 200);
+}
+export const myNote = () => note;
+
+/** Enregistre la note affichée en haut de mon profil (vide = aucune). */
+export async function setNote(text) {
+  note = cleanNote(text);
+  if (!prefs) prefs = { ...DEFAULT_SHARE };
+  clearTimeout(timer);
+  if (!(await publish())) throw new Error('Enregistrement impossible.');
 }
 
 export const sharePrefs = () => ({ ...DEFAULT_SHARE, ...(prefs || {}) });
@@ -109,7 +128,7 @@ export const sharePrefs = () => ({ ...DEFAULT_SHARE, ...(prefs || {}) });
 export async function setSharePrefs(next) {
   prefs = { ...DEFAULT_SHARE, ...next };
   clearTimeout(timer);
-  await publish();
+  if (!(await publish())) throw new Error('Enregistrement impossible.');
 }
 
 /** Profil partagé d'un utilisateur (ami ou soi-même), en temps réel. */
