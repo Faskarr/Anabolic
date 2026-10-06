@@ -105,7 +105,7 @@
   max-width: 480px; width: 100%;
   padding: var(--s3) var(--s4);
   border-radius: var(--r-md);
-  background: var(--ink); color: var(--paper);
+  background: var(--ink-surface); color: var(--on-ink);
   box-shadow: var(--shadow-float);
   font-size: var(--fs-sm);
   animation: toast-in var(--t-base) var(--ease-spring) both;

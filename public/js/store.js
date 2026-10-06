@@ -19,6 +19,8 @@ import { watchPendingInbox } from './data/inbox.js';
 import { watchUsers } from './data/admin.js';
 import { watchFriendships, watchActivity, unreadFriend, friendOf, isAccepted, isIncoming } from './data/friends.js';
 import { watchPosts } from './data/posts.js';
+import { emptyGoals, normalizeGoals } from './data/goals.js';
+import { normalizeSteps } from './data/steps.js';
 
 const { doc, onSnapshot } = fs;
 
@@ -42,6 +44,9 @@ export const state = {
   exlogs: {},       // { [exerciseId]: [{ ts, d, w, r }] }
   counterBase: 0,
   week: {},         // cases cochées de la semaine courante
+  goals: emptyGoals(),                 // objectifs & habitudes { items, done }
+  steps: { log: {}, goal: 10000 },     // nombre de pas { log: { dYYYYMMDD: n }, goal }
+  home: { order: null, hidden: [] },   // personnalisation des widgets de l'accueil
   weekKey: weekKey(),
   conversation: null,        // ma conversation avec l'admin (métadonnées)
   inbox: [],                 // envois du coach en attente
@@ -98,6 +103,14 @@ const DOC_HANDLERS = {
   weights:  (d) => { state.weights = Array.isArray(d?.log) ? d.log : []; },
   exlogs:   (d) => { state.exlogs = d?.logs || {}; },
   counter:  (d) => { state.counterBase = Number(d?.base) || 0; },
+  goals:    (d) => { state.goals = normalizeGoals(d); },
+  steps:    (d) => { state.steps = normalizeSteps(d); },
+  home:     (d) => {
+    state.home = {
+      order: Array.isArray(d?.order) ? d.order.filter((x) => typeof x === 'string').slice(0, 30) : null,
+      hidden: Array.isArray(d?.hidden) ? d.hidden.filter((x) => typeof x === 'string').slice(0, 30) : [],
+    };
+  },
 };
 
 function listen(ref, apply) {
@@ -199,6 +212,7 @@ export function stopStore() {
   Object.assign(state, {
     uid: null, ready: false, profiles: emptyProfiles(), workouts: {}, diet: {}, protocol: {},
     weights: [], exlogs: {}, counterBase: 0, week: {}, error: null,
+    goals: emptyGoals(), home: { order: null, hidden: [] }, steps: { log: {}, goal: 10000 },
     conversation: null, adminConversations: null, inbox: [], adminUsers: null,
     me: null, friendships: [], friendActivity: {}, posts: {},
   });

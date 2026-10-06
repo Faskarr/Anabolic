@@ -11,6 +11,7 @@ import {
 import { PageHeader, IconButton, Skeleton, Empty } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
 import { icon } from '../ui/icons.js';
+import { Avatar } from '../ui/avatar.js';
 
 // ── Boîte de réception ──────────────────────────────────────────────────
 
@@ -23,7 +24,6 @@ const FILTERS = [
 const inbox = { filter: 'all', search: '' };
 
 const rerender = () => window.dispatchEvent(new Event('app:render'));
-const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
 
 export function AdminInboxView() {
   const header = PageHeader({
@@ -67,7 +67,7 @@ export function AdminInboxView() {
       ? h('nav', { class: 'card card--flush', 'aria-label': 'Conversations' }, shown.map((c) => {
         const isUnread = unreadForAdmin(c);
         return h('a', { class: `conv${isUnread ? ' conv--unread' : ''}`, href: `#/admin/conv/${encodeURIComponent(c.id)}` },
-          h('span', { class: 'avatar', 'aria-hidden': 'true' }, initial(c.userName)),
+          Avatar({ uid: c.id, name: c.userName }),   // l'admin lit toutes les photos (règles)
           h('span', { class: 'conv__body' },
             h('span', { class: 'conv__top' },
               h('span', { class: 'conv__name' }, c.userName || 'Utilisateur'),
@@ -109,7 +109,9 @@ export function AdminConversationView(session, uid) {
   const header = PageHeader({
     eyebrow: 'Conversation',
     title: conv?.userName || 'Utilisateur',
-    trailing: IconButton('back', 'Retour aux messages', () => { history.length > 1 ? history.back() : (location.hash = '#/admin/messages'); }, 'icon-btn--soft'),
+    trailing: h('div', { class: 'row-gap' },
+      h('a', { href: `#/admin/user/${encodeURIComponent(uid)}`, 'aria-label': 'Voir la fiche' }, Avatar({ uid, name: conv?.userName })),
+      IconButton('back', 'Retour aux messages', () => { history.length > 1 ? history.back() : (location.hash = '#/admin/messages'); }, 'icon-btn--soft')),
   });
 
   if (messages === null) return [header, Skeleton(3)];

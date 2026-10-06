@@ -19,7 +19,7 @@ import { icon } from '../ui/icons.js';
 const CAT_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
 
 // État local de l'écran (survit aux re-rendus déclenchés par le store).
-const ui = { mode: 'profile', cat: 'workout', pid: null, importText: '', parsed: null, pick: {}, error: null };
+const ui = { mode: 'profile', cat: 'workout', pid: null, importText: '', importName: '', parsed: null, pick: {}, error: null };
 
 // ── Export ──────────────────────────────────────────────────────────────
 
@@ -136,6 +136,8 @@ function analyse(text) {
       weights: false,   // décoché par défaut : on n'importe pas le poids d'un autre par erreur
       counter: false,
     };
+    // Nom du (des) profil(s) importé(s) — modifiable avant l'import.
+    ui.importName = b.name || `Import ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
   } catch (err) {
     ui.error = err.message;
   }
@@ -189,11 +191,19 @@ function ImportCard() {
         const cb = h('input', { type: 'checkbox', checked: ui.pick[key], onchange: () => { ui.pick[key] = cb.checked; } });
         return h('label', { class: 'checkbox' }, cb, h('span', {}, label));
       }),
+      (b.workout || b.diet || b.protocol) ? h('label', { class: 'field', for: 'imp-name' },
+        h('span', { class: 'field__label' }, 'Nom du profil importé'),
+        h('input', {
+          class: 'input', id: 'imp-name', maxlength: 60, value: ui.importName, autocomplete: 'off',
+          oninput: (e) => { ui.importName = e.target.value; },
+        }),
+        h('span', { class: 'field__hint' }, 'Renommable plus tard via ⋯ › Renommer dans chaque onglet.')) : null,
       h('p', { class: 'hint' }, 'Les programmes, diets et protocoles importés sont ajoutés comme nouveaux profils : rien n’est écrasé.'),
       h('button', {
         class: 'btn btn--primary btn--block', type: 'button',
         onclick: () => {
-          const done = applyImport(b, ui.pick);
+          const name = (ui.importName || '').trim().slice(0, 60);
+          const done = applyImport(name ? { ...b, name } : b, ui.pick);
           if (!done.length) return toast('Rien de sélectionné.', { type: 'error' });
           toast(`Importé : ${done.join(', ')}`);
           Object.assign(ui, { importText: '', parsed: null, error: null });
@@ -207,7 +217,7 @@ function ImportCard() {
 export function ShareView() {
   return [
     PageHeader({
-      eyebrow: 'Import / Export', title: 'Partage',
+      eyebrow: 'Import / Export', title: 'Mes imports',
       trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
     }),
     ExportCard(),

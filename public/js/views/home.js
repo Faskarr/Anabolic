@@ -18,10 +18,15 @@ import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
 import { friendOf, unreadFriend, isAccepted, isIncoming } from '../data/friends.js';
 import { trainedToday } from './messages-hub.js';
-import { toggleLike } from '../data/posts.js';
-import { ms } from '../data/messages.js';
-import { shortWhen } from '../ui/chat.js';
 import { Avatar } from '../ui/avatar.js';
+import { PostRow, recentPosts, shareMusicFlow } from '../ui/feed.js';
+import { InstallCard } from '../ui/install.js';
+import { GoalsCompact } from './goals.js';
+import { updateHome } from '../data/repo.js';
+import { openSheet, formSheet } from '../ui/sheet.js';
+import { stepsSummary, setSteps, setStepsGoal } from '../data/steps.js';
+import { localISODate } from '../lib/dates.js';
+import { toast } from '../ui/toast.js';
 
 function Widget({ eyebrow, action, children, tone, cls = '' }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
@@ -88,24 +93,6 @@ function MessagesWidget(session) {
 
 // ── Amis entraînés aujourd'hui ──────────────────────────────────────────
 
-function RecordRow(post, me) {
-  const mine = post.owner === me;
-  const liked = (post.likes || []).includes(me);
-  const n = (post.likes || []).length;
-  return h('li', { class: 'record' },
-    Avatar({ uid: post.owner, name: post.name, size: 'sm' }),
-    h('span', { class: 'record__body' },
-      h('span', { class: 'record__who' }, mine ? 'Toi' : post.name.split(' ')[0], h('span', { class: 'record__when' }, ` · ${shortWhen(post.at)}`)),
-      h('span', { class: 'record__what' }, '🏆 ', post.exercise, ' · ', h('strong', {}, `${frNum(post.w, post.w % 1 ? 1 : 0)} kg × ${post.r}`))),
-    mine
-      ? h('span', { class: `like like--static${n ? ' like--on' : ''}`, 'aria-label': `${n} like${n > 1 ? 's' : ''}` }, icon('heart', 18), n ? String(n) : '')
-      : h('button', {
-        class: `like${liked ? ' like--on' : ''}`, type: 'button', 'aria-pressed': String(liked),
-        'aria-label': liked ? 'Retirer mon like' : 'Liker ce record',
-        onclick: (e) => { e.currentTarget.classList.toggle('like--on'); e.currentTarget.classList.add('like--pop'); toggleLike(me, post); },
-      }, icon('heart', 18), n ? String(n) : ''));
-}
-
 function FriendsWidget(session) {
   const me = session.user.uid;
   const friends = state.friendships.filter(isAccepted).map((f) => {
@@ -120,14 +107,10 @@ function FriendsWidget(session) {
   // Ceux qui se sont entraînés d'abord.
   friends.sort((a, b) => Number(trainedToday(b.act)) - Number(trainedToday(a.act)));
   const trainedN = friends.filter((x) => trainedToday(x.act)).length;
-  const weekAgo = Date.now() - 7 * 86400000;
-  const records = Object.values(state.posts).flat()
-    .filter((p) => ms(p.at) > weekAgo)
-    .sort((a, b) => ms(b.at) - ms(a.at))
-    .slice(0, 4);
+  const posts = recentPosts(7, 5);
 
   return Widget({
-    eyebrow: 'Séances de mes amis aujourd’hui',
+    eyebrow: 'Mes amis aujourd’hui',
     action: link(`${trainedN}/${friends.length} entraîné${trainedN > 1 ? 's' : ''}`, '#/contact'),
     children: [
       h('ul', { class: 'friends-today' }, friends.map((x) => {
@@ -140,10 +123,12 @@ function FriendsWidget(session) {
               ? h('span', { class: 'tag tag--ok' }, icon('check', 14), `Entraîné · ${x.act.sessionName || 'séance faite'}`)
               : h('span', { class: 'tag' }, 'Pas encore')));
       })),
-      records.length ? [
-        h('p', { class: 'eyebrow', style: { marginTop: '18px' } }, 'Records de la semaine'),
-        h('ul', { class: 'records' }, records.map((p) => RecordRow(p, me))),
-      ] : null,
+      h('div', { class: 'card__row', style: { marginTop: '18px', marginBottom: '4px' } },
+        h('p', { class: 'eyebrow' }, 'Partages de la semaine'),
+        h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow, 'aria-label': 'Partager un son' }, icon('music', 16), 'Un son')),
+      posts.length
+        ? h('ul', { class: 'records' }, posts.map((p) => PostRow(p, me)))
+        : h('p', { class: 'muted small' }, 'Partage un record depuis ton carnet de charges, ou ta musique du moment.'),
     ],
   });
 }
@@ -278,10 +263,149 @@ function WeightWidget() {
   });
 }
 
+// ── Objectifs & habitudes ───────────────────────────────────────────────
+
+function GoalsWidget() {
+  const goals = state.goals;
+  if (!goals.items.length) {
+    return Widget({ eyebrow: 'Objectifs & habitudes', children: [
+      h('p', { class: 'muted' }, 'Fixe-toi des habitudes à cocher : pas, eau, sommeil, séances…'),
+      cta('Créer mes objectifs', '#/me/goals')] });
+  }
+  const { day, list, more } = GoalsCompact(goals);
+  return Widget({
+    eyebrow: 'Objectifs & habitudes',
+    action: link(day.total ? `${day.done}/${day.total} aujourd’hui` : 'Tout voir', '#/me/goals'),
+    children: [list, more ? h('a', { class: 'link-btn', href: '#/me/goals', style: { marginTop: '8px' } }, `+ ${more} autre(s)`, icon('chevron', 16)) : null],
+  });
+}
+
+// ── Pas du jour / de la semaine ─────────────────────────────────────────
+
+const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
+const SHORTCUT_URL = 'https://anabolic-adc6a.web.app/#/steps?n=';
+
+async function editSteps() {
+  const s = stepsSummary();
+  const r = await formSheet({
+    title: 'Pas d’aujourd’hui',
+    subtitle: 'Recopie le total affiché dans l’app Santé (ou automatise avec un Raccourci).',
+    fields: [
+      { name: 'n', label: 'Nombre de pas', type: 'number', integer: true, min: 0, max: 200000, value: s.today ?? '', required: true, placeholder: '8 500' },
+      { name: 'goal', label: 'Objectif quotidien', type: 'number', integer: true, min: 1000, max: 100000, value: s.goal },
+    ],
+  });
+  if (!r?.values) return;
+  setSteps(r.values.n);
+  if (r.values.goal && r.values.goal !== s.goal) setStepsGoal(r.values.goal);
+}
+
+/** Mode d'emploi du Raccourci iOS qui envoie automatiquement les pas de Santé. */
+function stepsSetup() {
+  const step = (n, ...c) => h('li', { class: 'install__step' }, h('span', { class: 'install__n' }, String(n)), h('span', {}, ...c));
+  openSheet({
+    title: 'Synchro automatique des pas',
+    subtitle: 'Une app web ne peut pas lire Santé directement : un Raccourci iOS lui envoie le total, chaque soir ou à la demande.',
+    body: h('div', { class: 'cal-sheet' },
+      h('ol', { class: 'install__steps' },
+        step(1, 'App ', h('strong', {}, 'Raccourcis'), ' › + › ', h('strong', {}, 'Rechercher des échantillons de santé'), ' : Type « Nombre de pas », Date de début « aujourd’hui », Regrouper par « Jour ».'),
+        step(2, 'Ajoute ', h('strong', {}, 'Calculer les statistiques'), ' › « Somme » des échantillons.'),
+        step(3, 'Ajoute ', h('strong', {}, 'URL'), ' : colle le lien ci-dessous puis insère la variable « Somme » à la fin.'),
+        step(4, 'Ajoute ', h('strong', {}, 'Ouvrir les URL'), '. Nomme le raccourci « Pas AnabolicOS ».'),
+        step(5, 'Onglet ', h('strong', {}, 'Automatisation'), ' › Heure de la journée (ex. 21:30, quotidien) › « Exécuter immédiatement » › ce raccourci.')),
+      h('div', { class: 'code-line' }, SHORTCUT_URL),
+      h('button', {
+        class: 'btn btn--primary btn--block', type: 'button',
+        onclick: () => navigator.clipboard.writeText(SHORTCUT_URL).then(() => toast('Lien copié'), () => toast('Copie impossible', { type: 'error' })),
+      }, icon('copy', 18), 'Copier le lien'),
+      h('p', { class: 'muted small' }, 'Le lien s’ouvre dans Safari : connecte-toi une fois à AnabolicOS dans Safari avec le même compte Google. Le total arrive ensuite partout, y compris dans l’app installée.')),
+  });
+}
+
+function StepsWidget() {
+  const s = stepsSummary();
+  const pct = s.today ? Math.min(100, Math.round((s.today / s.goal) * 100)) : 0;
+  const max = Math.max(s.goal, ...s.last7.map((d) => d.n || 0));
+  return h('section', { class: 'card widget steps' },
+    h('button', { class: 'steps__main', type: 'button', onclick: editSteps, 'aria-label': 'Saisir mes pas du jour' },
+      h('span', { class: 'steps__col' },
+        h('span', { class: 'eyebrow' }, 'Pas aujourd’hui'),
+        h('span', { class: 'steps__big' }, s.today == null ? '—' : fmt(s.today)),
+        h('span', { class: 'bar steps__bar' }, h('span', { class: `bar__fill${pct >= 100 ? ' bar__fill--ok' : ''}`, style: { width: `${pct}%` } })),
+        h('span', { class: 'steps__sub' }, s.today == null ? 'Touche pour saisir' : `${pct} % de ${fmt(s.goal)}`)),
+      h('span', { class: 'steps__col steps__col--week' },
+        h('span', { class: 'eyebrow' }, 'Semaine'),
+        h('span', { class: 'steps__big steps__big--sm' }, fmt(s.week)),
+        h('span', { class: 'steps__chart', 'aria-hidden': 'true' }, s.last7.map((d) => h('span', { class: 'steps__day' },
+          h('span', { class: `steps__stick${d.iso === localISODate() ? ' steps__stick--today' : ''}${(d.n || 0) >= s.goal ? ' steps__stick--ok' : ''}`, style: { height: `${d.n ? Math.max(8, Math.round((d.n / max) * 100)) : 4}%` } }),
+          h('span', { class: 'steps__letter' }, d.day)))),
+        h('span', { class: 'steps__sub' }, s.days ? `moy. ${fmt(s.avg)} / jour` : 'depuis lundi'))),
+    h('button', { class: 'link-btn steps__sync', type: 'button', onclick: stepsSetup }, icon('reset', 14), 'Synchro auto avec Santé'));
+}
+
+// ── Widgets personnalisables ────────────────────────────────────────────
+
+export const WIDGETS = {
+  steps:    { label: 'Pas (jour & semaine)',  icon: 'flame',    render: () => StepsWidget() },
+  messages: { label: 'Messages',              icon: 'message',  render: (s) => MessagesWidget(s) },
+  session:  { label: 'Séance du jour',        icon: 'dumbbell', render: () => TodaySession() },
+  goals:    { label: 'Objectifs & habitudes', icon: 'target',   render: () => GoalsWidget() },
+  friends:  { label: 'Amis, records & sons',  icon: 'user',     render: (s) => FriendsWidget(s) },
+  protocol: { label: 'Prochaines prises',     icon: 'pill',     render: () => ProtocolWidget() },
+  diet:     { label: 'Prochain repas',        icon: 'leaf',     render: () => DietWidget() },
+  weight:   { label: 'Poids',                 icon: 'scale',    render: () => WeightWidget() },
+};
+const DEFAULT_ORDER = ['steps', 'messages', 'session', 'goals', 'friends', 'protocol', 'diet', 'weight'];
+
+/** Widgets visibles, dans l'ordre choisi (les nouveaux widgets s'ajoutent à la fin). */
+function layout(home = state.home) {
+  const hidden = new Set((home.hidden || []).filter((id) => WIDGETS[id]));
+  const order = (home.order || DEFAULT_ORDER).filter((id, i, a) => WIDGETS[id] && a.indexOf(id) === i);
+  // Widget ajouté dans une nouvelle version : inséré à sa place par défaut.
+  DEFAULT_ORDER.forEach((id, i) => { if (!order.includes(id) && !hidden.has(id)) order.splice(Math.min(i, order.length), 0, id); });
+  return { visible: order.filter((id) => !hidden.has(id)), hidden: DEFAULT_ORDER.filter((id) => hidden.has(id)) };
+}
+
+/** Panneau « Personnaliser l'accueil » : déplacer ↑↓, masquer, ajouter. */
+function customize() {
+  const list = h('div', { class: 'wedit' });
+  const save = (visible, hidden) => { updateHome({ order: visible, hidden }); draw(); };
+
+  function draw() {
+    const { visible, hidden } = layout();
+    const move = (i, d) => { const v = [...visible]; [v[i], v[i + d]] = [v[i + d], v[i]]; save(v, hidden); };
+    list.replaceChildren(
+      h('p', { class: 'eyebrow' }, `Affichés (${visible.length})`),
+      h('div', { class: 'wedit__list' }, visible.map((id, i) => h('div', { class: 'wedit__row' },
+        h('span', { class: 'wedit__icon' }, icon(WIDGETS[id].icon, 18)),
+        h('span', { class: 'wedit__label' }, WIDGETS[id].label),
+        h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': `Monter ${WIDGETS[id].label}`, disabled: i === 0, onclick: () => move(i, -1) }, icon('up', 18)),
+        h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': `Descendre ${WIDGETS[id].label}`, disabled: i === visible.length - 1, onclick: () => move(i, 1) }, icon('down', 18)),
+        h('button', {
+          class: 'icon-btn icon-btn--ghost wedit__hide', type: 'button', 'aria-label': `Masquer ${WIDGETS[id].label}`,
+          onclick: () => save(visible.filter((x) => x !== id), [...hidden, id]),
+        }, icon('eyeOff', 18))))),
+      hidden.length ? [
+        h('p', { class: 'eyebrow', style: { marginTop: '16px' } }, 'Disponibles'),
+        h('div', { class: 'wedit__list' }, hidden.map((id) => h('button', {
+          class: 'wedit__row wedit__row--add', type: 'button', onclick: () => save([...visible, id], hidden.filter((x) => x !== id)),
+        },
+        h('span', { class: 'wedit__icon' }, icon(WIDGETS[id].icon, 18)),
+        h('span', { class: 'wedit__label' }, WIDGETS[id].label),
+        h('span', { class: 'wedit__plus' }, icon('plus', 18), 'Ajouter')))),
+      ] : null,
+      h('button', { class: 'btn btn--quiet btn--block', type: 'button', style: { marginTop: '16px' }, onclick: () => save([...DEFAULT_ORDER], []) },
+        icon('reset', 18), 'Disposition par défaut'));
+  }
+  draw();
+  openSheet({ title: 'Personnaliser l’accueil', subtitle: 'Déplace, masque ou ajoute des widgets. Synchronisé sur tous tes appareils.', body: list });
+}
+
 export function HomeView(session) {
   const first = (session.user.displayName || '').split(' ')[0];
   const head = h('header', { class: 'home-head' },
-    h('div', { class: 'topbar' },
+    h('div', { class: 'topbar topbar--center' },
+      h('span', { 'aria-hidden': 'true' }),
       LiveLogo(),
       h('a', { class: 'counter', href: '#/training', 'aria-label': 'Séances effectuées' },
         h('span', { class: 'counter__value' }, String(sessionCount())), h('span', { class: 'counter__label' }, 'séances'))),
@@ -289,14 +413,15 @@ export function HomeView(session) {
     h('h1', { class: 'page-title' }, first || 'Athlète'));
 
   if (!state.ready) return [head, Skeleton(5)];
+  const { visible } = layout();
   return [
     head,
-    MessagesWidget(session),     // toujours en premier
-    CoachSends(session),
-    TodaySession(),
-    FriendsWidget(session),
-    ProtocolWidget(),
-    DietWidget(),
-    WeightWidget(),
+    InstallCard(),               // seulement hors app installée
+    // Les pas restent tout en haut s'ils sont en première position.
+    visible[0] === 'steps' ? WIDGETS.steps.render(session) : null,
+    CoachSends(session),         // envois du coach : toujours visibles en haut
+    (visible[0] === 'steps' ? visible.slice(1) : visible).map((id) => WIDGETS[id].render(session)),
+    h('button', { class: 'btn btn--quiet btn--block home-edit', type: 'button', onclick: customize },
+      icon('layout', 18), 'Personnaliser l’accueil'),
   ];
 }

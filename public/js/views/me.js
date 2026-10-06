@@ -12,8 +12,9 @@ import { weightStats } from './weight.js';
 import { Avatar } from '../ui/avatar.js';
 import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
 import { toast } from '../ui/toast.js';
+import { getThemePref, setThemePref } from '../ui/theme.js';
 
-export const APP_VERSION = '0.8.0';
+export const APP_VERSION = '0.9.0';
 
 function Row({ href, onclick, iconName, label, value, badge, danger }) {
   const inner = [
@@ -61,22 +62,51 @@ function AvatarPicker(user) {
     }, 'Retirer') : null);
 }
 
+/** Liens utiles (ouverts dans Safari / l'app correspondante). */
+const LINKS = [
+  { label: 'HSN', sub: 'Nutrition sportive & compléments', href: 'https://www.hsnstore.fr/' },
+  { label: 'High League Supplements', sub: 'hlsupps.com', href: 'https://hlsupps.com/' },
+];
+
+function ThemePicker() {
+  const cur = getThemePref();
+  return h('div', { class: 'theme-row' },
+    h('span', { class: 'menu-row__icon' }, icon('moon', 20)),
+    h('span', { class: 'menu-row__label' }, 'Apparence'),
+    h('div', { class: 'segmented segmented--mini', role: 'radiogroup', 'aria-label': 'Thème' },
+      [['light', 'Clair'], ['dark', 'Sombre'], ['auto', 'Auto']].map(([v, l]) => h('button', {
+        class: `segment${cur === v ? ' segment--on' : ''}`, type: 'button', role: 'radio', 'aria-checked': String(cur === v),
+        onclick: () => { setThemePref(v); window.dispatchEvent(new Event('app:render')); },
+      }, l))));
+}
+
 export function MeView(session) {
   const { user, isAdmin } = session;
   const s = weightStats();
 
   return [
-    PageHeader({ eyebrow: 'Compte', title: 'Moi' }),
+    PageHeader({ eyebrow: 'Compte', title: 'Mon compte' }),
     h('section', { class: 'card profile-card' },
       AvatarPicker(user),
       h('div', { style: { minWidth: 0 } },
         h('p', { class: 'profile-card__name' }, user.displayName || 'Athlète', isAdmin ? h('span', { class: 'badge badge--inline' }, 'Admin') : null),
         h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
         h('p', { class: 'muted small' }, 'Photo visible par tes amis et ton coach.'))),
+    h('a', { class: 'card goals-link', href: '#/me/goals' },
+      h('span', { class: 'menu-row__icon' }, icon('target', 20)),
+      h('span', { class: 'menu-row__label' }, 'Mes objectifs', h('span', { class: 'menu-row__sub' }, 'Quotidiens, hebdomadaires, mensuels')),
+      h('span', { class: 'menu-row__chevron' }, icon('chevron', 18))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),
       Row({ href: '#/me/check', iconName: 'shield', label: 'Diagnostic' })),
+    h('p', { class: 'eyebrow menu-title' }, 'Liens & réglages'),
+    h('nav', { class: 'menu card card--flush', 'aria-label': 'Liens utiles' },
+      ThemePicker(),
+      LINKS.map((l) => h('a', { class: 'menu-row', href: l.href, target: '_blank', rel: 'noopener noreferrer' },
+        h('span', { class: 'menu-row__icon' }, icon('link', 20)),
+        h('span', { class: 'menu-row__label' }, l.label, h('span', { class: 'menu-row__sub' }, l.sub)),
+        h('span', { class: 'menu-row__chevron' }, icon('external', 16))))),
     isAdmin ? h('nav', { class: 'menu card card--flush', 'aria-label': 'Administration' },
       Row({
         href: '#/admin', iconName: 'shield', label: 'Espace admin',

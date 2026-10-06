@@ -43,7 +43,7 @@ export function ContactView(session) {
   if (unreadForUser(state.conversation)) markReadByUser(uid);
 
   const header = PageHeader({
-    eyebrow: 'Messagerie', title: 'Ton coach',
+    eyebrow: 'Messagerie', title: 'Mon coach',
     trailing: IconButton('back', 'Retour', () => { location.hash = '#/contact'; }, 'icon-btn--soft'),
   });
 

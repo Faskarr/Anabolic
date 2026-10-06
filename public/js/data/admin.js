@@ -3,20 +3,22 @@
  *
  * Tout est protégé côté serveur par firestore.rules (isAdmin()) :
  *  • lecture : users/*, users/{uid}/data/*, weeks/*, inbox/*
- *  • écriture : users/{uid}.status, data/{workouts|diet|protocol|profiles}, inbox (création)
+ *  • écriture : users/{uid}.status, data/{workouts|diet|protocol|profiles|goals}, inbox (création),
+ *               library/* (bibliothèque de programmes types)
  * Un non-admin qui appellerait ces fonctions recevrait « permission-denied ».
  */
 import { db, fs } from '../firebase.js';
 import { weekKey } from '../lib/dates.js';
 import { uid as newId } from '../lib/ids.js';
 import { toast } from '../ui/toast.js';
+import { normalizeGoals, emptyGoals } from './goals.js';
 
 const {
-  doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp, writeBatch,
+  doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp, writeBatch, getDoc,
 } = fs;
 
 const DATA_KEY = { workout: 'workouts', diet: 'diet', protocol: 'protocol' };
-const DOCS = ['profiles', 'workouts', 'diet', 'protocol', 'weights', 'exlogs', 'counter'];
+const DOCS = ['profiles', 'workouts', 'diet', 'protocol', 'weights', 'exlogs', 'counter', 'goals'];
 
 const fail = (label) => (err) => {
   console.error(`[admin] ${label}`, err);
@@ -38,7 +40,7 @@ export function watchUsers(cb) {
  */
 export function watchUserData(uid, cb) {
   const data = {
-    profiles: null, workouts: {}, diet: {}, protocol: {}, weights: [], exlogs: {}, counterBase: 0, week: {}, ready: false,
+    profiles: null, workouts: {}, diet: {}, protocol: {}, weights: [], exlogs: {}, counterBase: 0, week: {}, goals: emptyGoals(), ready: false,
   };
   let pending = DOCS.length + 1;
   const done = () => { if (pending > 0) pending -= 1; data.ready = pending === 0; cb({ ...data }); };
@@ -51,6 +53,7 @@ export function watchUserData(uid, cb) {
     weights: (d) => { data.weights = Array.isArray(d?.log) ? d.log : []; },
     exlogs: (d) => { data.exlogs = d?.logs || {}; },
     counter: (d) => { data.counterBase = Number(d?.base) || 0; },
+    goals: (d) => { data.goals = normalizeGoals(d); },
   };
   const unsubs = DOCS.map((name) => {
     let first = true;
@@ -139,4 +142,39 @@ export function deleteUserProfile(uid, profiles, cat, pid) {
   batch.set(doc(db, 'users', uid, 'data', 'profiles'), next);
   batch.set(doc(db, 'users', uid, 'data', DATA_KEY[cat]), { [pid]: deleteField() }, { merge: true });
   return batch.commit().catch(fail('suppression'));
+}
+
+/** Remplace les objectifs d'un utilisateur (liste + cases). */
+export function setUserGoals(uid, goals) {
+  return setDoc(doc(db, 'users', uid, 'data', 'goals'), normalizeGoals(goals)).catch(fail('objectifs'));
+}
+
+// ── Bibliothèque de programmes types (admin uniquement) ─────────────────
+//   library/{id} = { cat, name, note, payload, createdAt, updatedAt }
+
+export function watchLibrary(cb) {
+  const q = query(collection(db, 'library'), orderBy('updatedAt', 'desc'), limit(200));
+  return onSnapshot(q,
+    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }))),
+    (err) => { console.error('[admin] library', err); cb([]); });
+}
+
+export function saveLibraryItem(id, { cat, name, note, payload }) {
+  const ref = id ? doc(db, 'library', id) : doc(collection(db, 'library'));
+  const body = {
+    cat, name: String(name).slice(0, 60), note: String(note || '').slice(0, 300), updatedAt: serverTimestamp(),
+    ...(payload ? { payload } : {}),
+    ...(id ? {} : { createdAt: serverTimestamp() }),
+  };
+  return setDoc(ref, body, { merge: true }).catch(fail('bibliothèque'));
+}
+
+export function deleteLibraryItem(id) {
+  return fs.deleteDoc(doc(db, 'library', id)).catch(fail('bibliothèque'));
+}
+
+/** Installe un profil chez un utilisateur sans avoir sa fiche ouverte (lit ses profils d'abord). */
+export async function installForUser(uid, cat, name, payload) {
+  const snap = await getDoc(doc(db, 'users', uid, 'data', 'profiles')).catch(fail('lecture des profils'));
+  return installProfileForUser(uid, snap.exists() ? snap.data() : {}, cat, name, payload);
 }

@@ -49,6 +49,7 @@ export function normalizeWorkout(raw) {
         s: str(e?.s ?? e?.sets, 40) || '—',
         r: str(e?.r ?? e?.rest, 20) || '—',
         no: str(e?.no ?? e?.note, 300),
+        ...(e?.ss === true ? { ss: true } : {}),   // superset avec l'exercice précédent
       })),
     })),
   };
@@ -86,6 +87,7 @@ export function normalizeProtocol(raw) {
       name: str(d?.name, 60) || 'Jour',
       label: str(d?.label, 60),
       weekdays: weekdays(d?.weekdays) ?? guessWeekdays(d?.name),
+      auto: d?.auto === true ? true : undefined,   // groupe créé automatiquement (par jours de prise)
       injections: arr(d?.injections).slice(0, 30).map((i) => ({
         id: id(i?.id, 'inj'),
         name: str(i?.name, 120) || 'Produit',

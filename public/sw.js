@@ -11,7 +11,7 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v11';
+const VERSION = 'v12';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
@@ -29,14 +29,17 @@ const APP_SHELL = [
   '/js/data/admin.js',
   '/js/data/avatars.js',
   '/js/data/friends.js',
+  '/js/data/goals.js',
   '/js/data/importer.js',
   '/js/data/inbox.js',
   '/js/data/messages.js',
   '/js/data/posts.js',
   '/js/data/repo.js',
+  '/js/data/steps.js',
   '/js/firebase.js',
   '/js/lib/dates.js',
   '/js/lib/dom.js',
+  '/js/lib/ics.js',
   '/js/lib/ids.js',
   '/js/lib/image.js',
   '/js/lib/schedule.js',
@@ -45,20 +48,26 @@ const APP_SHELL = [
   '/js/ui/avatar.js',
   '/js/ui/chart.js',
   '/js/ui/chat.js',
+  '/js/ui/feed.js',
   '/js/ui/icons.js',
+  '/js/ui/install.js',
   '/js/ui/layout.js',
   '/js/ui/logo.js',
   '/js/ui/sheet.js',
   '/js/ui/splash.js',
   '/js/ui/tabbar.js',
+  '/js/ui/theme.js',
   '/js/ui/timer.js',
   '/js/ui/toast.js',
+  '/js/views/admin-library.js',
   '/js/views/admin-messages.js',
   '/js/views/admin.js',
   '/js/views/contact.js',
+  '/js/views/diet-calc.js',
   '/js/views/diet.js',
   '/js/views/disabled.js',
   '/js/views/foundation.js',
+  '/js/views/goals.js',
   '/js/views/home.js',
   '/js/views/login.js',
   '/js/views/me.js',
@@ -67,8 +76,6 @@ const APP_SHELL = [
   '/js/views/share.js',
   '/js/views/training.js',
   '/js/views/weight.js',
-  '/manifest.webmanifest',
-  '/icons/apple-touch-icon.png',
 ];
 
 const CDN_HOSTS = ['www.gstatic.com'];

@@ -18,6 +18,7 @@ import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { Avatar } from '../ui/avatar.js';
+import { PostRow, recentPosts, shareMusicFlow } from '../ui/feed.js';
 
 const rerender = () => window.dispatchEvent(new Event('app:render'));
 const initial = (n) => (n || '?').trim().charAt(0).toUpperCase();
@@ -108,11 +109,12 @@ function FriendRow(f, me) {
 // ── Vue : hub ───────────────────────────────────────────────────────────
 
 /** Demande reçue : Accepter / Refuser. */
-function RequestRow(f, me) {
+function RequestRow(f, me, isAdmin) {
   const other = friendOf(f, me);
   const name = f.names?.[other] || 'Quelqu’un';
   return h('div', { class: 'request' },
-    h('span', { class: 'avatar' }, initial(name)),
+    // Pas encore amis : seule l'admin peut lire la photo (règles Firestore).
+    isAdmin ? Avatar({ uid: other, name }) : h('span', { class: 'avatar' }, initial(name)),
     h('span', { class: 'request__body' },
       h('span', { class: 'request__name' }, name),
       h('span', { class: 'muted small' }, 'veut t’ajouter en ami')),
@@ -128,11 +130,12 @@ function RequestRow(f, me) {
 }
 
 /** Demande envoyée : en attente, annulable. */
-function PendingRow(f, me) {
+function PendingRow(f, me, isAdmin) {
   const other = friendOf(f, me);
   const name = f.names?.[other] || 'Ami';
   return h('div', { class: 'request request--pending' },
-    h('span', { class: 'avatar' }, initial(name)),
+    // Pas encore amis : seule l'admin peut lire la photo (règles Firestore).
+    isAdmin ? Avatar({ uid: other, name }) : h('span', { class: 'avatar' }, initial(name)),
     h('span', { class: 'request__body' },
       h('span', { class: 'request__name' }, name),
       h('span', { class: 'muted small' }, 'Demande envoyée · en attente')),
@@ -147,17 +150,26 @@ export function MessagesHubView(session) {
   const outgoing = state.friendships.filter((f) => isOutgoing(f, me));
 
   return [
-    PageHeader({ eyebrow: 'Messagerie', title: 'Contact' }),
+    PageHeader({ eyebrow: 'Messagerie', title: 'Mes messages' }),
     h('nav', { class: 'card card--flush', 'aria-label': 'Coach' }, CoachRow(session)),
     incoming.length ? [
       SectionTitle(`Demandes d’ami (${incoming.length})`),
-      h('section', { class: 'card card--flush requests requests--in' }, incoming.map((f) => RequestRow(f, me))),
+      h('section', { class: 'card card--flush requests requests--in' }, incoming.map((f) => RequestRow(f, me, session.isAdmin))),
     ] : null,
     SectionTitle('Amis', h('button', { class: 'link-btn', type: 'button', onclick: () => addFriendFlow(session) }, icon('plus', 16), 'Ajouter')),
     friends.length
       ? h('nav', { class: 'card card--flush', 'aria-label': 'Amis' }, friends.map((f) => FriendRow(f, me)))
       : h('p', { class: 'hint' }, 'Ajoute tes partenaires d’entraînement avec leur code : une fois la demande acceptée, vous pourrez discuter et voir qui s’est entraîné.'),
-    outgoing.length ? h('section', { class: 'card card--flush requests' }, outgoing.map((f) => PendingRow(f, me))) : null,
+    outgoing.length ? h('section', { class: 'card card--flush requests' }, outgoing.map((f) => PendingRow(f, me, session.isAdmin))) : null,
+    friends.length ? [
+      SectionTitle('Records & sons', h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('music', 16), 'Partager un son')),
+      (() => {
+        const posts = recentPosts(14, 8);
+        return posts.length
+          ? h('section', { class: 'card' }, h('ul', { class: 'records' }, posts.map((p) => PostRow(p, me))))
+          : h('p', { class: 'hint' }, 'Partage ta musique du moment (Spotify, Deezer, Apple Music) : tes amis l’ouvrent directement dans leur app.');
+      })(),
+    ] : null,
     h('section', { class: 'card friend-code' },
       h('p', { class: 'eyebrow' }, 'Mon code ami'),
       myCode

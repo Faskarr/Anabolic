@@ -4,14 +4,16 @@
  * Routes (hash) :
  *   #/home  #/training  #/diet  #/protocol
  *   #/contact (messagerie)  #/contact/coach  #/friends/<id>  #/admin/messages
- *   #/me  #/me/weight  #/me/share  #/me/check
- *   #/admin  #/admin/user/<uid>  #/admin/conv/<uid>  (administrateur uniquement)
+ *   #/diet/calc (calculateur)
+ *   #/me  #/me/weight  #/me/share  #/me/check  #/me/goals
+ *   #/admin  #/admin/user/<uid>  #/admin/conv/<uid>  #/admin/library  (administrateur uniquement)
  *
  * Chaque vue est une fonction (session, param?) => Node[] ; elle est ré-exécutée
  * à chaque changement du store (temps réel) ou de route.
  */
 // En premier : le splash doit s'afficher avant l'initialisation de Firebase.
 import { hideSplash, watchResume, splashOutAt } from './ui/splash.js';
+import './ui/theme.js';
 import { mount, h } from './lib/dom.js';
 import { onSession } from './auth.js';
 import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
@@ -23,6 +25,7 @@ import { FoundationView } from './views/foundation.js';
 import { HomeView } from './views/home.js';
 import { TrainingView } from './views/training.js';
 import { DietView } from './views/diet.js';
+import { DietCalcView } from './views/diet-calc.js';
 import { ProtocolView } from './views/protocol.js';
 import { MeView } from './views/me.js';
 import { WeightView } from './views/weight.js';
@@ -31,9 +34,12 @@ import { ContactView, leaveContact } from './views/contact.js';
 import { AdminInboxView, AdminConversationView, leaveAdminConversation } from './views/admin-messages.js';
 import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat } from './views/messages-hub.js';
+import { GoalsView } from './views/goals.js';
+import { consumeStepsLink } from './data/steps.js';
+import { AdminLibraryView } from './views/admin-library.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.8.0';
+export const ASSET_VERSION = '0.9.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
@@ -64,10 +70,12 @@ const ROUTES = {
   home:           { view: HomeView },
   training:       { view: TrainingView },
   diet:           { view: DietView },
+  'diet/calc':    { view: DietCalcView },
   protocol:       { view: ProtocolView },
   me:             { view: MeView },
   'me/weight':    { view: WeightView },
   'me/share':     { view: ShareView },
+  'me/goals':     { view: GoalsView },
   // Contact = messagerie : coach (ou messages des utilisateurs pour l'admin) + amis.
   contact:          { view: MessagesHubView },
   'contact/coach':  { view: ContactView, leave: leaveContact, chat: true },
@@ -75,6 +83,7 @@ const ROUTES = {
   'admin/messages': { view: AdminInboxView, admin: true },
   'me/check':     { view: FoundationView },
   admin:          { view: AdminHomeView, admin: true },
+  'admin/library': { view: AdminLibraryView, admin: true },
   'admin/user':   { view: AdminUserView, admin: true, param: true, leave: leaveAdminUser },
   'admin/conv':   { view: AdminConversationView, admin: true, param: true, leave: leaveAdminConversation, chat: true },
 };
@@ -185,6 +194,7 @@ function render({ scrollTop = false } = {}) {
 }
 
 window.addEventListener('hashchange', () => {
+  if (session?.state === 'active' && consumeStepsLink()) { current = parseRoute(); render({ scrollTop: true }); return; }
   const next = parseRoute();
   const prev = ROUTES[current.key];
   if (prev?.leave && (next.key !== current.key || next.param !== current.param)) prev.leave();
@@ -224,6 +234,8 @@ onSession((s) => {
     unsubStore = subscribe(() => render());
     mountShell();
   }
+  // Lien du Raccourci iOS « pas du jour » : #/steps?n=…
+  consumeStepsLink();
   current = parseRoute();
   render({ scrollTop: true });
 });

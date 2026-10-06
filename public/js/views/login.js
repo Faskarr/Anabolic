@@ -2,6 +2,7 @@ import { h } from '../lib/dom.js';
 import { signIn } from '../auth.js';
 import { toast } from '../ui/toast.js';
 import { LiveLogo } from '../ui/logo.js';
+import { InstallCard } from '../ui/install.js';
 
 const GOOGLE_ICON = () => {
   const ns = 'http://www.w3.org/2000/svg';
@@ -51,6 +52,7 @@ export function LoginView() {
         button,
         h('p', { class: 'login__foot', style: { marginTop: '16px' } },
           'Tes données sont privées et synchronisées sur tous tes appareils.'),
+        h('div', { style: { marginTop: '24px', textAlign: 'left' } }, InstallCard({ compact: true, force: true })),
       ),
     ),
   );

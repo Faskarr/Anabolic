@@ -44,3 +44,10 @@
   #splash.splash--out .splash__logo { transform: none; }
   @keyframes splash-fade { from { opacity: 0; } }
 }
+
+/* Thème sombre */
+html[data-theme="dark"] #splash { background: #111113; }
+html[data-theme="dark"] .splash__logo { color: #F1F0F4; }
+html[data-theme="dark"] .splash__os, html[data-theme="dark"] .splash__line span { color: #8B6CFF; background-color: transparent; }
+html[data-theme="dark"] .splash__line span { background: #8B6CFF; }
+html[data-theme="dark"] .splash__line { background: #303037; }

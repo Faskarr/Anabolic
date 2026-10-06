@@ -66,7 +66,7 @@ const signed = (v) => (v == null ? '—' : `${v > 0 ? '+' : ''}${frNum(v)}`);
 export function WeightView() {
   const header = PageHeader({
     eyebrow: 'Suivi',
-    title: 'Poids',
+    title: 'Mon poids',
     trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
   });
   if (!state.ready) return [header, Skeleton(3)];

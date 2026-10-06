@@ -130,18 +130,60 @@ function weekdaysField(field) {
   };
 }
 
+/** Interrupteur (case à cocher stylée). */
+function toggleField(field) {
+  const input = h('input', { type: 'checkbox', class: 'switch__input', id: `f_${field.name}`, name: field.name });
+  input.checked = Boolean(field.value);
+  return {
+    el: h('label', { class: 'field field--switch', for: `f_${field.name}` },
+      h('span', { class: 'field--switch__text' },
+        h('span', { class: 'field__label' }, field.label),
+        field.hint ? h('span', { class: 'field__hint' }, field.hint) : null),
+      input, h('span', { class: 'switch', 'aria-hidden': 'true' })),
+    read: () => input.checked,
+  };
+}
+
+/** Choix unique parmi des options : [{ value, label, sub? }]. */
+function choiceField(field) {
+  let current = field.value ?? field.options[0]?.value;
+  const buttons = field.options.map((o) => {
+    const b = h('button', {
+      type: 'button', role: 'radio', class: `choice${o.value === current ? ' choice--on' : ''}`,
+      'aria-checked': String(o.value === current),
+      onclick: () => {
+        current = o.value;
+        for (const x of buttons) {
+          const on = x === b;
+          x.classList.toggle('choice--on', on);
+          x.setAttribute('aria-checked', String(on));
+        }
+        field.onChange?.(current);
+      },
+    }, h('span', { class: 'choice__label' }, o.label), o.sub ? h('span', { class: 'choice__sub' }, o.sub) : null);
+    return b;
+  });
+  return {
+    el: h('div', { class: 'field' },
+      h('span', { class: 'field__label' }, field.label),
+      h('div', { class: `choices${field.columns ? ` choices--${field.columns}` : ''}`, role: 'radiogroup', 'aria-label': field.label }, buttons),
+      field.hint ? h('span', { class: 'field__hint' }, field.hint) : null),
+    read: () => current,
+  };
+}
+
 function inputField(field) {
   const isNum = field.type === 'number';
   const input = h(field.type === 'textarea' ? 'textarea' : 'input', {
     class: `input${isNum ? ' input--num' : ''}`,
     id: `f_${field.name}`,
     name: field.name,
-    type: field.type === 'textarea' ? null : 'text',
+    type: field.type === 'textarea' ? null : field.type === 'time' ? 'time' : field.type === 'url' ? 'url' : 'text',
     inputmode: isNum ? (field.integer ? 'numeric' : 'decimal') : field.inputmode,
     placeholder: field.placeholder ?? '',
     maxlength: field.maxlength ?? (isNum ? 8 : 120),
     autocomplete: 'off',
-    autocapitalize: isNum ? 'off' : 'sentences',
+    autocapitalize: isNum || field.type === 'url' ? 'off' : 'sentences',
     enterkeyhint: 'next',
     rows: field.type === 'textarea' ? 3 : null,
   });
@@ -167,7 +209,7 @@ function inputField(field) {
  * @param {object} cfg
  * @param {string} cfg.title
  * @param {string} [cfg.subtitle]
- * @param {Array} cfg.fields  [{ name, label, type:'text'|'number'|'textarea'|'weekdays', value, placeholder,
+ * @param {Array} cfg.fields  [{ name, label, type:'text'|'number'|'textarea'|'time'|'url'|'weekdays'|'toggle'|'choice', value, placeholder,
  *                              required, integer, min, max, hint }] ou { type:'row', fields:[…] }
  * @param {string} [cfg.submitLabel]
  * @param {string} [cfg.deleteLabel]  affiche un bouton de suppression
@@ -177,7 +219,10 @@ export function formSheet({ title, subtitle, fields, submitLabel = 'Enregistrer'
     const controls = {};
     const build = (f) => {
       if (f.type === 'row') return h('div', { class: 'field-row' }, f.fields.map(build));
-      const c = f.type === 'weekdays' ? weekdaysField(f) : inputField(f);
+      const c = f.type === 'weekdays' ? weekdaysField(f)
+        : f.type === 'toggle' ? toggleField(f)
+          : f.type === 'choice' ? choiceField(f)
+            : inputField(f);
       controls[f.name] = { ...c, def: f };
       return c.el;
     };

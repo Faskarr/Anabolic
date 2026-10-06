@@ -29,6 +29,22 @@ export function dietTotals(d) {
   return t;
 }
 
+/** Heure par défaut proposée (déduite du nom : « Midi » → 12:30). */
+const guessTime = (name) => { const t = parseTimeOfDay(name); return t == null ? '' : formatMinutes(t); };
+
+const sortMeals = (meals) => meals.sort((a, b) => (parseTimeOfDay(a.time || a.name) ?? 9999) - (parseTimeOfDay(b.time || b.name) ?? 9999));
+
+/** Change l'heure d'un repas (sélecteur natif iOS) et retrie la journée. */
+function setMealTime(meal, value) {
+  const t = parseTimeOfDay(value);
+  updateProfileData(CAT, (d) => {
+    const m = d.meals.find((x) => x.id === meal.id);
+    if (!m) return;
+    if (t == null) delete m.time; else m.time = formatMinutes(t);
+    sortMeals(d.meals);
+  });
+}
+
 const mealCal = (m) => (m.foods || []).reduce((a, f) => a + (Number(f.cal) || 0), 0);
 
 // ── Édition ─────────────────────────────────────────────────────────────
@@ -59,8 +75,8 @@ async function editMeal(meal) {
     title: meal ? 'Modifier le repas' : 'Nouveau repas',
     fields: [
       { name: 'name', label: 'Nom', value: meal?.name, required: true, maxlength: 60, placeholder: 'Petit-déjeuner' },
-      { name: 'time', label: 'Heure (optionnel)', value: meal?.time, maxlength: 5, placeholder: '12:30', inputmode: 'numeric',
-        hint: "Sert à afficher le prochain repas sur l'accueil. Sans heure, elle est déduite du nom." },
+      { name: 'time', type: 'time', label: 'Heure du repas', value: meal?.time || guessTime(meal?.name),
+        hint: "Sert à afficher le prochain repas sur l'accueil. Laisse vide pour la déduire du nom." },
     ],
     deleteLabel: meal ? 'Supprimer le repas' : null,
   });
@@ -72,12 +88,12 @@ async function editMeal(meal) {
   updateProfileData(CAT, (d) => {
     if (meal) {
       const m = d.meals.find((x) => x.id === meal.id);
-      if (m) { m.name = r.values.name; m.time = time; }
+      if (m) { m.name = r.values.name; if (time) m.time = time; else delete m.time; }
     } else {
       d.meals.push({ id: uid('m'), name: r.values.name, ...(time ? { time } : {}), foods: [] });
     }
-    // Repas triés par heure quand elles sont renseignées.
-    d.meals.sort((a, b) => (parseTimeOfDay(a.time) ?? 9999) - (parseTimeOfDay(b.time) ?? 9999));
+    // Repas triés par heure (explicite ou déduite du nom).
+    sortMeals(d.meals);
   });
 }
 
@@ -200,11 +216,29 @@ export function SupplementList(meal, onEdit) {
       : h('span', { class: 'supp' }, x.name, x.dose ? h('span', { class: 'supp__dose' }, x.dose) : null)))));
 }
 
+/**
+ * Pastille d'heure : un vrai <input type="time"> transparent par-dessus →
+ * un tap ouvre directement la roue de sélection iOS.
+ */
+function MealTime(meal) {
+  const value = meal.time || '';
+  const shown = value || guessTime(meal.name);
+  return h('label', { class: `meal__time${value ? '' : ' meal__time--auto'}`, title: 'Changer l’heure du repas' },
+    icon('clock', 14),
+    h('span', {}, shown || 'Heure'),
+    h('input', {
+      type: 'time', class: 'meal__time-input', value: value || shown, 'aria-label': `Heure de ${meal.name}`,
+      onchange: (e) => setMealTime(meal, e.target.value),
+    }));
+}
+
 function MealCard(meal) {
   const foods = meal.foods || [];
   return h('section', { class: 'card card--flush' },
     h('header', { class: 'meal__head' },
-      h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, [meal.time, `${mealCal(meal)} kcal`].filter(Boolean).join(' · '))),
+      h('div', { class: 'meal__title' },
+        MealTime(meal),
+        h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, `${mealCal(meal)} kcal`))),
       h('div', { class: 'row-gap' },
         IconButton('plus', `Ajouter à ${meal.name}`, () => actionSheet({
           title: meal.name,
@@ -237,10 +271,20 @@ function MealCard(meal) {
 
 // ── Vue ─────────────────────────────────────────────────────────────────
 
+/** Lien vers le calculateur (BMR, dépense, sèche / maintien / prise de masse). */
+function CalcCta() {
+  return h('a', { class: 'card calc-cta', href: '#/diet/calc' },
+    h('span', { class: 'calc-cta__icon' }, icon('calc', 22)),
+    h('span', { class: 'calc-cta__body' },
+      h('span', { class: 'calc-cta__title' }, 'Calculer ma diet'),
+      h('span', { class: 'muted small' }, 'Métabolisme, dépense du jour, calories et macros selon ton objectif')),
+    icon('chevron', 20));
+}
+
 export function DietView() {
-  const header = PageHeader({ eyebrow: 'Alimentation', title: 'Diet' });
+  const header = PageHeader({ eyebrow: 'Alimentation', title: 'Ma nutrition' });
   if (!state.ready) return [header, Skeleton(4)];
-  if (!activeProfileId(CAT)) return [header, NoProfile(CAT, 'leaf')];
+  if (!activeProfileId(CAT)) return [header, NoProfile(CAT, 'leaf'), CalcCta()];
 
   const d = profileData(CAT);
   const totals = dietTotals(d);
@@ -255,5 +299,6 @@ export function DietView() {
       : Empty({ iconName: 'leaf', title: 'Aucun repas', text: 'Ajoute tes repas puis leurs aliments.' }),
     h('button', { class: 'btn btn--ghost btn--block add-btn', type: 'button', onclick: () => editMeal(null) },
       icon('plus', 18), 'Ajouter un repas'),
+    CalcCta(),
   ];
 }

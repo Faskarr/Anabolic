@@ -94,7 +94,7 @@ service cloud.firestore {
       match /data/{docId} {
         allow read: if ownerActive(uid) || isAdmin();
         allow write: if ownerActive(uid)
-          || (isAdmin() && docId in ['workouts', 'diet', 'protocol', 'profiles']);
+          || (isAdmin() && docId in ['workouts', 'diet', 'protocol', 'profiles', 'goals']);
       }
 
       // Cases cochées de la semaine.
@@ -217,17 +217,28 @@ service cloud.firestore {
       allow write: if ownerActive(uid)
         && request.resource.data.keys().hasOnly(['name', 'day', 'sessionName', 'at']);
 
-      // Records partagés avec les amis, qui peuvent les « liker ».
+      // Records et musiques partagés avec les amis, qui peuvent les « liker ».
       match /posts/{postId} {
         allow read: if isOwner(uid) || isAdmin() || isFriend(uid);
         allow create: if ownerActive(uid)
-          && request.resource.data.keys().hasOnly(['type', 'name', 'exercise', 'w', 'r', 'e1rm', 'at', 'likes'])
-          && request.resource.data.type == 'pr'
-          && isShortString(request.resource.data.exercise, 120)
           && isShortString(request.resource.data.name, 120)
-          && request.resource.data.w is number && request.resource.data.r is int
+          && request.resource.data.likes is list
           && request.resource.data.likes.size() == 0
-          && request.resource.data.at == request.time;
+          && request.resource.data.at == request.time
+          && (
+            // Record personnel
+            (request.resource.data.type == 'pr'
+              && request.resource.data.keys().hasOnly(['type', 'name', 'exercise', 'w', 'r', 'e1rm', 'at', 'likes'])
+              && isShortString(request.resource.data.exercise, 120)
+              && request.resource.data.w is number && request.resource.data.r is int)
+            // Musique : lien https vers Spotify / Deezer / Apple Music uniquement
+            || (request.resource.data.type == 'music'
+              && request.resource.data.keys().hasOnly(['type', 'name', 'url', 'title', 'service', 'at', 'likes'])
+              && request.resource.data.service in ['spotify', 'deezer', 'apple']
+              && isShortString(request.resource.data.title, 120)
+              && isShortString(request.resource.data.url, 300)
+              && request.resource.data.url.matches('^https://(open[.]spotify[.]com|spotify[.]link|(www[.])?deezer[.]com|deezer[.]page[.]link|link[.]deezer[.]com|music[.]apple[.]com)/[^ ]*$'))
+          );
         // Liker / retirer son like : seul son propre uid peut être ajouté ou retiré.
         allow update: if (isOwner(uid) || isFriend(uid))
           && onlyChanges(['likes'])
@@ -235,6 +246,11 @@ service cloud.firestore {
           && resource.data.likes.toSet().difference(request.resource.data.likes.toSet()).hasOnly([request.auth.uid]);
         allow delete: if isOwner(uid);
       }
+    }
+
+    // Bibliothèque de programmes types : réservée à l'admin.
+    match /library/{itemId} {
+      allow read, write: if isAdmin();
     }
 
     // Photo de profil (JPEG compressé ≤ ~110 Ko), visible par les amis et l'admin.

@@ -16,6 +16,16 @@
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=2">
 
+  <!-- Thème (clair/sombre) appliqué AVANT l'affichage : pas de flash -->
+  <script>
+    try {
+      var t = localStorage.getItem('theme') || 'light';
+      if (t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+      if (t === 'dark') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#111113');
+    } catch (e) {}
+  </script>
+
   <!-- Police du logo préchargée : l'animation d'ouverture s'affiche sans saut -->
   <link rel="preload" href="/fonts/barlow-condensed-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 
@@ -25,12 +35,12 @@
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js">
 
   <!-- Animation d'ouverture : feuille dédiée, chargée avant le JavaScript -->
-  <link rel="stylesheet" href="/css/splash.css?v=0.8.0">
+  <link rel="stylesheet" href="/css/splash.css?v=0.9.0">
 
-  <link rel="stylesheet" href="/css/tokens.css?v=0.8.0">
-  <link rel="stylesheet" href="/css/base.css?v=0.8.0">
-  <link rel="stylesheet" href="/css/components.css?v=0.8.0">
-  <link rel="stylesheet" href="/css/app.css?v=0.8.0">
+  <link rel="stylesheet" href="/css/tokens.css?v=0.9.0">
+  <link rel="stylesheet" href="/css/base.css?v=0.9.0">
+  <link rel="stylesheet" href="/css/components.css?v=0.9.0">
+  <link rel="stylesheet" href="/css/app.css?v=0.9.0">
 </head>
 <body>
   <div id="splash" role="presentation" aria-hidden="true">
@@ -43,6 +53,6 @@
   <!-- Filet de sécurité : si le JavaScript ne démarre pas, on ne reste pas bloqué sur le logo -->
   <script>setTimeout(function () { var s = document.getElementById('splash'); if (s) s.classList.add('splash--out'); }, 7000);</script>
   <noscript><p style="padding:24px">AnabolicOS nécessite JavaScript.</p></noscript>
-  <script type="module" src="/js/app.js?v=0.8.0"></script>
+  <script type="module" src="/js/app.js?v=0.9.0"></script>
 </body>
 </html>

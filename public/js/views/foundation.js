@@ -129,11 +129,6 @@ function buildFoundation(session) {
         window.addEventListener('resize', fill);
         return ul;
       })()),
-    h('section', { class: 'card' },
-      h('h2', { class: 'card__title' }, 'Prochaine étape'),
-      h('p', { class: 'card__text' },
-        "Portage de l'entraînement, de la diet, du protocole et du poids dans le nouveau design."),
-    ),
     h('div', { style: { marginTop: '24px', textAlign: 'center' } },
       h('button', { class: 'btn btn--quiet', type: 'button', onclick: signOut }, 'Se déconnecter'),
     ),

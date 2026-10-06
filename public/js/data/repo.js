@@ -17,6 +17,7 @@ import { state, emit, CATS, activeProfileId } from '../store.js';
 import { localISODate } from '../lib/dates.js';
 import { uid as newId } from '../lib/ids.js';
 import { toast } from '../ui/toast.js';
+import { periodKey, prune as pruneGoals } from './goals.js';
 
 const { doc, setDoc, updateDoc, deleteField, serverTimestamp } = fs;
 
@@ -270,6 +271,41 @@ export function exerciseIdExists(eid) {
     }
   }
   return false;
+}
+
+// ── Objectifs & habitudes ───────────────────────────────────────────────
+
+/**
+ * Modifie les objectifs (liste + cases) puis réécrit le document entier
+ * (petit : historique élagué). Renvoie une fonction d'annulation.
+ */
+export function updateGoals(mutate) {
+  const before = clone(state.goals);
+  const draft = clone(state.goals) || { items: [], done: {} };
+  mutate(draft);
+  draft.done = pruneGoals(draft.done);
+  state.goals = draft;
+  emit();
+  write(setDoc(dataRef('goals'), clone(draft)), 'objectifs');
+  return () => { state.goals = before; emit(); write(setDoc(dataRef('goals'), clone(before)), 'objectifs'); };
+}
+
+/** Coche / décoche un objectif pour sa période en cours. */
+export function toggleGoal(item, date = new Date()) {
+  const key = periodKey(item.period, date);
+  updateGoals((g) => {
+    const cur = { ...(g.done[key] || {}) };
+    if (cur[item.id]) delete cur[item.id]; else cur[item.id] = true;
+    g.done[key] = cur;
+  });
+}
+
+// ── Accueil personnalisé ────────────────────────────────────────────────
+
+export function updateHome(next) {
+  state.home = { order: next.order, hidden: next.hidden };
+  emit();
+  write(setDoc(dataRef('home'), clone(state.home)), 'accueil');
 }
 
 export { CATS };

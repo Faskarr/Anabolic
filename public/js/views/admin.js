@@ -16,8 +16,11 @@ import { state, profileData } from '../store.js';
 import { ms, unreadForAdmin } from '../data/messages.js';
 import {
   watchUserData, watchUserInbox, setUserStatus, proposeToUser, cancelProposal,
-  installProfileForUser, renameUserProfile, setUserActiveProfile, deleteUserProfile,
+  installProfileForUser, renameUserProfile, setUserActiveProfile, deleteUserProfile, setUserGoals,
 } from '../data/admin.js';
+import { GoalsBoard, editGoal } from './goals.js';
+import { periodKey } from '../data/goals.js';
+import { librarySources } from './admin-library.js';
 import { PageHeader, IconButton, Skeleton, Empty, SectionTitle } from '../ui/layout.js';
 import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
@@ -101,6 +104,11 @@ export function AdminHomeView() {
       h('span', { class: 'menu-row__label' }, 'Messages'),
       unreadIds.size ? h('span', { class: 'count-badge' }, String(unreadIds.size)) : h('span', { class: 'muted' }, 'à jour'),
       h('span', { class: 'menu-row__chevron' }, icon('chevron', 18))),
+    h('a', { class: 'card admin-link', href: '#/admin/library' },
+      h('span', { class: 'menu-row__icon' }, icon('book', 20)),
+      h('span', { class: 'menu-row__label' }, 'Bibliothèque de programmes'),
+      h('span', { class: 'muted' }, 'modèles à envoyer'),
+      h('span', { class: 'menu-row__chevron' }, icon('chevron', 18))),
     search,
     h('div', { class: 'chips' }, FILTERS.map(([key, label]) => h('button', {
       class: `chip${list.filter === key ? ' chip--on' : ''}`, type: 'button',
@@ -171,6 +179,7 @@ async function sendFlow(user, cat) {
       title: `Envoyer un ${CAT_LABEL[cat].toLowerCase()}`,
       subtitle: `à ${user.displayName || user.email}`,
       actions: [
+        ...librarySources(cat).map((x) => ({ label: `Bibliothèque · ${x.name}`, icon: 'book', onClick: () => resolve({ name: x.name, payload: x.payload }) })),
         ...mine.map((p) => ({ label: p.name, icon: 'file', onClick: () => resolve({ name: p.name, payload: profileData(cat, p.id) }) })),
         { label: 'Coller un code AnabolicOS…', icon: 'copy', onClick: async () => {
           const r = await formSheet({
@@ -186,7 +195,7 @@ async function sendFlow(user, cat) {
         } },
       ],
     });
-    if (!mine.length) toast(`Tu n'as aucun ${CAT_LABEL[cat].toLowerCase()} à toi : colle un code ou crée-en un dans ton propre onglet.`);
+    if (!mine.length && !librarySources(cat).length) toast(`Tu n'as aucun ${CAT_LABEL[cat].toLowerCase()} à toi : colle un code ou crée-en un dans ton propre onglet.`);
   });
   if (!source) return;
 
@@ -375,7 +384,33 @@ function ProtocolTab(user) {
   ];
 }
 
-const TABS = [['overview', 'Aperçu'], ['weight', 'Poids'], ['workout', 'Séances'], ['diet', 'Diet'], ['protocol', 'Protocole']];
+/** Objectifs de l'utilisateur : consultables et modifiables par l'admin. */
+function GoalsTab(user) {
+  const uid = user.id;
+  const apply = (mutate) => {
+    const g = structuredClone(data.goals);
+    mutate(g);
+    data.goals = g;          // affichage immédiat, le snapshot confirmera
+    rerender();
+    return setUserGoals(uid, g);
+  };
+  const toggle = (item) => apply((g) => {
+    const key = periodKey(item.period);
+    const cur = { ...(g.done[key] || {}) };
+    if (cur[item.id]) delete cur[item.id]; else cur[item.id] = true;
+    g.done[key] = cur;
+  });
+  const items = data.goals?.items || [];
+  return [
+    items.length
+      ? GoalsBoard({ goals: data.goals, onToggle: toggle, onEdit: (it) => editGoal(it, apply), onAdd: (p) => editGoal(null, apply, p) })
+      : Empty({ iconName: 'target', title: 'Aucun objectif', text: 'Fixe-lui des habitudes à cocher (pas, eau, sommeil, séances…).', actionLabel: 'Ajouter un objectif', onAction: () => editGoal(null, apply) }),
+    items.length ? h('button', { class: 'btn btn--ghost btn--block add-btn', type: 'button', onclick: () => editGoal(null, apply) }, icon('plus', 18), 'Ajouter un objectif') : null,
+    h('p', { class: 'hint' }, 'Les modifications apparaissent en direct chez l’utilisateur.'),
+  ];
+}
+
+const TABS = [['overview', 'Aperçu'], ['weight', 'Poids'], ['workout', 'Séances'], ['diet', 'Diet'], ['protocol', 'Protocole'], ['goals', 'Objectifs']];
 
 export function AdminUserView(session, uid) {
   ensureFeed(uid);
@@ -392,7 +427,7 @@ export function AdminUserView(session, uid) {
   const conv = (state.adminConversations || []).find((c) => c.id === uid);
 
   const body = {
-    overview: OverviewTab, weight: WeightTab, workout: WorkoutTab, diet: DietTab, protocol: ProtocolTab,
+    overview: OverviewTab, weight: WeightTab, workout: WorkoutTab, diet: DietTab, protocol: ProtocolTab, goals: GoalsTab,
   }[ui.tab](user);
 
   return [
