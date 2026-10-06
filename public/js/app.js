@@ -35,7 +35,6 @@ import { AdminInboxView, AdminConversationView, leaveAdminConversation } from '.
 import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat } from './views/messages-hub.js';
 import { GoalsView } from './views/goals.js';
-import { consumeStepsLink } from './data/steps.js';
 import { AdminLibraryView } from './views/admin-library.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
@@ -194,7 +193,6 @@ function render({ scrollTop = false } = {}) {
 }
 
 window.addEventListener('hashchange', () => {
-  if (session?.state === 'active' && consumeStepsLink()) { current = parseRoute(); render({ scrollTop: true }); return; }
   const next = parseRoute();
   const prev = ROUTES[current.key];
   if (prev?.leave && (next.key !== current.key || next.param !== current.param)) prev.leave();
@@ -234,8 +232,6 @@ onSession((s) => {
     unsubStore = subscribe(() => render());
     mountShell();
   }
-  // Lien du Raccourci iOS « pas du jour » : #/steps?n=…
-  consumeStepsLink();
   current = parseRoute();
   render({ scrollTop: true });
 });

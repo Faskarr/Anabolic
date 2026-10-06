@@ -35,7 +35,6 @@ const APP_SHELL = [
   '/js/data/messages.js',
   '/js/data/posts.js',
   '/js/data/repo.js',
-  '/js/data/steps.js',
   '/js/firebase.js',
   '/js/lib/dates.js',
   '/js/lib/dom.js',

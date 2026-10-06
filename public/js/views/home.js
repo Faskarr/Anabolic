@@ -23,10 +23,7 @@ import { PostRow, recentPosts, shareMusicFlow } from '../ui/feed.js';
 import { InstallCard } from '../ui/install.js';
 import { GoalsCompact } from './goals.js';
 import { updateHome } from '../data/repo.js';
-import { openSheet, formSheet } from '../ui/sheet.js';
-import { stepsSummary, setSteps, setStepsGoal } from '../data/steps.js';
-import { localISODate } from '../lib/dates.js';
-import { toast } from '../ui/toast.js';
+import { openSheet } from '../ui/sheet.js';
 
 function Widget({ eyebrow, action, children, tone, cls = '' }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
@@ -280,73 +277,9 @@ function GoalsWidget() {
   });
 }
 
-// ── Pas du jour / de la semaine ─────────────────────────────────────────
-
-const fmt = (n) => Number(n || 0).toLocaleString('fr-FR');
-const SHORTCUT_URL = 'https://anabolic-adc6a.web.app/#/steps?n=';
-
-async function editSteps() {
-  const s = stepsSummary();
-  const r = await formSheet({
-    title: 'Pas d’aujourd’hui',
-    subtitle: 'Recopie le total affiché dans l’app Santé (ou automatise avec un Raccourci).',
-    fields: [
-      { name: 'n', label: 'Nombre de pas', type: 'number', integer: true, min: 0, max: 200000, value: s.today ?? '', required: true, placeholder: '8 500' },
-      { name: 'goal', label: 'Objectif quotidien', type: 'number', integer: true, min: 1000, max: 100000, value: s.goal },
-    ],
-  });
-  if (!r?.values) return;
-  setSteps(r.values.n);
-  if (r.values.goal && r.values.goal !== s.goal) setStepsGoal(r.values.goal);
-}
-
-/** Mode d'emploi du Raccourci iOS qui envoie automatiquement les pas de Santé. */
-function stepsSetup() {
-  const step = (n, ...c) => h('li', { class: 'install__step' }, h('span', { class: 'install__n' }, String(n)), h('span', {}, ...c));
-  openSheet({
-    title: 'Synchro automatique des pas',
-    subtitle: 'Une app web ne peut pas lire Santé directement : un Raccourci iOS lui envoie le total, chaque soir ou à la demande.',
-    body: h('div', { class: 'cal-sheet' },
-      h('ol', { class: 'install__steps' },
-        step(1, 'App ', h('strong', {}, 'Raccourcis'), ' › + › ', h('strong', {}, 'Rechercher des échantillons de santé'), ' : Type « Nombre de pas », Date de début « aujourd’hui », Regrouper par « Jour ».'),
-        step(2, 'Ajoute ', h('strong', {}, 'Calculer les statistiques'), ' › « Somme » des échantillons.'),
-        step(3, 'Ajoute ', h('strong', {}, 'URL'), ' : colle le lien ci-dessous puis insère la variable « Somme » à la fin.'),
-        step(4, 'Ajoute ', h('strong', {}, 'Ouvrir les URL'), '. Nomme le raccourci « Pas AnabolicOS ».'),
-        step(5, 'Onglet ', h('strong', {}, 'Automatisation'), ' › Heure de la journée (ex. 21:30, quotidien) › « Exécuter immédiatement » › ce raccourci.')),
-      h('div', { class: 'code-line' }, SHORTCUT_URL),
-      h('button', {
-        class: 'btn btn--primary btn--block', type: 'button',
-        onclick: () => navigator.clipboard.writeText(SHORTCUT_URL).then(() => toast('Lien copié'), () => toast('Copie impossible', { type: 'error' })),
-      }, icon('copy', 18), 'Copier le lien'),
-      h('p', { class: 'muted small' }, 'Le lien s’ouvre dans Safari : connecte-toi une fois à AnabolicOS dans Safari avec le même compte Google. Le total arrive ensuite partout, y compris dans l’app installée.')),
-  });
-}
-
-function StepsWidget() {
-  const s = stepsSummary();
-  const pct = s.today ? Math.min(100, Math.round((s.today / s.goal) * 100)) : 0;
-  const max = Math.max(s.goal, ...s.last7.map((d) => d.n || 0));
-  return h('section', { class: 'card widget steps' },
-    h('button', { class: 'steps__main', type: 'button', onclick: editSteps, 'aria-label': 'Saisir mes pas du jour' },
-      h('span', { class: 'steps__col' },
-        h('span', { class: 'eyebrow' }, 'Pas aujourd’hui'),
-        h('span', { class: 'steps__big' }, s.today == null ? '—' : fmt(s.today)),
-        h('span', { class: 'bar steps__bar' }, h('span', { class: `bar__fill${pct >= 100 ? ' bar__fill--ok' : ''}`, style: { width: `${pct}%` } })),
-        h('span', { class: 'steps__sub' }, s.today == null ? 'Touche pour saisir' : `${pct} % de ${fmt(s.goal)}`)),
-      h('span', { class: 'steps__col steps__col--week' },
-        h('span', { class: 'eyebrow' }, 'Semaine'),
-        h('span', { class: 'steps__big steps__big--sm' }, fmt(s.week)),
-        h('span', { class: 'steps__chart', 'aria-hidden': 'true' }, s.last7.map((d) => h('span', { class: 'steps__day' },
-          h('span', { class: `steps__stick${d.iso === localISODate() ? ' steps__stick--today' : ''}${(d.n || 0) >= s.goal ? ' steps__stick--ok' : ''}`, style: { height: `${d.n ? Math.max(8, Math.round((d.n / max) * 100)) : 4}%` } }),
-          h('span', { class: 'steps__letter' }, d.day)))),
-        h('span', { class: 'steps__sub' }, s.days ? `moy. ${fmt(s.avg)} / jour` : 'depuis lundi'))),
-    h('button', { class: 'link-btn steps__sync', type: 'button', onclick: stepsSetup }, icon('reset', 14), 'Synchro auto avec Santé'));
-}
-
 // ── Widgets personnalisables ────────────────────────────────────────────
 
 export const WIDGETS = {
-  steps:    { label: 'Pas (jour & semaine)',  icon: 'flame',    render: () => StepsWidget() },
   messages: { label: 'Messages',              icon: 'message',  render: (s) => MessagesWidget(s) },
   session:  { label: 'Séance du jour',        icon: 'dumbbell', render: () => TodaySession() },
   goals:    { label: 'Objectifs & habitudes', icon: 'target',   render: () => GoalsWidget() },
@@ -355,7 +288,7 @@ export const WIDGETS = {
   diet:     { label: 'Prochain repas',        icon: 'leaf',     render: () => DietWidget() },
   weight:   { label: 'Poids',                 icon: 'scale',    render: () => WeightWidget() },
 };
-const DEFAULT_ORDER = ['steps', 'messages', 'session', 'goals', 'friends', 'protocol', 'diet', 'weight'];
+const DEFAULT_ORDER = ['messages', 'session', 'goals', 'friends', 'protocol', 'diet', 'weight'];
 
 /** Widgets visibles, dans l'ordre choisi (les nouveaux widgets s'ajoutent à la fin). */
 function layout(home = state.home) {
@@ -417,10 +350,8 @@ export function HomeView(session) {
   return [
     head,
     InstallCard(),               // seulement hors app installée
-    // Les pas restent tout en haut s'ils sont en première position.
-    visible[0] === 'steps' ? WIDGETS.steps.render(session) : null,
     CoachSends(session),         // envois du coach : toujours visibles en haut
-    (visible[0] === 'steps' ? visible.slice(1) : visible).map((id) => WIDGETS[id].render(session)),
+    visible.map((id) => WIDGETS[id].render(session)),
     h('button', { class: 'btn btn--quiet btn--block home-edit', type: 'button', onclick: customize },
       icon('layout', 18), 'Personnaliser l’accueil'),
   ];

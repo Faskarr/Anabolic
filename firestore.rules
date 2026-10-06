@@ -52,6 +52,24 @@ service cloud.firestore {
     function friendshipAccepted(pid) {
       return get(/databases/$(database)/documents/friendships/$(pid)).data.get('status', 'accepted') == 'accepted';
     }
+    // Publication « record » partagée avec les amis.
+    function isPrPost(d) {
+      return d.type == 'pr'
+        && d.w is number
+        && d.r is int
+        && d.keys().hasOnly(['type', 'name', 'exercise', 'w', 'r', 'e1rm', 'at', 'likes'])
+        && isShortString(d.exercise, 120);
+    }
+    // Publication « musique » : lien https vers Spotify / Deezer / Apple Music uniquement.
+    // (« service » est un mot réservé des règles → accès par d['service'])
+    function isMusicPost(d) {
+      return d.type == 'music'
+        && d.keys().hasOnly(['type', 'name', 'url', 'title', 'service', 'at', 'likes'])
+        && d['service'] in ['spotify', 'deezer', 'apple']
+        && isShortString(d.title, 120)
+        && isShortString(d.url, 300)
+        && d.url.matches('^https://(open[.]spotify[.]com|spotify[.]link|(www[.])?deezer[.]com|deezer[.]page[.]link|link[.]deezer[.]com|music[.]apple[.]com)/[^ ]*$');
+    }
     function isMessage(data, from) {
       return data.keys().hasOnly(['from', 'text', 'at'])
         && data.from == from
@@ -225,20 +243,7 @@ service cloud.firestore {
           && request.resource.data.likes is list
           && request.resource.data.likes.size() == 0
           && request.resource.data.at == request.time
-          && (
-            // Record personnel
-            (request.resource.data.type == 'pr'
-              && request.resource.data.keys().hasOnly(['type', 'name', 'exercise', 'w', 'r', 'e1rm', 'at', 'likes'])
-              && isShortString(request.resource.data.exercise, 120)
-              && request.resource.data.w is number && request.resource.data.r is int)
-            // Musique : lien https vers Spotify / Deezer / Apple Music uniquement
-            || (request.resource.data.type == 'music'
-              && request.resource.data.keys().hasOnly(['type', 'name', 'url', 'title', 'service', 'at', 'likes'])
-              && request.resource.data.service in ['spotify', 'deezer', 'apple']
-              && isShortString(request.resource.data.title, 120)
-              && isShortString(request.resource.data.url, 300)
-              && request.resource.data.url.matches('^https://(open[.]spotify[.]com|spotify[.]link|(www[.])?deezer[.]com|deezer[.]page[.]link|link[.]deezer[.]com|music[.]apple[.]com)/[^ ]*$'))
-          );
+          && (isPrPost(request.resource.data) || isMusicPost(request.resource.data));
         // Liker / retirer son like : seul son propre uid peut être ajouté ou retiré.
         allow update: if (isOwner(uid) || isFriend(uid))
           && onlyChanges(['likes'])
