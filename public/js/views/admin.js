@@ -16,7 +16,7 @@ import { state, profileData, ensureAdminUsers } from '../store.js';
 import { ms, unreadForAdmin } from '../data/messages.js';
 import {
   watchUserData, watchUserInbox, setUserStatus, proposeToUser, cancelProposal,
-  installProfileForUser, renameUserProfile, setUserActiveProfile, deleteUserProfile, setUserGoals,
+  installProfileForUser, renameUserProfile, setUserActiveProfile, deleteUserProfile, setUserGoals, deleteUserAccount,
 } from '../data/admin.js';
 import { GoalsBoard, editGoal } from './goals.js';
 import { periodKey } from '../data/goals.js';
@@ -418,6 +418,36 @@ function GoalsTab(user) {
 
 const TABS = [['overview', 'Aperçu'], ['weight', 'Poids'], ['workout', 'Séances'], ['diet', 'Diet'], ['protocol', 'Protocole'], ['goals', 'Objectifs']];
 
+/** Suppression d'un compte : choix (réinscription possible ou bloquée), confirmation, puis suppression. */
+function deleteAccountFlow(uid, user) {
+  const who = user.displayName || user.email || 'cet utilisateur';
+  const run = async (block) => {
+    const ok = await confirmSheet({
+      title: `Supprimer ${who} ?`,
+      message: `Toutes ses données seront effacées définitivement (programmes, diet, protocole, poids, carnet, messages, amis, photo).${block ? ' Il ne pourra plus se réinscrire avec ce compte Google.' : ' S’il se reconnecte, il repartira de zéro.'} Action irréversible.`,
+      confirmLabel: 'Supprimer définitivement',
+    });
+    if (!ok) return;
+    toast('Suppression en cours…');
+    try {
+      const n = await deleteUserAccount(uid, { block });
+      toast(`Compte supprimé (${n} éléments effacés)`);
+      location.hash = '#/admin';
+    } catch (err) {
+      console.error('[admin] suppression', err);
+      toast(`Suppression incomplète : ${err.code || err.message}. Réessaie.`, { type: 'error', duration: 7000 });
+    }
+  };
+  actionSheet({
+    title: 'Supprimer le compte',
+    subtitle: who,
+    actions: [
+      { label: 'Supprimer (réinscription possible)', icon: 'trash', danger: true, onClick: () => run(false) },
+      { label: 'Supprimer et bloquer ce compte Google', icon: 'x', danger: true, onClick: () => run(true) },
+    ],
+  });
+}
+
 export function AdminUserView(session, uid) {
   ensureAdminUsers();
   ensureFeed(uid);
@@ -465,6 +495,10 @@ export function AdminUserView(session, uid) {
           if (ok) { await setUserStatus(uid, disabled ? 'active' : 'disabled'); toast(disabled ? 'Compte réactivé' : 'Compte désactivé'); }
         },
       }, icon(disabled ? 'check' : 'x', 22), h('span', {}, disabled ? 'Réactiver' : 'Désactiver'))),
+    isMe ? null : h('button', {
+      class: 'btn btn--danger-quiet btn--block', type: 'button',
+      onclick: () => deleteAccountFlow(uid, user),
+    }, icon('trash', 18), 'Supprimer le compte'),
     h('div', { class: 'segmented segmented--compact', role: 'tablist' }, TABS.map(([key, label]) => h('button', {
       class: `segment${ui.tab === key ? ' segment--on' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(ui.tab === key),
       onclick: () => { ui.tab = key; rerender(); },

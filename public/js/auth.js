@@ -7,7 +7,7 @@
  */
 import { auth, db, googleProvider, authSdk, fs } from './firebase.js';
 
-const { signInWithPopup, getRedirectResult, signOut: fbSignOut, onAuthStateChanged, browserPopupRedirectResolver } = authSdk;
+const { signInWithPopup, signInWithRedirect, getRedirectResult, signOut: fbSignOut, onAuthStateChanged, browserPopupRedirectResolver } = authSdk;
 const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = fs;
 
 /** Messages d'erreur Firebase traduits pour l'utilisateur. */
@@ -19,31 +19,62 @@ const AUTH_ERRORS = {
 };
 
 /**
- * À appeler dès l'affichage de l'écran de connexion : charge à l'avance le
- * module Google (iframe). Sur iPhone, la fenêtre de connexion DOIT s'ouvrir
- * immédiatement au toucher ; si ce module se charge pendant le clic, Safari
- * bloque la fenêtre en silence → « il ne se passe rien ».
- * getRedirectResult() initialise ce module sans rien ouvrir (aucun effet sinon).
+ * Connexion Google.
+ *  • Ordinateur : fenêtre (popup).
+ *  • iPhone / iPad / Android : REDIRECTION pleine page. Safari n'ouvre une
+ *    fenêtre que si elle est demandée à l'instant même du toucher ; or Firebase
+ *    l'ouvre ~100 ms plus tard (préparation de l'adresse) → 1er toucher bloqué,
+ *    il fallait toucher deux fois. La redirection n'a pas cette limite : un seul
+ *    toucher, puis retour automatique dans l'app une fois connecté.
+ *    (Fiable car le domaine de connexion = le domaine de l'app, cf. firebase.js.)
+ */
+const MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);   // iPad récent
+const REDIRECT_FLAG = 'authRedirect';
+
+/** Retour de Google en cours de traitement (affiche « Connexion… » au lieu du bouton). */
+export function redirectPending() {
+  try { return sessionStorage.getItem(REDIRECT_FLAG) === '1'; } catch { return false; }
+}
+
+/**
+ * Prépare la connexion et traite un éventuel retour de redirection Google.
+ * Appelée au démarrage quand aucune session n'est connue sur l'appareil.
+ * Renvoie { error } si le retour de Google a échoué (message à afficher).
  */
 let warm = null;
 let ready = false;
 export function warmUpSignIn() {
   warm ||= getRedirectResult(auth, browserPopupRedirectResolver)
-    .catch(() => null)
-    .finally(() => { ready = true; });
+    .then(() => ({ error: null }))
+    .catch((err) => ({ error: translate(err) }))
+    .finally(() => {
+      ready = true;
+      try { sessionStorage.removeItem(REDIRECT_FLAG); } catch { /* ignoré */ }
+    });
   return warm;
 }
-/** Module Google prêt : un seul toucher suffit pour ouvrir la fenêtre. */
+/** Module Google prêt : un seul toucher suffit. */
 export const signInReady = () => ready;
+
+function translate(err) {
+  if (!err || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request'
+    || err.code === 'auth/redirect-cancelled-by-user') return null;
+  return AUTH_ERRORS[err.code] || `Connexion impossible (${err.code || err.message}).`;
+}
 
 export async function signIn() {
   try {
-    // Résolveur passé ici (et non à l'initialisation) : l'iframe Google n'est chargée qu'à la connexion.
+    if (MOBILE) {
+      try { sessionStorage.setItem(REDIRECT_FLAG, '1'); } catch { /* ignoré */ }
+      await signInWithRedirect(auth, googleProvider, browserPopupRedirectResolver);
+      return;   // la page part vers Google
+    }
     await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
   } catch (err) {
-    // Fermeture volontaire de la fenêtre : pas une erreur.
-    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
-    throw new Error(AUTH_ERRORS[err.code] || `Connexion impossible (${err.code || err.message}).`);
+    try { sessionStorage.removeItem(REDIRECT_FLAG); } catch { /* ignoré */ }
+    const msg = translate(err);
+    if (msg) throw new Error(msg);
   }
 }
 

@@ -11,7 +11,10 @@ import {
   ensureMyCode, addFriendByCode, removeFriend, friendOf, unreadFriend,
   watchFriendMessages, sendFriendMessage, markFriendRead,
   acceptFriend, isAccepted, isIncoming, isOutgoing,
+  answerFriendShare, SHARE_LABEL,
 } from '../data/friends.js';
+import { normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schema.js';
+import { applyImport } from '../data/importer.js';
 import { PageHeader, SectionTitle, IconButton, Skeleton } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
 import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
@@ -217,6 +220,71 @@ export function leaveFriendChat() {
   lastCount = 0;
 }
 
+// ── Programme / diet / protocole reçu d'un ami ──────────────────────────
+
+const NORMALIZE = { workout: normalizeWorkout, diet: normalizeDiet, protocol: normalizeProtocol };
+const shareCache = new Map();     // id du message → contenu analysé (une seule analyse)
+const handled = new Set();        // anti double-tap
+
+function parseShare(m) {
+  if (!shareCache.has(m.id)) {
+    let data = null;
+    try { data = NORMALIZE[m.cat]?.(JSON.parse(m.payload)) || null; } catch { data = null; }
+    shareCache.set(m.id, data);
+  }
+  return shareCache.get(m.id);
+}
+
+function shareSummary(cat, d) {
+  if (!d) return 'Contenu illisible';
+  if (cat === 'workout') { const n = d.sessions.length; const e = d.sessions.reduce((a, x) => a + x.exercises.length, 0); return `${n} séance${n > 1 ? 's' : ''} · ${e} exercice${e > 1 ? 's' : ''}`; }
+  if (cat === 'diet') return `${d.meals.length} repas${d.objective ? ` · ${d.objective} kcal` : ''}`;
+  return `${d.days.length} jour${d.days.length > 1 ? 's' : ''} de prises`;
+}
+
+async function answerShare(pid, m, accept) {
+  if (handled.has(m.id)) return;
+  handled.add(m.id);
+  try {
+    if (accept) {
+      const data = parseShare(m);
+      if (!data) throw new Error('Contenu illisible.');
+      applyImport({ name: m.title, [m.cat]: structuredClone(data) }, { [m.cat]: true });
+    }
+    await answerFriendShare(pid, m.id, accept ? 'accepted' : 'refused');
+    toast(accept ? `${SHARE_LABEL[m.cat]} « ${m.title} » ajouté et activé` : 'Envoi refusé');
+  } catch (err) {
+    handled.delete(m.id);
+    console.error('[share]', err);
+    toast(err.message || 'Action impossible.', { type: 'error' });
+  }
+}
+
+function ShareBubble(pid, m, mine, time) {
+  const label = SHARE_LABEL[m.cat] || 'Envoi';
+  const data = parseShare(m);
+  const status = m.status || 'pending';
+  const statusText = { pending: mine ? 'En attente de réponse' : null, accepted: 'Accepté', refused: 'Refusé' }[status];
+  const ico = { workout: 'dumbbell', diet: 'leaf', protocol: 'pill' }[m.cat] || 'file';
+  return h('div', { class: `share-msg${mine ? ' share-msg--mine' : ''}` },
+    h('div', { class: 'share-msg__head' },
+      h('span', { class: 'share-msg__icon', 'aria-hidden': 'true' }, icon(ico, 20)),
+      h('div', { class: 'share-msg__txt' },
+        h('p', { class: 'share-msg__eyebrow' }, mine ? `Tu as envoyé · ${label}` : `${label} reçu`),
+        h('p', { class: 'share-msg__title' }, m.title || label),
+        h('p', { class: 'share-msg__sub' }, shareSummary(m.cat, data)))),
+    !mine && status === 'pending' && data
+      ? h('div', { class: 'share-msg__actions' },
+        h('button', { class: 'btn btn--primary', type: 'button', onclick: () => answerShare(pid, m, true) }, icon('check', 18), 'Accepter'),
+        h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => answerShare(pid, m, false) }, 'Refuser'))
+      : null,
+    h('p', { class: 'share-msg__foot' },
+      statusText ? h('span', { class: `share-msg__status share-msg__status--${status}` }, statusText) : null,
+      h('span', {}, time)),
+    !mine && status === 'pending' && data
+      ? h('p', { class: 'share-msg__hint' }, 'Accepter l’ajoute comme nouveau profil, sans rien remplacer.') : null);
+}
+
 export function FriendChatView(session, pid) {
   const me = session.user.uid;
   const f = state.friendships.find((x) => x.id === pid);
@@ -260,7 +328,9 @@ export function FriendChatView(session, pid) {
     trainedToday(act)
       ? h('p', { class: 'friend-status' }, icon('dumbbell', 16), `S’est entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}`)
       : null,
-    messages.length ? Thread(messages, me) : h('p', { class: 'muted center' }, `Commence la discussion avec ${name}.`),
+    messages.length
+      ? Thread(messages, me, { special: (m, mine, time) => (m.kind === 'share' ? ShareBubble(pid, m, mine, time) : null) })
+      : h('p', { class: 'muted center' }, `Commence la discussion avec ${name}.`),
     h('div', { class: 'composer-spacer' }),
     Composer({ id: `friend-input-${pid}`, draft: drafts[pid], placeholder: 'Message…', onSend: (t) => sendFriendMessage(me, pid, t) }),
   ];

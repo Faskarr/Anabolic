@@ -16,6 +16,8 @@ import { applyImport } from '../data/importer.js';
 import { PageHeader, SectionTitle, IconButton } from '../ui/layout.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
+import { actionSheet, confirmSheet } from '../ui/sheet.js';
+import { isAccepted, friendOf, sendFriendShare, SHARE_LABEL } from '../data/friends.js';
 
 const CAT_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
 
@@ -86,6 +88,35 @@ function doDownload() {
 
 function rerender() { window.dispatchEvent(new Event('app:render')); }
 
+/** Envoie le profil choisi à un ami : il le reçoit dans votre discussion et l'accepte ou le refuse. */
+function sendToFriend() {
+  const me = state.me?.uid;
+  const pid = ui.pid || activeProfileId(ui.cat);
+  const prof = state.profiles[ui.cat].list.find((p) => p.id === pid);
+  if (!me || !prof) return toast('Aucun profil à envoyer.', { type: 'error' });
+  const friends = state.friendships.filter(isAccepted)
+    .map((f) => ({ f, name: f.names?.[friendOf(f, me)] || 'Ami' }));
+  if (!friends.length) return toast('Ajoute d’abord un ami dans Contact (avec son code ami).', { type: 'error', duration: 5000 });
+  const label = SHARE_LABEL[ui.cat];
+  actionSheet({
+    title: `Envoyer ${label.toLowerCase()} « ${prof.name} »`,
+    subtitle: 'Ton ami le reçoit dans votre discussion et choisit de l’accepter ou non.',
+    actions: friends.map(({ f, name }) => ({
+      label: name, icon: 'send',
+      onClick: async () => {
+        if (!(await confirmSheet({ title: `Envoyer à ${name} ?`, message: `${label} « ${prof.name} »`, confirmLabel: 'Envoyer', danger: false }))) return;
+        try {
+          await sendFriendShare(me, f.id, { cat: ui.cat, title: prof.name, data: profileData(ui.cat, pid) });
+          toast(`Envoyé à ${name}`, { action: { label: 'Voir', onClick: () => { location.hash = `#/friends/${encodeURIComponent(f.id)}`; } } });
+        } catch (err) {
+          console.error('[share]', err);
+          toast(err.message?.startsWith('Trop') ? err.message : 'Envoi impossible. Vérifie ta connexion.', { type: 'error' });
+        }
+      },
+    })),
+  });
+}
+
 function ExportCard() {
   const modeTabs = h('div', { class: 'segmented segmented--fill' },
     [['profile', 'Un profil'], ['all', 'Sauvegarde complète']].map(([m, l]) => h('button', {
@@ -118,6 +149,9 @@ function ExportCard() {
     h('p', { class: 'eyebrow' }, 'Exporter'),
     modeTabs,
     picker,
+    ui.mode === 'profile' ? h('button', {
+      class: 'btn btn--primary btn--block', type: 'button', style: { marginTop: '12px' }, onclick: sendToFriend,
+    }, icon('send', 18), 'Envoyer à un ami') : null,
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn btn--ink', type: 'button', onclick: doShare }, icon('share', 18), 'Partager'),
       h('button', { class: 'btn btn--ghost', type: 'button', onclick: doCopy }, icon('copy', 18), 'Copier'),

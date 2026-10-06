@@ -71,9 +71,22 @@ service cloud.firestore {
         && data.text.size() > 0
         && data.at == request.time;
     }
+    // Envoi d'un programme / diet / protocole à un ami (contenu en JSON, taille bornée).
+    function isShareMessage(data, sender) {
+      return data.keys().hasOnly(['from', 'text', 'at', 'kind', 'cat', 'title', 'payload', 'status'])
+        && data.from == sender
+        && data.kind == 'share'
+        && data.cat in ['workout', 'diet', 'protocol']
+        && isShortString(data.title, 80)
+        && isShortString(data.text, 200)
+        && data.payload is string
+        && data.payload.size() <= 300000
+        && data.status == 'pending'
+        && data.at == request.time;
+    }
     function musicUrlOk(u) {
       return isShortString(u, 300)
-        && u.matches('^https://(open[.]spotify[.]com|spotify[.]link|(www[.])?deezer[.]com|deezer[.]page[.]link|link[.]deezer[.]com|music[.]apple[.]com)/[^ ]*$');
+        && u.matches('^https://(open[.]spotify[.]com|spotify[.]link|(www[.])?deezer[.]com|deezer[.]page[.]link|link[.]deezer[.]com|music[.]apple[.]com|music[.]youtube[.]com)/[^ ]*$');
     }
     // Profil racine : nom court, photo Google uniquement (pas de pixel espion).
     function isProfileOk(d) {
@@ -90,12 +103,12 @@ service cloud.firestore {
         && d.keys().hasOnly(['type', 'name', 'exercise', 'w', 'r', 'e1rm', 'at', 'likes'])
         && isShortString(d.exercise, 120);
     }
-    // Publication « musique » : lien https vers Spotify / Deezer / Apple Music.
+    // Publication « musique » : lien https vers Spotify / Deezer / Apple Music / YouTube Music.
     // (« service » est un mot réservé des règles → accès par d['service'])
     function isMusicPost(d) {
       return d.type == 'music'
         && d.keys().hasOnly(['type', 'name', 'url', 'title', 'service', 'at', 'likes'])
-        && d['service'] in ['spotify', 'deezer', 'apple']
+        && d['service'] in ['spotify', 'deezer', 'apple', 'youtube']
         && isShortString(d.title, 120)
         && musicUrlOk(d.url);
     }
@@ -106,7 +119,7 @@ service cloud.firestore {
           isShortString(m.get('id', ''), 40) && (
             (m.get('type', '') == 'music'
               && m.keys().hasOnly(['id', 'type', 'url', 'title', 'service', 'at'])
-              && m['service'] in ['spotify', 'deezer', 'apple']
+              && m['service'] in ['spotify', 'deezer', 'apple', 'youtube']
               && isShortString(m.get('title', ''), 120)
               && musicUrlOk(m.url)
               && notFuture(m.at))
@@ -287,11 +300,21 @@ service cloud.firestore {
           && friendshipAccepted(pid))
           || isAdmin();
         allow create: if signedIn()
-          && isMessage(request.resource.data, request.auth.uid)
+          && (isMessage(request.resource.data, request.auth.uid)
+              || isShareMessage(request.resource.data, request.auth.uid))
           && request.auth.uid in get(/databases/$(database)/documents/friendships/$(pid)).data.members
           && friendshipAccepted(pid)
           && isActive(request.auth.uid);
-        allow update, delete: if isAdmin();
+        // Réponse à un envoi : seul le DESTINATAIRE, une seule fois, uniquement le statut.
+        allow update: if (signedIn()
+          && resource.data.get('kind', '') == 'share'
+          && resource.data.status == 'pending'
+          && resource.data.from != request.auth.uid
+          && onlyChanges(['status'])
+          && request.resource.data.status in ['accepted', 'refused']
+          && request.auth.uid in get(/databases/$(database)/documents/friendships/$(pid)).data.members)
+          || isAdmin();
+        allow delete: if isAdmin();
       }
     }
 

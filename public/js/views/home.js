@@ -19,7 +19,7 @@ import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
 import { friendOf, unreadFriend, isAccepted, isIncoming } from '../data/friends.js';
 import { trainedToday } from './messages-hub.js';
 import { Avatar } from '../ui/avatar.js';
-import { PostRow, recentPosts, recentMusic, shareMusicFlow } from '../ui/feed.js';
+import { PostRow, recentPosts, recentMusic, shareMusicFlow, openMusic, sharePRFlow } from '../ui/feed.js';
 import { MUSIC_SERVICES } from '../data/posts.js';
 
 const MUSIC_LABEL = Object.fromEntries(Object.entries(MUSIC_SERVICES).map(([k, v]) => [k, v.label]));
@@ -121,13 +121,17 @@ function FriendsWidget(session) {
         h('span', { class: 'fstrip__ava' }, Avatar({ uid: x.uid, name: x.name, size: 'sm' }), done ? h('span', { class: 'fstrip__ok' }, icon('check', 10)) : null),
         h('span', { class: 'fstrip__name' }, String(x.name || 'Ami').split(' ')[0]));
       })),
-      lastPr ? h('ul', { class: 'records records--one' }, PostRow(lastPr, me)) : null,
+      h('div', { class: 'music-head' },
+        h('span', { class: 'eyebrow' }, icon('flame', 13), ' Records'),
+        h('button', { class: 'link-btn', type: 'button', onclick: sharePRFlow }, icon('plus', 15), 'Partager')),
+      lastPr ? h('ul', { class: 'records records--one' }, PostRow(lastPr, me))
+        : h('p', { class: 'muted small' }, 'Aucun record cette semaine. Partage ta meilleure perf !'),
       h('div', { class: 'music-head' },
         h('span', { class: 'eyebrow' }, icon('music', 13), ' Sons conseillés'),
         h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('plus', 15), 'Partager')),
       music.length
-        ? h('div', { class: 'music-list' }, music.map((m) => h('a', {
-          class: `music-card music-card--${m.service}`, href: m.url, target: '_blank', rel: 'noopener noreferrer',
+        ? h('div', { class: 'music-list' }, music.map((m) => h('button', {
+          class: `music-card music-card--${m.service}`, type: 'button', onclick: () => openMusic(m),
           'aria-label': `Écouter ${m.title || 'le son'} conseillé par ${m.owner === me ? 'toi' : m.name}`,
         },
         h('span', { class: 'music-card__play' }, icon('play', 14)),

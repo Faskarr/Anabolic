@@ -141,6 +141,7 @@ function applyEnter() {
   kids.forEach((el, i) => { el.style.animationDelay = `${Math.round(enter.at - now + i * ENTER.STEP_MS)}ms`; });
 }
 let session = null;
+let tourPlanned = false;   // présentation déjà programmée (ou déjà vue)
 let current = { key: 'home', param: null };
 let viewEl = null;
 let tabHost = null;
@@ -252,7 +253,7 @@ onSession((s) => {
   const wasActive = session?.state === 'active';
   const sameSession = wasActive && s.state === 'active';
   // Connexion depuis l'écran de connexion : on arrive toujours sur l'accueil.
-  if (session && session.state !== 'active' && s.state === 'active' && location.hash && location.hash !== '#/home') {
+  if (session?.state === 'signed-out' && s.state === 'active' && location.hash && location.hash !== '#/home') {
     history.replaceState(null, '', '#/home');
   }
   session = s;
@@ -289,7 +290,28 @@ onSession((s) => {
   current = parseRoute();
   // Confirmation d'une session déjà affichée : simple mise à jour, sans remonter en haut.
   render({ scrollTop: !sameSession });
+
+  maybeShowTour();
 });
+
+/**
+ * Présentation de l'app : une seule fois, par-dessus l'ACCUEIL, pour tout compte
+ * qui ne l'a jamais vue sur cet appareil (ensuite : Moi › Découvrir l'app).
+ * Module chargé uniquement dans ce cas.
+ */
+function maybeShowTour() {
+  if (tourPlanned || session?.state !== 'active' || current.key !== 'home') return;
+  const uid = session.user.uid;
+  try { if (localStorage.getItem(`tour:v1:${uid}`) === '1') { tourPlanned = true; return; } } catch { return; }
+  tourPlanned = true;
+  // Juste après l'entrée des widgets (et le départ du logo).
+  const wait = Math.max(0, splashOutAt() - performance.now()) + 650;
+  setTimeout(() => {
+    if (session?.state !== 'active' || current.key !== 'home') { tourPlanned = false; return; }
+    import('./ui/tour.js').then((m) => m.showTour(uid)).catch(() => { tourPlanned = false; });
+  }, wait);
+}
+window.addEventListener('hashchange', maybeShowTour);
 
 // Minuit : « aujourd'hui » change (accueil, protocole, habitudes) et, le lundi, la semaine.
 (function scheduleMidnight() {

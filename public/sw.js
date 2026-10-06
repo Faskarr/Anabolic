@@ -16,7 +16,7 @@
  *
  * Incrémente VERSION à chaque déploiement (fait automatiquement avec la liste).
  */
-const VERSION = 'vdae0ca377e';
+const VERSION = 'v8d881e169f';
 const APP_CACHE = `app-${VERSION}`;
 // Changer SDK_VERSION ici ET dans firebase.js / index.html lors d'une montée de version du SDK.
 const SDK_VERSION = '12.19.0';
@@ -70,6 +70,7 @@ const APP_SHELL = [
   '/js/ui/theme.js',
   '/js/ui/timer.js',
   '/js/ui/toast.js',
+  '/js/ui/tour.js',
   '/js/views/admin-library.js',
   '/js/views/admin-links.js',
   '/js/views/admin-messages.js',

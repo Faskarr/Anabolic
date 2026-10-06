@@ -34,8 +34,9 @@ export function shortWhen(v) {
 /**
  * @param {Array<{id, from, text, at}>} messages
  * @param {'user'|'admin'} me  qui « parle » de ce côté-ci (bulles à droite)
+ * @param {{ special?: (m) => Node|null }} [opts]  rendu dédié de certains messages (envoi de programme…)
  */
-export function Thread(messages, me) {
+export function Thread(messages, me, { special } = {}) {
   const nodes = [];
   let lastDay = null;
   for (const m of messages) {
@@ -46,6 +47,8 @@ export function Thread(messages, me) {
       lastDay = key;
     }
     const mine = m.from === me;
+    const custom = special?.(m, mine, hhmm(d));
+    if (custom) { nodes.push(custom); continue; }
     nodes.push(h('div', { class: `bubble${mine ? ' bubble--mine' : ''}` },
       h('p', { class: 'bubble__text' }, m.text),
       h('span', { class: 'bubble__time' }, hhmm(d))));

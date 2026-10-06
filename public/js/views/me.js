@@ -113,7 +113,11 @@ export function MeView(session) {
       InstallRow(openSheet),
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),
-      Row({ href: '#/me/check', iconName: 'shield', label: 'Diagnostic' })),
+      Row({ href: '#/me/check', iconName: 'shield', label: 'Diagnostic' }),
+      Row({
+        iconName: 'book', label: 'Découvrir l’app',
+        onclick: () => import('../ui/tour.js').then((m) => m.showTour(user.uid)),
+      })),
     h('p', { class: 'eyebrow menu-title' }, 'Liens & réglages'),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Liens utiles' },
       ThemePicker(),

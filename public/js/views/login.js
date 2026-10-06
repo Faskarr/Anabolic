@@ -1,5 +1,5 @@
 import { h } from '../lib/dom.js';
-import { signIn, warmUpSignIn, signInReady } from '../auth.js';
+import { signIn, warmUpSignIn, signInReady, redirectPending } from '../auth.js';
 import { toast } from '../ui/toast.js';
 import { LiveLogo } from '../ui/logo.js';
 import { InstallCard } from '../ui/install.js';
@@ -48,13 +48,16 @@ export function LoginView() {
     },
   }, GOOGLE_ICON(), label);
 
-  // Sur iPhone, la fenêtre Google ne s'ouvre que si son module est déjà chargé
-  // au moment du toucher : le bouton attend qu'il soit prêt (quelques centaines de ms).
+  // Le bouton attend que le module Google soit prêt (quelques centaines de ms).
+  // Retour de Google après connexion : « Connexion… » le temps de finaliser.
   if (!signInReady()) {
     button.disabled = true;
-    label.textContent = 'Préparation…';
+    label.textContent = redirectPending() ? 'Connexion…' : 'Préparation…';
     const enable = () => { button.disabled = false; label.textContent = 'Continuer avec Google'; };
-    warmUpSignIn().then(enable);
+    warmUpSignIn().then((r) => {
+      enable();
+      if (r?.error) toast(r.error, { type: 'error', duration: 6000 });
+    });
     setTimeout(() => { forced = true; enable(); }, 8000);   // réseau très lent : on laisse essayer
   }
 

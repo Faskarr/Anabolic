@@ -137,6 +137,35 @@ export function sendFriendMessage(uid, pid, text) {
   return true;
 }
 
+// ── Envoi d'un programme / diet / protocole à un ami ────────────────────
+
+export const SHARE_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
+export const SHARE_MAX = 300000;   // caractères (le document Firestore reste < 1 Mo)
+
+/**
+ * Message spécial dans la discussion : { kind:'share', cat, title, payload (JSON), status:'pending' }.
+ * L'ami l'accepte (ajouté comme nouveau profil chez lui) ou le refuse.
+ */
+export function sendFriendShare(uid, pid, { cat, title, data }) {
+  const payload = JSON.stringify(data ?? {});
+  if (payload.length > SHARE_MAX) throw new Error('Trop volumineux pour être envoyé (exporte-le en fichier).');
+  const name = String(title || SHARE_LABEL[cat]).trim().slice(0, 80) || SHARE_LABEL[cat];
+  const text = `${SHARE_LABEL[cat]} « ${name} »`.slice(0, 200);
+  const batch = writeBatch(db);
+  batch.set(doc(collection(db, 'friendships', pid, 'messages')), {
+    from: uid, text, at: serverTimestamp(), kind: 'share', cat, title: name, payload, status: 'pending',
+  });
+  batch.update(doc(db, 'friendships', pid), {
+    lastText: `📦 ${text}`.slice(0, 140), lastFrom: uid, lastAt: serverTimestamp(), [`readAt.${uid}`]: serverTimestamp(),
+  });
+  return batch.commit();
+}
+
+/** Réponse du destinataire : 'accepted' | 'refused'. */
+export function answerFriendShare(pid, mid, status) {
+  return updateDoc(doc(db, 'friendships', pid, 'messages', mid), { status });
+}
+
 export function markFriendRead(uid, pid) {
   updateDoc(doc(db, 'friendships', pid), { [`readAt.${uid}`]: serverTimestamp() }).catch(() => {});
 }

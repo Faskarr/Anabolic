@@ -15,6 +15,7 @@ import { normalizeGoals, emptyGoals } from './goals.js';
 
 const {
   doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp, writeBatch, getDoc, FieldPath,
+  getDocs, where,
 } = fs;
 
 const DATA_KEY = { workout: 'workouts', diet: 'diet', protocol: 'protocol' };
@@ -84,6 +85,57 @@ export function watchUserInbox(uid, cb) {
 /** Désactive / réactive un compte. Aucune donnée n'est supprimée. */
 export function setUserStatus(uid, status) {
   return updateDoc(doc(db, 'users', uid), { status }).catch(fail('statut'));
+}
+
+/**
+ * SUPPRIME un compte : toutes ses données Firestore (profil, programmes, diet,
+ * protocole, poids, carnet, habitudes, semaines, envois du coach, conversation,
+ * activité et publications, photo, code ami, amitiés et leurs discussions).
+ *
+ * `block` : garde une fiche minimale « désactivée » → la personne ne peut plus
+ * se réinscrire avec ce compte Google. Sinon, elle repartirait de zéro en se
+ * reconnectant. (Le compte Google lui-même reste dans Firebase Authentication :
+ * le retirer aussi = console Firebase › Authentication.)
+ * @returns {Promise<number>} nombre de documents supprimés
+ */
+export async function deleteUserAccount(uid, { block = false } = {}) {
+  const refs = [];
+  const all = async (q) => (await getDocs(q)).docs.map((d) => d.ref);
+
+  for (const name of [...DOCS, 'home']) refs.push(doc(db, 'users', uid, 'data', name));
+  const [weeks, inbox, convMsgs, posts, codes, friendships, userSnap] = await Promise.all([
+    all(collection(db, 'users', uid, 'weeks')),
+    all(collection(db, 'users', uid, 'inbox')),
+    all(collection(db, 'conversations', uid, 'messages')),
+    all(collection(db, 'activity', uid, 'posts')),
+    all(query(collection(db, 'friendCodes'), where('uid', '==', uid))),
+    getDocs(query(collection(db, 'friendships'), where('members', 'array-contains', uid))),
+    getDoc(doc(db, 'users', uid)),
+  ]);
+  refs.push(...weeks, ...inbox, ...convMsgs, doc(db, 'conversations', uid),
+    ...posts, doc(db, 'activity', uid), doc(db, 'avatars', uid), ...codes);
+  for (const f of friendships.docs) {
+    refs.push(...await all(collection(db, 'friendships', f.id, 'messages')), f.ref);
+  }
+
+  // Lots de 450 écritures (limite Firestore : 500 par lot).
+  for (let i = 0; i < refs.length; i += 450) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 450).forEach((r) => batch.delete(r));
+    await batch.commit();
+  }
+  const u = userSnap.exists() ? userSnap.data() : {};
+  if (block) {
+    await setDoc(doc(db, 'users', uid), {
+      status: 'disabled', email: u.email || '', displayName: (u.displayName || '').slice(0, 120),
+      createdAt: u.createdAt || serverTimestamp(), deletedAt: serverTimestamp(),
+    });
+  } else {
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users', uid));
+    await batch.commit();
+  }
+  return refs.length + 1;
 }
 
 /**

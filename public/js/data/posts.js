@@ -46,7 +46,30 @@ export const MUSIC_SERVICES = {
   spotify: { label: 'Spotify',     hosts: ['open.spotify.com', 'spotify.link'] },
   deezer:  { label: 'Deezer',      hosts: ['www.deezer.com', 'deezer.com', 'deezer.page.link', 'link.deezer.com'] },
   apple:   { label: 'Apple Music', hosts: ['music.apple.com'] },
+  youtube: { label: 'YouTube Music', hosts: ['music.youtube.com'] },
 };
+
+/**
+ * Où ouvrir un son partagé : le lien d'origine sur son service, sinon une
+ * recherche par titre sur les autres (Spotify, Deezer, YouTube Music).
+ * Les adresses sont construites ici (jamais reprises d'un autre utilisateur).
+ * @returns {Array<{ key, label, href, original }>}
+ */
+export function musicTargets({ url, service, title }) {
+  const q = encodeURIComponent(String(title || '').trim().slice(0, 120));
+  const search = {
+    spotify: q && `https://open.spotify.com/search/${q}`,
+    deezer:  q && `https://www.deezer.com/search/${q}`,
+    youtube: q && `https://music.youtube.com/search?q=${q}`,
+  };
+  const out = ['spotify', 'deezer', 'youtube'].map((key) => ({
+    key, label: MUSIC_SERVICES[key].label,
+    href: key === service ? url : search[key],
+    original: key === service,
+  }));
+  if (service === 'apple') out.unshift({ key: 'apple', label: 'Apple Music', href: url, original: true });
+  return out.filter((t) => t.href);
+}
 
 /**
  * Valide un lien de partage musical. Accepte un texte collé contenant le lien
