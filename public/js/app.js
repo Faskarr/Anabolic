@@ -17,6 +17,7 @@ import './ui/theme.js';
 import { initAmbient } from './ui/ambient.js';
 initAmbient();
 import { mount, h } from './lib/dom.js';
+import { toast } from './ui/toast.js';
 import { onSession } from './auth.js';
 import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
 import { TabBar } from './ui/tabbar.js';
@@ -100,7 +101,7 @@ const root = document.getElementById('app');
  * en plein milieu ne coupe pas l'animation, chaque rendu recalcule le délai
  * de chaque bloc par rapport à l'instant de départ (délai négatif = reprise).
  */
-const ENTER = { STEP_MS: 90, DURATION_MS: 700 };
+const ENTER = { STEP_MS: 60, DURATION_MS: 520 };
 let enter = { pending: true, at: 0 };
 
 function applyEnter() {
@@ -110,7 +111,7 @@ function applyEnter() {
   const now = performance.now();
   if (enter.pending) {
     // Départ juste après l'effacement du splash (ou tout de suite s'il est parti).
-    enter = { pending: false, at: Math.max(now, splashOutAt() + 120) };
+    enter = { pending: false, at: Math.max(now, splashOutAt()) };
   }
   const kids = [...viewEl.children];
   const total = enter.at + kids.length * ENTER.STEP_MS + ENTER.DURATION_MS;
@@ -250,6 +251,21 @@ watchResume(() => {
 });
 
 // Service worker : cache de l'app pour un démarrage rapide et hors ligne.
+// Service worker : l'app est servie depuis le téléphone (démarrage instantané).
+// Quand une nouvelle version est installée en arrière-plan, on recharge tout de
+// suite si l'app vient d'être ouverte, sinon on propose de recharger.
 if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
-  navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('[sw]', err));
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;          // toute première installation
+    if (performance.now() < 8000) { reloading = true; location.reload(); return; }
+    toast('Nouvelle version d’AnabolicOS installée', {
+      duration: 20000, action: { label: 'Recharger', onClick: () => location.reload() },
+    });
+  });
+  navigator.serviceWorker.register('/sw.js').then((reg) => {
+    // Retour dans l'app : on vérifie s'il y a une mise à jour.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch((err) => console.warn('[sw]', err));
 }

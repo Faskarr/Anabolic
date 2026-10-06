@@ -14,7 +14,7 @@
  *
  * Incrémente VERSION à chaque déploiement (fait automatiquement avec la liste).
  */
-const VERSION = 'v7d466ef637';
+const VERSION = 'vf1165392ef';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
