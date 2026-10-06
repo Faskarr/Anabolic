@@ -33,7 +33,7 @@ import { ShareView } from './views/share.js';
 import { ContactView, leaveContact } from './views/contact.js';
 import { AdminInboxView, AdminConversationView, leaveAdminConversation } from './views/admin-messages.js';
 import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
-import { MessagesHubView, FriendChatView, leaveFriendChat } from './views/messages-hub.js';
+import { MessagesHubView, FriendChatView, leaveFriendChat, leaveHub } from './views/messages-hub.js';
 import { GoalsView } from './views/goals.js';
 import { AdminLibraryView } from './views/admin-library.js';
 
@@ -77,7 +77,7 @@ const ROUTES = {
   goals:          { view: GoalsView },
   'me/goals':     { view: GoalsView },   // ancien lien
   // Contact = messagerie : coach (ou messages des utilisateurs pour l'admin) + amis.
-  contact:          { view: MessagesHubView },
+  contact:          { view: MessagesHubView, leave: leaveHub },
   'contact/coach':  { view: ContactView, leave: leaveContact, chat: true },
   friends:          { view: FriendChatView, param: true, leave: leaveFriendChat, chat: true },
   'admin/messages': { view: AdminInboxView, admin: true },

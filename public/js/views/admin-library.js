@@ -9,7 +9,7 @@
 import { h } from '../lib/dom.js';
 import { uid as newId } from '../lib/ids.js';
 import { parseImport, normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schema.js';
-import { state, profileData } from '../store.js';
+import { state, profileData, ensureAdminUsers } from '../store.js';
 import { createProfile } from '../data/repo.js';
 import { watchLibrary, saveLibraryItem, deleteLibraryItem, proposeToUser, installForUser } from '../data/admin.js';
 import { PageHeader, IconButton, Empty, Skeleton, SectionTitle } from '../ui/layout.js';
@@ -221,6 +221,7 @@ function ItemCard(item) {
 
 export function AdminLibraryView() {
   ensureFeed();
+  ensureAdminUsers();   // destinataires des envois
   const header = PageHeader({
     eyebrow: 'Admin', title: 'Bibliothèque',
     trailing: IconButton('back', 'Retour', () => { location.hash = '#/admin'; }, 'icon-btn--soft'),

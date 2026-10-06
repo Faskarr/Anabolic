@@ -227,12 +227,40 @@ function persistExlog(eid) {
     'carnet');
 }
 
+/**
+ * Le carnet tient dans UN document Firestore (limite 1 Mio). Quand il approche
+ * ~60 % de cette limite, les séries de plus de 6 mois sont compactées : on ne
+ * garde que la meilleure série (1RM estimé) de chaque jour. Les courbes de
+ * progression, calculées sur le meilleur 1RM du jour, restent identiques.
+ */
+const EXLOG_SOFT_LIMIT = 600_000;
+const e1rmOf = (x) => (x.r <= 1 ? x.w : x.w * (1 + x.r / 30));
+
+function compactExlogs() {
+  if (JSON.stringify(state.exlogs).length < EXLOG_SOFT_LIMIT) return false;
+  const cutoff = localISODate(new Date(Date.now() - 182 * 86400000));
+  const next = {};
+  for (const [eid, arr] of Object.entries(state.exlogs)) {
+    const best = new Map();
+    const recent = [];
+    for (const x of arr) {
+      if (x.d >= cutoff) { recent.push(x); continue; }
+      const b = best.get(x.d);
+      if (!b || e1rmOf(x) > e1rmOf(b)) best.set(x.d, x);
+    }
+    next[eid] = [...best.values(), ...recent].sort((a, b) => a.ts - b.ts);
+  }
+  state.exlogs = next;
+  write(setDoc(dataRef('exlogs'), { logs: clone(next) }), 'carnet');
+  return true;
+}
+
 export function addLog(eid, w, r) {
   const arr = [...(state.exlogs[eid] || [])];
   arr.push({ ts: Date.now(), d: localISODate(), w, r });
   state.exlogs = { ...state.exlogs, [eid]: arr };
   emit();
-  persistExlog(eid);
+  if (!compactExlogs()) persistExlog(eid);
 }
 
 export function deleteLog(eid, ts) {

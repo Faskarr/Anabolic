@@ -12,7 +12,7 @@ import { h } from '../lib/dom.js';
 import { frNum, formatShortDate, formatWeekdays, isoWeekday } from '../lib/dates.js';
 import { uid as newId } from '../lib/ids.js';
 import { parseImport, normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schema.js';
-import { state, profileData } from '../store.js';
+import { state, profileData, ensureAdminUsers } from '../store.js';
 import { ms, unreadForAdmin } from '../data/messages.js';
 import {
   watchUserData, watchUserInbox, setUserStatus, proposeToUser, cancelProposal,
@@ -62,6 +62,7 @@ const list = { filter: 'all', search: '' };
 const FILTERS = [['all', 'Tous'], ['active', 'Actifs'], ['inactive', 'Inactifs 14 j+'], ['disabled', 'Désactivés'], ['unread', 'Messages']];
 
 export function AdminHomeView() {
+  ensureAdminUsers();
   const header = PageHeader({
     eyebrow: 'Admin', title: 'Utilisateurs',
     trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
@@ -413,6 +414,7 @@ function GoalsTab(user) {
 const TABS = [['overview', 'Aperçu'], ['weight', 'Poids'], ['workout', 'Séances'], ['diet', 'Diet'], ['protocol', 'Protocole'], ['goals', 'Objectifs']];
 
 export function AdminUserView(session, uid) {
+  ensureAdminUsers();
   ensureFeed(uid);
   const user = (state.adminUsers || []).find((u) => u.id === uid);
   const header = PageHeader({

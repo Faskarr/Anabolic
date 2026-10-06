@@ -5,7 +5,7 @@
  */
 import { h } from '../lib/dom.js';
 import { localISODate } from '../lib/dates.js';
-import { state } from '../store.js';
+import { state, startPostsFeed, stopPostsFeed } from '../store.js';
 import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import {
   ensureMyCode, addFriendByCode, removeFriend, friendOf, unreadFriend,
@@ -142,7 +142,11 @@ function PendingRow(f, me, isAdmin) {
     h('button', { class: 'link-btn link-btn--danger', type: 'button', onclick: () => removeFriend(f.id) }, 'Annuler'));
 }
 
+/** Quitter Contact : on arrête le fil complet (économie de lectures). */
+export function leaveHub() { stopPostsFeed(); }
+
 export function MessagesHubView(session) {
+  startPostsFeed();
   loadMyCode(session);
   const me = session.user.uid;
   const friends = state.friendships.filter(isAccepted);

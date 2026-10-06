@@ -52,6 +52,13 @@ service cloud.firestore {
     function friendshipAccepted(pid) {
       return get(/databases/$(database)/documents/friendships/$(pid)).data.get('status', 'accepted') == 'accepted';
     }
+    // Activité visible par les amis (+ dernière publication et version de la photo).
+    function isActivity(d) {
+      return d.get('lastPost', {}) is map
+        && d.get('avatarAt', 0) is int
+        && d.get('lastPost', {}).size() <= 12
+        && d.keys().hasOnly(['name', 'day', 'sessionName', 'at', 'lastPost', 'avatarAt']);
+    }
     // Publication « record » partagée avec les amis.
     function isPrPost(d) {
       return d.type == 'pr'
@@ -101,7 +108,7 @@ service cloud.firestore {
       allow update: if
            (isOwner(uid)
              && resource.data.status == 'active'
-             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt', 'friendCode']))
+             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt', 'friendCode', 'avatarAt']))
         || (isAdmin()
              && onlyChanges(['status', 'adminNote'])
              && request.resource.data.status in ['active', 'disabled']);
@@ -232,8 +239,9 @@ service cloud.firestore {
     // Activité visible par les amis (séance faite aujourd'hui).
     match /activity/{uid} {
       allow read: if isOwner(uid) || isAdmin() || isFriend(uid);
-      allow write: if ownerActive(uid)
-        && request.resource.data.keys().hasOnly(['name', 'day', 'sessionName', 'at']);
+      // lastPost : copie de la dernière publication (évite aux amis de lire les posts) ;
+      // avatarAt : version de la photo (les amis ne la relisent que si elle change).
+      allow write: if ownerActive(uid) && isActivity(request.resource.data);
 
       // Records et musiques partagés avec les amis, qui peuvent les « liker ».
       match /posts/{postId} {

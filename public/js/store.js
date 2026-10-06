@@ -50,8 +50,9 @@ export const state = {
   inbox: [],                 // envois du coach en attente
   me: null,                  // { uid, displayName, email } de l'utilisateur connecté
   friendships: [],           // mes amitiés (avec aperçu du dernier message)
-  friendActivity: {},        // { [uidAmi]: { name, day, sessionName } }
-  posts: {},                 // { [uid]: [records partagés] } — mes amis + moi
+  friendActivity: {},        // { [uid]: { name, day, sessionName, lastPost, avatarAt } } — amis + moi
+  posts: {},                 // { [uid]: [publications] } — chargé seulement sur l'onglet Contact
+  postsFeed: false,          // fil complet des publications actif ?
   adminUsers: null,          // ADMIN : tous les utilisateurs (null = non chargé)
   adminConversations: null,  // ADMIN : toutes les conversations (null = non chargé)
   error: null,
@@ -136,9 +137,13 @@ function listenWeek() {
 /** Démarre la synchro pour un utilisateur. */
 const activityUnsubs = new Map();
 
+const postUnsubs = new Map();
+
 /**
- * Abonne/désabonne l'activité et les records de chaque ami (et mes propres
- * records) quand la liste d'amis change.
+ * Économie de lectures : au démarrage, UN seul document par ami (activity/{uid},
+ * qui contient aussi sa dernière publication et la version de sa photo).
+ * Le fil complet (5 dernières publications par personne, avec les likes) n'est
+ * écouté que sur l'onglet Contact (startPostsFeed / stopPostsFeed).
  */
 function syncFriendActivity() {
   const friends = new Set(state.friendships.filter(isAccepted).map((f) => friendOf(f, state.uid)));
@@ -146,17 +151,37 @@ function syncFriendActivity() {
   for (const [uid, unsub] of activityUnsubs) {
     if (!wanted.has(uid)) {
       unsub(); activityUnsubs.delete(uid);
-      delete state.friendActivity[uid]; delete state.posts[uid];
+      delete state.friendActivity[uid];
     }
   }
   for (const uid of wanted) {
     if (activityUnsubs.has(uid)) continue;
-    const subs = [watchPosts(uid, (list) => { state.posts = { ...state.posts, [uid]: list }; emit(); })];
-    if (uid !== state.uid) {
-      subs.push(watchActivity(uid, (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); }));
-    }
-    activityUnsubs.set(uid, () => subs.forEach((u) => u()));
+    activityUnsubs.set(uid, watchActivity(uid, (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); }));
   }
+  if (state.postsFeed) syncPosts(wanted);
+}
+
+function syncPosts(wanted) {
+  for (const [uid, unsub] of postUnsubs) {
+    if (!wanted.has(uid)) { unsub(); postUnsubs.delete(uid); delete state.posts[uid]; }
+  }
+  for (const uid of wanted) {
+    if (postUnsubs.has(uid)) continue;
+    postUnsubs.set(uid, watchPosts(uid, (list) => { state.posts = { ...state.posts, [uid]: list }; emit(); }));
+  }
+}
+
+/** Fil complet des publications (onglet Contact). */
+export function startPostsFeed() {
+  if (state.postsFeed || !state.uid) return;
+  state.postsFeed = true;
+  syncPosts(new Set([...state.friendships.filter(isAccepted).map((f) => friendOf(f, state.uid)), state.uid]));
+}
+export function stopPostsFeed() {
+  postUnsubs.forEach((u) => u());
+  postUnsubs.clear();
+  state.postsFeed = false;
+  state.posts = {};
 }
 
 export function startStore(uid, user) {
@@ -175,10 +200,17 @@ export function startStore(uid, user) {
   document.addEventListener('visibilitychange', onVisible);
 }
 
-/** ADMIN : écoute toutes les conversations (badge + boîte de réception). */
+/** ADMIN : conversations récentes (badge + boîte de réception), dès la connexion. */
 export function startAdminFeeds() {
   unsubs.push(watchAllConversations((list) => { state.adminConversations = list; emit(); updateAppBadge(); }));
-  unsubs.push(watchUsers((list) => { state.adminUsers = list; emit(); }));
+}
+
+let usersUnsub = null;
+/** ADMIN : liste de tous les utilisateurs, chargée seulement en ouvrant l'espace admin. */
+export function ensureAdminUsers() {
+  if (usersUnsub || !state.uid) return;
+  usersUnsub = watchUsers((list) => { state.adminUsers = list; emit(); });
+  unsubs.push(() => { usersUnsub?.(); usersUnsub = null; });
 }
 
 /** Nombre de non-lus à afficher (badge onglet « Moi » et icône de l'app). */
@@ -204,6 +236,8 @@ export function stopStore() {
   unsubs = [];
   activityUnsubs.forEach((u) => u());
   activityUnsubs.clear();
+  postUnsubs.forEach((u) => u());
+  postUnsubs.clear();
   pending = 0;
   document.removeEventListener('visibilitychange', onVisible);
   Object.assign(state, {
@@ -211,7 +245,7 @@ export function stopStore() {
     weights: [], exlogs: {}, counterBase: 0, week: {}, error: null,
     goals: emptyGoals(), home: { order: null, hidden: [] },
     conversation: null, adminConversations: null, inbox: [], adminUsers: null,
-    me: null, friendships: [], friendActivity: {}, posts: {},
+    me: null, friendships: [], friendActivity: {}, posts: {}, postsFeed: false,
   });
 }
 

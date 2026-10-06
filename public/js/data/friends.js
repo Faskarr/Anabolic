@@ -6,7 +6,8 @@
  *   friendships/{uidA_uidB}       { members:[a,b], names:{a,b}, code, createdAt,
  *                                   lastText, lastFrom, lastAt, readAt:{uid: ts} }
  *   friendships/{id}/messages/*   { from: uid, text, at }
- *   activity/{uid}                { name, day:'YYYY-MM-DD'|null, sessionName, at }
+ *   activity/{uid}                { name, day:'YYYY-MM-DD'|null, sessionName, at,
+ *                                   lastPost: { id, type, … }, avatarAt: ms }
  *
  * Sécurité : une amitié ne peut être créée qu'avec le code de l'autre personne ;
  * l'activité n'est lisible que par les amis.
@@ -120,7 +121,7 @@ export function removeFriend(pid) {
 // ── Discussion entre amis ───────────────────────────────────────────────
 
 export function watchFriendMessages(pid, cb) {
-  const q = query(collection(db, 'friendships', pid, 'messages'), orderBy('at', 'desc'), limit(100));
+  const q = query(collection(db, 'friendships', pid, 'messages'), orderBy('at', 'desc'), limit(50));
   return onSnapshot(q, (snap) => cb(snap.docs.map(read).reverse()), (err) => { console.warn('[friends] msgs', err); cb([]); });
 }
 
@@ -144,12 +145,13 @@ export function markFriendRead(uid, pid) {
 
 /** Publie (ou retire) « séance faite aujourd'hui » pour les amis. */
 export function publishActivity(user, sessionName, done) {
+  // merge : conserve lastPost et avatarAt.
   setDoc(doc(db, 'activity', user.uid), {
     name: (user.displayName || 'Utilisateur').slice(0, 120),
     day: done ? localISODate() : null,
     sessionName: done ? String(sessionName || '').slice(0, 60) : null,
     at: serverTimestamp(),
-  }).catch((err) => console.warn('[friends] activité', err));
+  }, { merge: true }).catch((err) => console.warn('[friends] activité', err));
 }
 
 export function watchActivity(uid, cb) {

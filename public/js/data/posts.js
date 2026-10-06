@@ -11,8 +11,18 @@ const { doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, d
 
 const e1rm = (w, r) => (r <= 1 ? w : w * (1 + r / 30));
 
+/**
+ * Recopie la dernière publication dans activity/{uid} : l'accueil de mes amis
+ * l'affiche sans lire ma sous-collection de posts.
+ */
+function setLastPost(uid, ref, data) {
+  const { likes, at, name, ...rest } = data;
+  return setDoc(doc(db, 'activity', uid), { lastPost: { id: ref.id || ref.path.split('/').pop(), ...rest, at: Date.now() } }, { merge: true }).catch(() => {});
+}
+
 export function sharePR(me, { exercise, w, r }) {
-  return setDoc(doc(collection(db, 'activity', me.uid, 'posts')), {
+  const ref = doc(collection(db, 'activity', me.uid, 'posts'));
+  const data = {
     type: 'pr',
     name: (me.displayName || 'Utilisateur').slice(0, 120),
     exercise: String(exercise).slice(0, 120),
@@ -21,7 +31,8 @@ export function sharePR(me, { exercise, w, r }) {
     e1rm: Math.round(e1rm(w, r)),
     at: serverTimestamp(),
     likes: [],
-  }).then(() => toast('Record partagé avec tes amis 🏆'))
+  };
+  return setDoc(ref, data).then(() => { setLastPost(me.uid, ref, data); toast('Record partagé avec tes amis 🏆'); })
     .catch((err) => { console.error(err); toast('Partage impossible.', { type: 'error' }); });
 }
 
@@ -53,7 +64,8 @@ export function detectMusic(text) {
 }
 
 export function shareMusic(me, { url, service, title }) {
-  return setDoc(doc(collection(db, 'activity', me.uid, 'posts')), {
+  const ref = doc(collection(db, 'activity', me.uid, 'posts'));
+  const data = {
     type: 'music',
     name: (me.displayName || 'Utilisateur').slice(0, 120),
     url,
@@ -61,7 +73,8 @@ export function shareMusic(me, { url, service, title }) {
     title: String(title || '').trim().slice(0, 120),
     at: serverTimestamp(),
     likes: [],
-  }).then(() => toast('Son partagé avec tes amis 🎵'))
+  };
+  return setDoc(ref, data).then(() => { setLastPost(me.uid, ref, data); toast('Son partagé avec tes amis 🎵'); })
     .catch((err) => { console.error(err); toast('Partage impossible.', { type: 'error' }); });
 }
 

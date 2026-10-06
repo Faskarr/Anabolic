@@ -13,16 +13,27 @@ import { icon } from './icons.js';
 import { formSheet } from './sheet.js';
 import { toast } from './toast.js';
 
-/** Publications récentes de mes amis et moi (plus récentes d'abord). */
+/**
+ * Publications récentes de mes amis et moi (plus récentes d'abord).
+ * Hors de l'onglet Contact, on se contente de la DERNIÈRE publication de chacun,
+ * recopiée dans son document d'activité (aucune lecture supplémentaire).
+ */
 export function recentPosts(days = 7, max = 5) {
   const since = Date.now() - days * 86400000;
-  return Object.values(state.posts).flat()
+  const all = state.postsFeed
+    ? Object.values(state.posts).flat()
+    : Object.entries(state.friendActivity)
+      .filter(([, a]) => a?.lastPost?.id)
+      .map(([uid, a]) => ({ ...a.lastPost, owner: uid, name: a.name, partial: true }));
+  return all
     .filter((p) => ms(p.at) > since)
     .sort((a, b) => ms(b.at) - ms(a.at))
     .slice(0, max);
 }
 
 function LikeButton(post, me) {
+  // Aperçu (dernière publication recopiée) : les likes se gèrent dans Contact.
+  if (post.partial) return h('a', { class: 'like like--static', href: '#/contact', 'aria-label': 'Voir et liker dans Contact' }, icon('heart', 18));
   const mine = post.owner === me;
   const liked = (post.likes || []).includes(me);
   const n = (post.likes || []).length;

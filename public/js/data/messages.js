@@ -58,7 +58,7 @@ export function watchConversation(uid, cb) {
 
 /** 100 derniers messages, du plus ancien au plus récent. */
 export function watchMessages(uid, cb) {
-  const q = query(msgCol(uid), orderBy('at', 'desc'), limit(100));
+  const q = query(msgCol(uid), orderBy('at', 'desc'), limit(50));
   return onSnapshot(q,
     (snap) => cb(snap.docs.map(read).reverse()),
     (err) => { console.warn('[messages] messages', err); cb([]); });
@@ -66,7 +66,7 @@ export function watchMessages(uid, cb) {
 
 /** ADMIN — toutes les conversations, la plus récente en premier. */
 export function watchAllConversations(cb) {
-  const q = query(collection(db, 'conversations'), orderBy('lastAt', 'desc'), limit(200));
+  const q = query(collection(db, 'conversations'), orderBy('lastAt', 'desc'), limit(60));
   return onSnapshot(q,
     (snap) => cb(snap.docs.map(read)),
     (err) => { console.warn('[messages] admin list', err); cb([]); });
