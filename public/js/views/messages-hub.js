@@ -6,7 +6,7 @@
 import { h } from '../lib/dom.js';
 import { localISODate } from '../lib/dates.js';
 import { state, startPostsFeed, stopPostsFeed } from '../store.js';
-import { unreadForUser, unreadForAdmin } from '../data/messages.js';
+import { unreadForUser, unreadForAdmin, ms } from '../data/messages.js';
 import {
   ensureMyCode, addFriendByCode, removeFriend, friendOf, unreadFriend,
   watchFriendMessages, sendFriendMessage, markFriendRead,
@@ -21,28 +21,30 @@ import { Avatar } from '../ui/avatar.js';
 import { PostRow, recentPosts, shareMusicFlow } from '../ui/feed.js';
 
 const rerender = () => window.dispatchEvent(new Event('app:render'));
-const initial = (n) => (n || '?').trim().charAt(0).toUpperCase();
+const initial = (n) => String(n || '?').trim().charAt(0).toUpperCase() || '?';
 export const trainedToday = (a) => Boolean(a && a.day === localISODate());
 
 // ── Code ami ────────────────────────────────────────────────────────────
 
 let myCode = null;
 let codeLoading = false;
+let codeFailed = false;     // échec : pas de nouvel essai automatique (évite une boucle)
 
 function loadMyCode(session) {
-  if (myCode || codeLoading) return;
+  if (myCode || codeLoading || codeFailed) return;
   codeLoading = true;
   ensureMyCode(session.user, session.profile?.friendCode)
     .then((c) => { myCode = c; if (session.profile) session.profile.friendCode = c; })
-    .catch((err) => toast(err.message, { type: 'error' }))
+    .catch((err) => { codeFailed = true; toast(err.message, { type: 'error' }); })
     .finally(() => { codeLoading = false; rerender(); });
 }
+function retryMyCode() { codeFailed = false; rerender(); }
 
 async function shareCode() {
   const text = `Ajoute-moi sur AnabolicOS avec mon code ami : ${myCode}\nhttps://anabolic-adc6a.web.app`;
   try {
     if (navigator.share) await navigator.share({ title: 'AnabolicOS', text });
-    else { await navigator.clipboard.writeText(myCode); toast('Code copié'); }
+    else { await navigator.clipboard?.writeText(myCode); toast('Code copié'); }
   } catch (err) { if (err?.name !== 'AbortError') toast('Partage impossible.', { type: 'error' }); }
 }
 
@@ -121,7 +123,10 @@ function RequestRow(f, me, isAdmin) {
     h('div', { class: 'request__actions' },
       h('button', {
         class: 'btn btn--primary btn--sm', type: 'button',
-        onclick: async (e) => { e.currentTarget.disabled = true; await acceptFriend(f.id).catch(() => {}); toast(`${name} est maintenant ton ami`); },
+        onclick: async (e) => {
+          e.currentTarget.disabled = true;
+          try { await acceptFriend(f.id); toast(`${name} est maintenant ton ami`); } catch { /* erreur déjà affichée */ }
+        },
       }, 'Accepter'),
       h('button', {
         class: 'btn btn--ghost btn--sm', type: 'button',
@@ -178,13 +183,15 @@ export function MessagesHubView(session) {
       h('p', { class: 'eyebrow' }, 'Mon code ami'),
       myCode
         ? h('p', { class: 'friend-code__value', 'aria-label': `Code ${myCode.split('').join(' ')}` }, myCode)
-        : h('div', { class: 'spinner', style: { margin: '12px 0' } }),
+        : codeFailed
+          ? h('button', { class: 'btn btn--ghost', type: 'button', style: { margin: '10px 0' }, onclick: retryMyCode }, icon('reset', 18), 'Réessayer')
+          : h('div', { class: 'spinner', style: { margin: '12px 0' } }),
       h('p', { class: 'muted small' }, 'Donne-le à un ami pour qu’il t’ajoute.'),
       myCode ? h('div', { class: 'btn-row' },
         h('button', { class: 'btn btn--ink', type: 'button', onclick: shareCode }, icon('share', 18), 'Partager'),
         h('button', {
           class: 'btn btn--ghost', type: 'button',
-          onclick: () => navigator.clipboard.writeText(myCode).then(() => toast('Code copié'), () => toast('Copie impossible', { type: 'error' })),
+          onclick: () => (navigator.clipboard?.writeText(myCode) || Promise.reject()).then(() => toast('Code copié'), () => toast('Copie impossible', { type: 'error' })),
         }, icon('copy', 18), 'Copier')) : null),
   ];
 }
@@ -195,6 +202,7 @@ let feed = null;
 let messages = null;
 let lastCount = 0;
 const drafts = {};
+const readMarked = {};
 
 function ensureFeed(pid) {
   if (feed?.pid === pid) return;
@@ -222,7 +230,8 @@ export function FriendChatView(session, pid) {
       h('p', { class: 'muted' }, isIncoming(f, me) ? 'Accepte sa demande dans Contact pour discuter.' : 'En attente de son acceptation.')];
   }
   ensureFeed(pid);
-  if (unreadFriend(f, me)) markFriendRead(me, pid);
+  // « Lu » écrit une seule fois par message reçu (pas à chaque rendu).
+  if (unreadFriend(f, me) && readMarked[pid] !== ms(f.lastAt)) { readMarked[pid] = ms(f.lastAt); markFriendRead(me, pid); }
 
   const other = friendOf(f, me);
   const name = f.names?.[other] || 'Ami';

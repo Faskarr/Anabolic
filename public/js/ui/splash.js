@@ -6,8 +6,8 @@
  *  • Retour dans l'app après 1 min d'absence : l'animation est rejouée,
  *    l'app revient sur l'accueil et les widgets se remettent en place.
  */
-const MIN_MS = 900;   // durée minimale du logo (l'app est souvent prête avant)
-const OUT_MS = 500;
+const MIN_MS = 320;   // durée minimale du logo, comptée depuis l'ouverture de la page
+const OUT_MS = 300;
 const AWAY_MS = 60 * 1000; // revenir dans l'app après 1 min = « réouverture »
 
 const el = () => document.getElementById('splash');
@@ -42,7 +42,7 @@ const el = () => document.getElementById('splash');
   document.body.prepend(s);
 }());
 
-let shownAt = performance.now();
+let shownAt = 0;   // performance.now() part du début de la navigation
 let hiddenAt = null;
 
 /** Masque le splash en respectant la durée minimale de l'animation. */
@@ -71,6 +71,8 @@ export function splashOutAt() {
 export function replaySplash(onShown) {
   const s = el();
   if (!s) return;
+  // Mouvement réduit demandé : pas de relecture, simple retour à l'accueil.
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { onShown?.(); return; }
   // Redémarre les animations CSS en recréant les nœuds animés.
   s.querySelectorAll('.splash__logo, .splash__line span').forEach((n) => n.replaceWith(n.cloneNode(true)));
   s.classList.remove('splash--out');

@@ -7,7 +7,7 @@
  *         entre deux profils), et les charges importées suivent le nouvel id.
  */
 import { uid } from '../lib/ids.js';
-import { createProfile, mergeWeights, mergeLogs, setCounterBase, exerciseIdExists } from './repo.js';
+import { createProfile, mergeWeights, mergeLogs, setCounterBase, exerciseIdExists, updateGoals } from './repo.js';
 
 const defaultName = () =>
   `Import ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
@@ -76,6 +76,16 @@ export function applyImport(bundle, pick) {
   if (pick.counter && bundle.counterBase != null) {
     setCounterBase(bundle.counterBase);
     done.push('Compteur');
+  }
+
+  // Objectifs : ajoutés à ceux existants (même id = conservé), historique fusionné.
+  if (pick.goals && bundle.goals?.items?.length) {
+    updateGoals((g) => {
+      const ids = new Set(g.items.map((x) => x.id));
+      g.items.push(...bundle.goals.items.filter((x) => !ids.has(x.id)));
+      for (const [k, v] of Object.entries(bundle.goals.done || {})) g.done[k] = { ...v, ...(g.done[k] || {}) };
+    });
+    done.push('Objectifs');
   }
 
   return done;

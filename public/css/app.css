@@ -24,8 +24,8 @@ html.no-scroll, html.no-scroll body { overflow: hidden; }
      par la barre d'accueil → les onglets descendent dans la zone libre. */
   padding: 0 max(var(--s2), env(safe-area-inset-left)) max(6px, calc(var(--safe-bottom) - 16px));
   background: var(--bar-bg);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
   border-top: .5px solid var(--line);
 }
 .tab {
@@ -335,7 +335,7 @@ html.no-scroll, html.no-scroll body { overflow: hidden; }
   position: fixed; inset: 0; z-index: 500; display: flex; align-items: flex-end; justify-content: center;
   background: var(--overlay); animation: fade-in var(--t-base) ease both;
 }
-.sheet-overlay--out { animation: fade-out 200ms ease both; }
+.sheet-overlay--out { animation: fade-out 200ms ease both; pointer-events: none; }
 .sheet {
   width: 100%; max-width: 560px; max-height: 90dvh; display: flex; flex-direction: column;
   background: var(--card); border-radius: 24px 24px 0 0; box-shadow: var(--shadow-float);
@@ -595,7 +595,7 @@ input[type="search"].input { -webkit-appearance: none; }
 
 /* ═══ Entrée de l'accueil : les blocs se mettent en place ══════ */
 .view.view--enter { animation: none; }
-.view--enter > * { animation: block-in 520ms var(--ease-out) backwards; }
+.view--enter > * { animation: block-in 420ms var(--ease-out) backwards; }
 @keyframes block-in {
   from { opacity: 0; transform: translateY(34px) scale(.96); }
   to   { opacity: 1; transform: none; }
@@ -1127,7 +1127,22 @@ html[data-theme="dark"] .plan__plus { color: var(--stone); opacity: .5; }
   .plan__time { font-size: 9.5px; }
 }
 
-/* ═══ Fond animé : étoiles filantes (transform / opacity uniquement) ═══ */
+/* ═══ Fond animé : halos flous + étoiles filantes (transform / opacity) ═══ */
+.ambient__blob {
+  /* 55vmax (et non 85) : ~2× moins de mémoire graphique sur iPhone, rendu identique (dégradé flou) */
+  position: absolute; width: 55vmax; height: 55vmax; border-radius: 50%;
+  animation: drift-a 26s ease-in-out infinite alternate;
+}
+.ambient__blob--a { top: -22vmax; right: -18vmax; background: radial-gradient(closest-side, color-mix(in srgb, var(--bordeaux) 22%, transparent), transparent); }
+.ambient__blob--b { bottom: -24vmax; left: -20vmax; background: radial-gradient(closest-side, color-mix(in srgb, var(--stone) 26%, transparent), transparent); animation-name: drift-b; animation-duration: 32s; }
+.ambient__blob--c { top: 30%; left: 20%; width: 42vmax; height: 42vmax; background: radial-gradient(closest-side, color-mix(in srgb, var(--bordeaux) 12%, transparent), transparent); animation-name: drift-c; animation-duration: 22s; }
+html[data-theme="dark"] .ambient__blob--a { background: radial-gradient(closest-side, color-mix(in srgb, var(--bordeaux) 30%, transparent), transparent); }
+html[data-theme="dark"] .ambient__blob--b { background: radial-gradient(closest-side, color-mix(in srgb, #3A6BFF 16%, transparent), transparent); }
+html[data-theme="dark"] .ambient__blob--c { background: radial-gradient(closest-side, color-mix(in srgb, var(--bordeaux) 18%, transparent), transparent); }
+@keyframes drift-a { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-22vw, 18vh) scale(1.15); } 100% { transform: translate(-8vw, 34vh) scale(.92); } }
+@keyframes drift-b { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(26vw, -16vh) scale(1.1); } 100% { transform: translate(10vw, -32vh) scale(.95); } }
+@keyframes drift-c { 0% { transform: translate(0, 0) scale(.9); } 50% { transform: translate(-30vw, -12vh) scale(1.12); } 100% { transform: translate(18vw, 14vh) scale(1); } }
+
 #app { position: relative; z-index: 1; }
 .ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; contain: strict; --star: var(--ink); --star-glow: var(--bordeaux); }
 html[data-theme="dark"] .ambient { --star: #FFFFFF; --star-glow: var(--bordeaux); }
@@ -1139,32 +1154,46 @@ html[data-theme="dark"] .ambient { --star: #FFFFFF; --star-glow: var(--bordeaux)
 html[data-theme="dark"] .ambient__dot { opacity: .35; }
 @keyframes twinkle { 50% { opacity: .03; transform: scale(.6); } }
 .ambient__star {
-  position: absolute; width: var(--len, 120px); height: 2px; border-radius: 2px;
+  position: absolute; width: var(--len, 160px); height: 2.5px; border-radius: 2px;
   /* tête lumineuse à gauche (sens du mouvement), traînée qui s'efface vers la droite */
   background: linear-gradient(270deg, transparent, color-mix(in srgb, var(--star-glow) 55%, transparent) 70%, var(--star));
   transform-origin: left center; opacity: 0;
-  animation: shoot 1.5s cubic-bezier(.3,.1,.6,1) both;
-  will-change: transform, opacity;
+  animation: shoot-a 1.5s cubic-bezier(.3,.1,.6,1) both;
 }
+/* Même trajectoire sous un autre nom : alterner les deux relance l'animation (cf. ambient.js) */
+.ambient__star--b { animation-name: shoot-b; }
 .ambient__star::after {
   content: ''; position: absolute; left: -2px; top: -2px; width: 6px; height: 6px; border-radius: 50%;
   background: var(--star); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--star-glow) 60%, transparent);
 }
-@keyframes shoot {
+@keyframes shoot-a {
   0%   { opacity: 0; transform: rotate(-35deg) translateX(0) scaleX(.3); }
   12%  { opacity: .55; }
   70%  { opacity: .45; }
   100% { opacity: 0; transform: rotate(-35deg) translateX(-55vmax) scaleX(1); }
 }
-html[data-theme="dark"] .ambient__star { animation-name: shoot-dark; }
-@keyframes shoot-dark {
+@keyframes shoot-b {
+  0%   { opacity: 0; transform: rotate(-35deg) translateX(0) scaleX(.3); }
+  12%  { opacity: .55; }
+  70%  { opacity: .45; }
+  100% { opacity: 0; transform: rotate(-35deg) translateX(-55vmax) scaleX(1); }
+}
+html[data-theme="dark"] .ambient__star { animation-name: shoot-dark-a; }
+html[data-theme="dark"] .ambient__star--b { animation-name: shoot-dark-b; }
+@keyframes shoot-dark-a {
+  0%   { opacity: 0; transform: rotate(-35deg) translateX(0) scaleX(.3); }
+  12%  { opacity: .9; }
+  70%  { opacity: .75; }
+  100% { opacity: 0; transform: rotate(-35deg) translateX(-55vmax) scaleX(1); }
+}
+@keyframes shoot-dark-b {
   0%   { opacity: 0; transform: rotate(-35deg) translateX(0) scaleX(.3); }
   12%  { opacity: .9; }
   70%  { opacity: .75; }
   100% { opacity: 0; transform: rotate(-35deg) translateX(-55vmax) scaleX(1); }
 }
 .ambient--paused * { animation-play-state: paused; }
-@media (prefers-reduced-motion: reduce) { .ambient:not(.ambient--force) .ambient__star { display: none; } .ambient:not(.ambient--force) .ambient__dot { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ambient:not(.ambient--force) .ambient__star { display: none; } .ambient:not(.ambient--force) .ambient__dot, .ambient:not(.ambient--force) .ambient__blob { animation: none; } }
 
 /* Logo dans le titre de la carte d'installation */
 .install__title .brand { font-size: inherit; letter-spacing: inherit; }

@@ -10,7 +10,8 @@
  */
 import { h } from '../lib/dom.js';
 import { buildExport, parseImport } from '../lib/schema.js';
-import { state, profileData, activeProfileId } from '../store.js';
+import { state, profileData, activeProfileId, ensureExlogs, isSynced } from '../store.js';
+import { localISODate } from '../lib/dates.js';
 import { applyImport } from '../data/importer.js';
 import { PageHeader, SectionTitle, IconButton } from '../ui/layout.js';
 import { toast } from '../ui/toast.js';
@@ -25,11 +26,13 @@ const ui = { mode: 'profile', cat: 'workout', pid: null, importText: '', importN
 
 function exportText() {
   if (ui.mode === 'all') {
+    // La sauvegarde complète inclut le carnet de charges (chargé à la demande).
+    if (!isSynced('exlogs')) { ensureExlogs(); toast('Chargement du carnet de charges… réessaie dans une seconde.'); return null; }
     const all = {};
     for (const cat of ['workout', 'diet', 'protocol']) {
       all[cat] = state.profiles[cat].list.map((p) => ({ name: p.name, data: profileData(cat, p.id) }));
     }
-    return buildExport({ all, weights: state.weights, counterBase: state.counterBase, exlogs: state.exlogs });
+    return buildExport({ all, weights: state.weights, counterBase: state.counterBase, exlogs: state.exlogs, goals: state.goals });
   }
   const pid = ui.pid || activeProfileId(ui.cat);
   const prof = state.profiles[ui.cat].list.find((p) => p.id === pid);
@@ -38,7 +41,7 @@ function exportText() {
 }
 
 function fileName() {
-  const date = new Date().toISOString().slice(0, 10);
+  const date = localISODate();   // date locale (toISOString = UTC, la veille avant 2 h)
   if (ui.mode === 'all') return `anabolicos-sauvegarde-${date}.json`;
   const prof = state.profiles[ui.cat].list.find((p) => p.id === (ui.pid || activeProfileId(ui.cat)));
   const slug = (prof?.name || ui.cat).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -47,7 +50,7 @@ function fileName() {
 
 async function doCopy() {
   const text = exportText();
-  if (!text) return toast('Aucun profil à exporter.', { type: 'error' });
+  if (!text) return (ui.mode === 'all' ? null : toast('Aucun profil à exporter.', { type: 'error' }));
   try {
     await navigator.clipboard.writeText(text);
     toast('Code copié');
@@ -58,7 +61,7 @@ async function doCopy() {
 
 async function doShare() {
   const text = exportText();
-  if (!text) return toast('Aucun profil à exporter.', { type: 'error' });
+  if (!text) return (ui.mode === 'all' ? null : toast('Aucun profil à exporter.', { type: 'error' }));
   const file = new File([text], fileName(), { type: 'application/json' });
   try {
     if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: 'AnabolicOS' });
@@ -71,9 +74,10 @@ async function doShare() {
 
 function doDownload() {
   const text = exportText();
-  if (!text) return toast('Aucun profil à exporter.', { type: 'error' });
+  if (!text) return (ui.mode === 'all' ? null : toast('Aucun profil à exporter.', { type: 'error' }));
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const a = h('a', { href: url, download: fileName() });
+  const a = h('a', { download: fileName() });
+  a.href = url;   // blob: posé directement (le filtre d'URL de h() le refuserait)
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -135,6 +139,7 @@ function analyse(text) {
       exlogs: Boolean(b.exlogs && Object.keys(b.exlogs).length),
       weights: false,   // décoché par défaut : on n'importe pas le poids d'un autre par erreur
       counter: false,
+      goals: Boolean(b.goals),
     };
     // Nom du (des) profil(s) importé(s) — modifiable avant l'import.
     ui.importName = b.name || `Import ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
@@ -183,6 +188,7 @@ function ImportCard() {
       b.exlogs && Object.keys(b.exlogs).length && ['exlogs', `Carnet de charges (fusion)`],
       b.weights?.length && ['weights', `Poids · ${b.weights.length} pesée(s) — ajoutées sans écraser les tiennes`],
       b.counterBase != null && ['counter', `Compteur de séances → ${b.counterBase} (remplace le tien)`],
+      b.goals && ['goals', `Objectifs · ${b.goals.items.length} (ajoutés aux tiens)`],
     ].filter(Boolean);
 
     children.push(h('div', { class: 'import-pick' },
@@ -215,6 +221,7 @@ function ImportCard() {
 }
 
 export function ShareView() {
+  ensureExlogs();   // la sauvegarde complète contient le carnet de charges
   return [
     PageHeader({
       eyebrow: 'Import / Export', title: 'Mes imports',

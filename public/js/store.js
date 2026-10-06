@@ -77,12 +77,41 @@ export function emit() {
     for (const fn of listeners) {
       try { fn(state); } catch (err) { console.error('[store] listener', err); }
     }
+    saveSnapshot();
   });
 }
 
 // ── Synchronisation Firestore ───────────────────────────────────────────
 let unsubs = [];
 let pending = 0;
+
+/**
+ * Documents réellement reçus de Firestore (cache Firestore ou serveur) depuis
+ * le démarrage. Tant qu'un document n'y est pas, l'écran peut afficher la copie
+ * locale (instantané) mais AUCUNE écriture qui réécrit tout le document ne doit
+ * partir : elle écraserait des données plus récentes (voir repo.js).
+ */
+const synced = new Set();
+const waiters = new Map();   // nom → [fonctions à lancer à la synchro]
+
+export const isSynced = (name) => synced.has(name);
+
+/** Lance fn dès que tous les documents listés sont synchronisés. */
+export function afterSync(names, fn) {
+  const missing = names.filter((n) => !synced.has(n));
+  if (!missing.length) { fn(); return; }
+  const list = waiters.get(missing[0]) || [];
+  list.push(() => afterSync(names, fn));
+  waiters.set(missing[0], list);
+}
+
+function markSynced(name) {
+  if (!name || synced.has(name)) return;
+  synced.add(name);
+  const list = waiters.get(name);
+  waiters.delete(name);
+  list?.forEach((fn) => { try { fn(); } catch (err) { console.error('[store] afterSync', err); } });
+}
 
 /** Normalise le document `profiles` (tolère les anciennes données partielles). */
 function normalizeProfiles(raw) {
@@ -111,27 +140,97 @@ const DOC_HANDLERS = {
   },
 };
 
-function listen(ref, apply) {
-  pending += 1;
+// ── Instantané local (démarrage instantané) ─────────────────────────────
+/**
+ * Copie des données sur l'appareil (localStorage), relue au lancement : l'app
+ * s'affiche immédiatement, puis Firestore met tout à jour en temps réel.
+ * Les Timestamps Firestore sont convertis en millisecondes.
+ */
+const SNAP_VERSION = 2;
+// Le carnet de charges (exlogs, potentiellement volumineux) n'est pas copié :
+// il n'est chargé que sur l'écran Séances.
+const SNAP_FIELDS = ['profiles', 'workouts', 'diet', 'protocol', 'weights', 'counterBase', 'week', 'weekKey',
+  'goals', 'home', 'friendships', 'friendActivity', 'conversation', 'inbox'];
+let snapTimer = null;
+
+function saveSnapshot() {
+  if (!state.uid || !state.ready) return;
+  clearTimeout(snapTimer);
+  snapTimer = setTimeout(() => {
+    try {
+      const data = {};
+      for (const k of SNAP_FIELDS) data[k] = state[k];
+      const json = JSON.stringify({ v: SNAP_VERSION, uid: state.uid, data },
+        (_k, v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : v));
+      if (json.length < 2_000_000) localStorage.setItem(`snap:${state.uid}`, json);
+    } catch { /* quota / stockage indisponible : sans conséquence */ }
+  }, 1500);
+}
+
+function hydrate(uid) {
+  try {
+    const snap = JSON.parse(localStorage.getItem(`snap:${uid}`));
+    if (snap?.v !== SNAP_VERSION || snap.uid !== uid) return false;
+    Object.assign(state, snap.data);
+    if (state.weekKey !== weekKey()) { state.week = {}; state.weekKey = weekKey(); }
+    state.ready = true;
+    return true;
+  } catch { return false; }
+}
+
+function listen(ref, apply, name, { eager = true } = {}) {
+  if (eager) pending += 1;
   let first = true;
+  const done = () => {
+    if (!first) return;
+    first = false;
+    markSynced(name);
+    if (eager) { pending -= 1; if (pending === 0) state.ready = true; }
+  };
   const unsub = onSnapshot(ref,
-    (snap) => {
-      apply(snap.exists() ? snap.data() : null);
-      if (first) { first = false; pending -= 1; if (pending === 0) state.ready = true; }
-      emit();
-    },
+    (snap) => { apply(snap.exists() ? snap.data() : null); done(); emit(); },
     (err) => {
       console.error('[store] snapshot', ref.path, err);
       state.error = err;
-      if (first) { first = false; pending -= 1; if (pending === 0) state.ready = true; }
+      done();
       emit();
     });
   unsubs.push(unsub);
+  return unsub;
 }
 
+let weekUnsub = null;
 function listenWeek() {
   state.weekKey = weekKey();
-  listen(doc(db, 'users', state.uid, 'weeks', state.weekKey), (d) => { state.week = d || {}; });
+  weekUnsub = listen(doc(db, 'users', state.uid, 'weeks', state.weekKey), (d) => { state.week = d || {}; }, 'week');
+}
+
+/**
+ * Changement de semaine (lundi 0 h) : on bascule UNIQUEMENT l'écoute de la
+ * semaine, sans redémarrer tout le store (qui coupait les flux admin).
+ */
+export function rollWeekIfNeeded() {
+  if (!state.uid || weekKey() === state.weekKey) return false;
+  weekUnsub?.();
+  synced.delete('week');
+  state.week = {};
+  listenWeek();
+  emit();
+  return true;
+}
+
+// ── Carnet de charges : chargé à la demande (écran Séances, export) ────
+let exlogsPromise = null;
+/** Démarre l'écoute du carnet si besoin ; la promesse se résout à la 1re réception. */
+export function ensureExlogs() {
+  if (!state.uid) return Promise.resolve();
+  if (!exlogsPromise) {
+    exlogsPromise = new Promise((resolve) => {
+      afterSync(['exlogs'], resolve);
+      listen(doc(db, 'users', state.uid, 'data', 'exlogs'), DOC_HANDLERS.exlogs, 'exlogs', { eager: false });
+    });
+  }
+  return exlogsPromise;
 }
 
 /** Démarre la synchro pour un utilisateur. */
@@ -146,17 +245,26 @@ const postUnsubs = new Map();
  * écouté que sur l'onglet Contact (startPostsFeed / stopPostsFeed).
  */
 function syncFriendActivity() {
+  if (!state.uid) return;
   const friends = new Set(state.friendships.filter(isAccepted).map((f) => friendOf(f, state.uid)));
   const wanted = new Set([...friends, state.uid]);
   for (const [uid, unsub] of activityUnsubs) {
-    if (!wanted.has(uid)) {
-      unsub(); activityUnsubs.delete(uid);
-      delete state.friendActivity[uid];
-    }
+    if (!wanted.has(uid)) { unsub(); activityUnsubs.delete(uid); }
+  }
+  // Anciens amis encore présents dans la copie locale : retirés.
+  for (const uid of Object.keys(state.friendActivity)) {
+    if (!wanted.has(uid)) delete state.friendActivity[uid];
   }
   for (const uid of wanted) {
     if (activityUnsubs.has(uid)) continue;
-    activityUnsubs.set(uid, watchActivity(uid, (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); }));
+    activityUnsubs.set(uid, watchActivity(uid,
+      (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); },
+      () => {
+        // Refus juste après une acceptation (règles pas encore à jour) : on réessaie.
+        activityUnsubs.get(uid)?.();
+        activityUnsubs.delete(uid);
+        setTimeout(() => { if (state.uid) syncFriendActivity(); }, 5000);
+      }));
   }
   if (state.postsFeed) syncPosts(wanted);
 }
@@ -190,8 +298,10 @@ export function startStore(uid, user) {
   state.me = user ? { uid, displayName: user.displayName, email: user.email } : { uid };
   state.ready = false;
   state.error = null;
+  hydrate(uid);   // affichage immédiat avec la dernière copie locale
   for (const [name, apply] of Object.entries(DOC_HANDLERS)) {
-    listen(doc(db, 'users', uid, 'data', name), apply);
+    if (name === 'exlogs') continue;          // à la demande (ensureExlogs)
+    listen(doc(db, 'users', uid, 'data', name), apply, name);
   }
   listenWeek();
   unsubs.push(watchConversation(uid, (c) => { state.conversation = c; emit(); updateAppBadge(); }));
@@ -239,6 +349,10 @@ export function stopStore() {
   postUnsubs.forEach((u) => u());
   postUnsubs.clear();
   pending = 0;
+  synced.clear();
+  waiters.clear();
+  exlogsPromise = null;
+  weekUnsub = null;
   document.removeEventListener('visibilitychange', onVisible);
   Object.assign(state, {
     uid: null, ready: false, profiles: emptyProfiles(), workouts: {}, diet: {}, protocol: {},
@@ -251,11 +365,7 @@ export function stopStore() {
 
 /** Si l'app reste ouverte d'une semaine à l'autre, on bascule sur la nouvelle semaine. */
 function onVisible() {
-  if (document.visibilityState !== 'visible' || !state.uid) return;
-  if (weekKey() !== state.weekKey) {
-    const { uid, me } = state;
-    startStore(uid, me);
-  }
+  if (document.visibilityState === 'visible') rollWeekIfNeeded();
 }
 
 // ── Sélecteurs ──────────────────────────────────────────────────────────

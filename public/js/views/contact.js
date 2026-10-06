@@ -3,7 +3,9 @@
  */
 import { h } from '../lib/dom.js';
 import { state } from '../store.js';
-import { watchMessages, sendUserMessage, markReadByUser, unreadForUser } from '../data/messages.js';
+import { watchMessages, sendUserMessage, markReadByUser, unreadForUser, ms } from '../data/messages.js';
+
+let readMarked = 0;   // « lu » écrit une seule fois par réponse reçue
 import { PageHeader, Skeleton, IconButton } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd } from '../ui/chat.js';
 import { icon } from '../ui/icons.js';
@@ -40,7 +42,8 @@ export function ContactView(session) {
   ensureFeed(uid);
 
   // Ouvrir l'écran = lire la réponse.
-  if (unreadForUser(state.conversation)) markReadByUser(uid);
+  const c = state.conversation;
+  if (unreadForUser(c) && readMarked !== ms(c.lastAt)) { readMarked = ms(c.lastAt); markReadByUser(uid); }
 
   const header = PageHeader({
     eyebrow: 'Messagerie', title: 'Mon coach',

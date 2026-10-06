@@ -6,7 +6,7 @@
 import { h } from '../lib/dom.js';
 import { state } from '../store.js';
 import {
-  watchMessages, sendAdminMessage, markReadByAdmin, setConversationStatus, unreadForAdmin,
+  watchMessages, sendAdminMessage, markReadByAdmin, setConversationStatus, unreadForAdmin, ms,
 } from '../data/messages.js';
 import { PageHeader, IconButton, Skeleton, Empty } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
@@ -100,10 +100,12 @@ export function leaveAdminConversation() {
   lastCount = 0;
 }
 
+const adminRead = {};   // « lu » écrit une seule fois par message reçu
+
 export function AdminConversationView(session, uid) {
   ensureFeed(uid);
   const conv = (state.adminConversations || []).find((c) => c.id === uid) || null;
-  if (unreadForAdmin(conv)) markReadByAdmin(uid);
+  if (unreadForAdmin(conv) && adminRead[uid] !== ms(conv.lastAt)) { adminRead[uid] = ms(conv.lastAt); markReadByAdmin(uid); }
 
   const done = conv?.status === 'done';
   const header = PageHeader({

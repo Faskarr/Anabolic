@@ -228,7 +228,10 @@ function MealTime(meal) {
     h('span', {}, shown || 'Heure'),
     h('input', {
       type: 'time', class: 'meal__time-input', value: value || shown, 'aria-label': `Heure de ${meal.name}`,
-      onchange: (e) => setMealTime(meal, e.target.value),
+      // iOS déclenche « change » à chaque cran de la roue : enregistrer tout de suite
+      // re-rendrait l'écran et fermerait la roue. On enregistre à la fermeture.
+      onchange: (e) => { if (document.activeElement !== e.target) setMealTime(meal, e.target.value); else e.target.dataset.pending = '1'; },
+      onblur: (e) => { if (e.target.dataset.pending) { delete e.target.dataset.pending; setMealTime(meal, e.target.value); } },
     }));
 }
 

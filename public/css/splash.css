@@ -6,20 +6,20 @@
   position: fixed; inset: 0; z-index: 2000;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px;
   background: #F7F6F3; perspective: 900px;
-  transition: opacity .45s cubic-bezier(.22,1,.36,1), visibility .45s;
+  transition: opacity .3s cubic-bezier(.22,1,.36,1), visibility .3s;
 }
 .splash__logo {
   font-family: 'Barlow Condensed', -apple-system, sans-serif; font-weight: 600;
   font-size: clamp(52px, 17vw, 84px); line-height: .9; letter-spacing: .01em;
   text-transform: uppercase; color: #151515; white-space: nowrap;
   transform-style: preserve-3d; will-change: transform, opacity;
-  animation: splash-rock .75s cubic-bezier(.45,.05,.35,1) both;
+  animation: splash-rock .42s cubic-bezier(.45,.05,.35,1) both;
 }
 .splash__os { color: #6E1F2C; font-size: 1.32em; line-height: 0; }
 .splash__line { width: 64px; height: 3px; border-radius: 2px; background: #E2E0DB; overflow: hidden; }
 .splash__line span {
   display: block; height: 100%; width: 100%; background: #6E1F2C;
-  transform-origin: left; animation: splash-load .7s cubic-bezier(.65,0,.35,1) both;
+  transform-origin: left; animation: splash-load .34s cubic-bezier(.65,0,.35,1) both;
 }
 /* Oscillation d'avant en arrière, amortie (rotation 3D sur l'axe vertical) */
 @keyframes splash-rock {
@@ -36,11 +36,11 @@
 #splash.splash--out { opacity: 0; visibility: hidden; pointer-events: none; }
 #splash.splash--out .splash__logo {
   animation: none; transform: scale(1.35); opacity: 0;
-  transition: transform .5s cubic-bezier(.22,1,.36,1), opacity .4s ease;
+  transition: transform .32s cubic-bezier(.22,1,.36,1), opacity .26s ease;
 }
 #splash.splash--out .splash__line { opacity: 0; transition: opacity .2s; }
 @media (prefers-reduced-motion: reduce) {
-  .splash__logo { animation: splash-fade .6s ease both; }
+  .splash__logo { animation: splash-fade .3s ease both; }
   #splash.splash--out .splash__logo { transform: none; }
   @keyframes splash-fade { from { opacity: 0; } }
 }

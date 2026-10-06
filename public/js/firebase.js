@@ -8,11 +8,11 @@
  */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, setPersistence,
+  initializeAuth, GoogleAuthProvider,
   indexedDBLocalPersistence, browserLocalPersistence,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
-  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  initializeFirestore, persistentLocalCache, persistentSingleTabManager,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
 // Ré-export des SDK : les autres modules importent d'ici (une seule version).
@@ -30,15 +30,18 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+/**
+ * Auth initialisée SANS « popupRedirectResolver » et SANS `await` :
+ *  • getAuth() charge au démarrage l'iframe Google (apis.google.com) pour
+ *    vérifier un éventuel retour de redirection → plusieurs centaines de ms
+ *    de réseau avant le moindre affichage ; on n'utilise que la popup, dont le
+ *    résolveur est passé au moment de la connexion (auth.js) ;
+ *  • l'ancien `await setPersistence()` bloquait le chargement de TOUTE l'app
+ *    jusqu'à la fin de l'initialisation de l'auth (réseau compris).
+ * IndexedDB d'abord (fiable en PWA iOS), localStorage en secours.
+ */
+export const auth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] });
 auth.languageCode = 'fr';
-
-// IndexedDB : persistance fiable en PWA iOS (écran d'accueil).
-try {
-  await setPersistence(auth, indexedDBLocalPersistence);
-} catch {
-  await setPersistence(auth, browserLocalPersistence).catch(() => {});
-}
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
@@ -47,12 +50,15 @@ googleProvider.setCustomParameters({ prompt: 'select_account' });
  * Cache Firestore persistant (IndexedDB) :
  *  • ouverture quasi instantanée (données servies depuis le cache),
  *  • écritures hors ligne mises en file puis synchronisées au retour du réseau.
+ * Gestionnaire « un seul onglet » : pas d'élection d'onglet principal ni de
+ * synchronisation inter-onglets au démarrage (inutile pour une PWA, et plus
+ * rapide). Un 2e onglet ouvert en même temps bascule seul sur un cache mémoire.
  * Repli sur le cache mémoire si IndexedDB est indisponible (navigation privée).
  */
 function createDb() {
   try {
     return initializeFirestore(app, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({ forceOwnership: false }) }),
       ignoreUndefinedProperties: true, // un champ optionnel vide ne fait pas échouer l'écriture
     });
   } catch (err) {

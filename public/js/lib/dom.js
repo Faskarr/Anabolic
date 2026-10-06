@@ -52,7 +52,8 @@ function append(parent, children) {
  */
 export function safeUrl(url, allowImageData = false) {
   const s = String(url).trim();
-  if (/^(https?:|\/|\.\/|#)/i.test(s)) return s;
+  // http(s), ancres, chemins relatifs — mais pas « //site » ni « /\site » (autre domaine).
+  if (/^(https?:|#|\.\/|\/(?![\/\\]))/i.test(s)) return s;
   if (allowImageData && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(s)) return s;
   return '#';
 }

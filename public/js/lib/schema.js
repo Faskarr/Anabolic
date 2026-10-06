@@ -13,6 +13,7 @@
  * (affichage via h()), mais on borne quand même pour protéger Firestore (1 Mio/doc).
  */
 import { uid } from './ids.js';
+import { normalizeGoals } from '../data/goals.js';
 
 export const FORMAT_VERSION = '4';
 const MAX_CHARS = 900_000;
@@ -184,6 +185,11 @@ export function parseImport(text) {
     bundle.counterBase = int(data.counterBase, 0, 100000) ?? 0;
     summary.push(`Compteur · ${bundle.counterBase}`);
   }
+  if (data.goals) {
+    bundle.goals = normalizeGoals(data.goals);
+    if (bundle.goals.items.length) summary.push(`Objectifs · ${bundle.goals.items.length}`);
+    else delete bundle.goals;
+  }
   if (data.exlogs) {
     bundle.exlogs = normalizeExlogs(data.exlogs);
     const n = Object.values(bundle.exlogs).reduce((a, l) => a + l.length, 0);
@@ -200,7 +206,7 @@ export function parseImport(text) {
  * @param {{cat:string, name:string, data:object}[]} [opts.profiles]  profils simples (1 par catégorie max)
  * @param {object} [opts.all]  sauvegarde complète
  */
-export function buildExport({ profiles = [], all, weights, counterBase, exlogs }) {
+export function buildExport({ profiles = [], all, weights, counterBase, exlogs, goals }) {
   const out = { v: FORMAT_VERSION, at: new Date().toISOString(), app: 'AnabolicOS' };
   if (profiles.length === 1) out.name = profiles[0].name;
   for (const p of profiles) out[V3_KEY[p.cat]] = p.data;
@@ -208,5 +214,6 @@ export function buildExport({ profiles = [], all, weights, counterBase, exlogs }
   if (weights) out.weights = weights;
   if (counterBase != null) out.counterBase = counterBase;
   if (exlogs) out.exlogs = exlogs;
+  if (goals?.items?.length) out.goals = goals;
   return JSON.stringify(out, null, 2);
 }

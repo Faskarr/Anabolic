@@ -12,7 +12,6 @@ import { weightStats } from './weight.js';
 import { Avatar } from '../ui/avatar.js';
 import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
 import { toast } from '../ui/toast.js';
-import { cropAvatar } from '../ui/cropper.js';
 import { getThemePref, setThemePref } from '../ui/theme.js';
 import { ambientEnabled, setAmbient } from '../ui/ambient.js';
 import { linksOf } from '../data/links.js';
@@ -45,7 +44,8 @@ function AvatarPicker(user) {
       input.value = '';                 // permet de re-choisir la même photo
       if (!file) return;
       let img;
-      try { img = await cropAvatar(file); } catch (err) { toast(err.message, { type: 'error' }); return; }
+      // Recadrage chargé à la demande (inutile au démarrage).
+      try { const { cropAvatar } = await import('../ui/cropper.js'); img = await cropAvatar(file); } catch (err) { toast(err.message, { type: 'error' }); return; }
       if (!img) return;                 // recadrage annulé
       uploading = true;
       window.dispatchEvent(new Event('app:render'));
@@ -93,7 +93,7 @@ function FxToggle() {
   input.checked = ambientEnabled();
   return h('label', { class: 'theme-row', for: 'fx-cracks', style: { position: 'relative' } },
     h('span', { class: 'menu-row__icon' }, icon('flame', 20)),
-    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Étoiles filantes')),
+    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Halos flous et étoiles filantes')),
     input, h('span', { class: 'switch', 'aria-hidden': 'true' }));
 }
 

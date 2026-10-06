@@ -98,8 +98,8 @@ export function WeightView() {
               undoToast('Historique effacé', clearWeights());
             },
           }, 'Tout effacer')),
-        h('ul', { class: 'list' }, [...log].reverse().slice(0, 120).map((e, i, rev) => {
-          const older = rev[i + 1];
+        h('ul', { class: 'list' }, (() => { const rev = [...log].reverse(); return rev.slice(0, 120).map((e, i) => {
+          const older = rev[i + 1];   // liste complète : la 120ᵉ ligne a aussi son écart
           const d = older ? e.kg - older.kg : null;
           return h('li', { class: 'list__row' },
             h('span', { class: 'list__meta list__meta--date' }, formatShortDate(e.date)),
@@ -107,7 +107,7 @@ export function WeightView() {
             h('span', { class: `list__meta${d > 0 ? ' up' : d < 0 ? ' down' : ''}` }, d == null ? '' : signed(d)),
             IconButton('x', `Supprimer la pesée du ${formatShortDate(e.date)}`,
               () => undoToast('Pesée supprimée', deleteWeight(e.date)), 'icon-btn--ghost'));
-        }))),
+        }); })())),
     ] : Empty({ iconName: 'scale', title: 'Aucune pesée', text: 'Pèse-toi le matin, à jeun, pour un suivi fiable.' }),
   ];
 }

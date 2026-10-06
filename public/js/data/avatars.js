@@ -27,7 +27,8 @@ function versionOf(uid) {
   return Math.max(a, u);
 }
 
-const fresh = (e, v) => e && (v ? e.v >= v : Date.now() - e.t < TTL);
+// retryAt : après un échec (hors ligne, refus), pas de nouvelle tentative avant 1 min.
+const fresh = (e, v) => e && (e.retryAt > Date.now() || (v ? e.v >= v : Date.now() - e.t < TTL));
 
 async function readCache(uid) {
   try {
@@ -46,11 +47,14 @@ async function load(uid, v) {
   if (fresh(cached, v)) { mem.set(uid, cached); rerender(); return; }
   try {
     const snap = await getDoc(doc(db, 'avatars', uid));
+    // Hors ligne, getDoc répond depuis le cache Firestore : pas une vraie mise à jour.
+    if (snap.metadata?.fromCache && cached) throw new Error('cache');
     const entry = { img: snap.exists() ? snap.data().img : null, v, t: Date.now() };
     mem.set(uid, entry);
     writeCache(uid, entry);
   } catch {
-    mem.set(uid, cached || { img: null, v, t: Date.now() });   // pas le droit / hors ligne
+    // Pas le droit / hors ligne : on garde l'ancienne image et on réessaiera plus tard.
+    mem.set(uid, { ...(cached || { img: null, v: 0, t: 0 }), retryAt: Date.now() + 60_000 });
   }
   rerender();
 }

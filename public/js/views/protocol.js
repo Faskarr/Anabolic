@@ -20,7 +20,6 @@ import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, SectionTitle } from
 import { parseTimeOfDay, formatMinutes } from '../lib/schedule.js';
 import { formSheet, confirmSheet, actionSheet, openSheet } from '../ui/sheet.js';
 import { undoToast, toast } from '../ui/toast.js';
-import { buildICS, openICS, shareICS } from '../lib/ics.js';
 import { icon } from '../ui/icons.js';
 
 const CAT = 'protocol';
@@ -66,7 +65,8 @@ function remindersOf(days) {
 }
 
 /** Panneau « Rappels » : ajout au Calendrier (tous ou un produit) + mode d'emploi pour les retirer. */
-function calendarSheet(days, only = null, productId = null) {
+async function calendarSheet(days, only = null, productId = null) {
+  const { buildICS, openICS, shareICS } = await import('../lib/ics.js');   // chargé à la demande
   const list = remindersOf(days).filter((x) => (!only || x.id === only.id) && (!productId || x.pid === productId));
   if (productId && list.length) only = { name: list[0].title };
   if (!list.length) { toast('Ajoute d’abord un produit.', { type: 'error' }); return; }
@@ -307,7 +307,7 @@ function onCell(p, wd, cellEntries, allEntries) {
     // Une seule prise pour ce produit : on lui ajoute ce jour directement.
     if (allEntries.length === 1) {
       const { day, it } = allEntries[0];
-      saveEntry({ id: it.id, pid: p.id, time: it.time, weekdays: [...effectiveWeekdays(day), wd] });
+      saveEntry({ id: it.id, pid: p.id, time: it.time || formatMinutes(itemMinutes(it, day)), weekdays: [...effectiveWeekdays(day), wd] });
       toast(`${p.name} ajouté le ${dayName}`);
       return;
     }
@@ -318,7 +318,7 @@ function onCell(p, wd, cellEntries, allEntries) {
       actions: [
         ...allEntries.map(({ day, it }) => ({
           label: `Prise de ${formatMinutes(itemMinutes(it, day))} · ${daysLabel(effectiveWeekdays(day))}`, icon: 'clock',
-          onClick: () => saveEntry({ id: it.id, pid: p.id, time: it.time, weekdays: [...effectiveWeekdays(day), wd] }),
+          onClick: () => saveEntry({ id: it.id, pid: p.id, time: it.time || formatMinutes(itemMinutes(it, day)), weekdays: [...effectiveWeekdays(day), wd] }),
         })),
         { label: 'Nouvelle heure…', icon: 'plus', onClick: () => editEntry({ pid: p.id, presetDays: [wd] }) },
       ],
@@ -410,6 +410,8 @@ function ProductCards(products, days) {
   }));
 }
 
+let migratedPid = null;
+
 export function ProtocolView() {
   const days0 = activeProfileId(CAT) ? profileData(CAT).days || [] : [];
   const header = PageHeader({
@@ -424,7 +426,11 @@ export function ProtocolView() {
   if (!pid) return [header, NoProfile(CAT, 'pill')];
 
   const data = profileData(CAT);
-  if (needsMigration(data)) { updateProfileData(CAT, migrate); return [header, Skeleton(3)]; }
+  if (needsMigration(data)) {
+    // Migration unique (hors du rendu), appliquée aux données reçues de Firestore.
+    if (migratedPid !== pid) { migratedPid = pid; queueMicrotask(() => updateProfileData(CAT, migrate, pid)); }
+    return [header, Skeleton(3)];
+  }
   const products = data.products || [];
   const days = data.days || [];
   const planned = entriesOf(days).length;

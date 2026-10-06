@@ -7,7 +7,7 @@
  */
 import { auth, db, googleProvider, authSdk, fs } from './firebase.js';
 
-const { signInWithPopup, signOut: fbSignOut, onAuthStateChanged } = authSdk;
+const { signInWithPopup, signOut: fbSignOut, onAuthStateChanged, browserPopupRedirectResolver } = authSdk;
 const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = fs;
 
 /** Messages d'erreur Firebase traduits pour l'utilisateur. */
@@ -20,7 +20,8 @@ const AUTH_ERRORS = {
 
 export async function signIn() {
   try {
-    await signInWithPopup(auth, googleProvider);
+    // Résolveur passé ici (et non à l'initialisation) : l'iframe Google n'est chargée qu'à la connexion.
+    await signInWithPopup(auth, googleProvider, browserPopupRedirectResolver);
   } catch (err) {
     // Fermeture volontaire de la fenêtre : pas une erreur.
     if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
@@ -29,7 +30,17 @@ export async function signIn() {
 }
 
 export function signOut() {
+  clearLocalSession();
   return fbSignOut(auth);
+}
+
+/** Efface tout ce que l'app garde sur l'appareil pour un démarrage rapide. */
+export function clearLocalSession() {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k === 'lastUid' || k === 'dietCalc' || k.startsWith('session:') || k.startsWith('snap:')) localStorage.removeItem(k);
+    }
+  } catch { /* stockage indisponible */ }
 }
 
 /**
@@ -54,8 +65,14 @@ async function ensureProfile(user) {
   }
 
   const profile = snap.data();
-  if (profile.status === 'active') {
-    // Rafraîchit nom/photo Google et la dernière activité (sans bloquer l'UI).
+  // Rafraîchit nom/photo Google et la dernière activité (sans bloquer l'UI),
+  // au plus une fois toutes les 6 h (une écriture par ouverture, c'était beaucoup).
+  const stampKey = `activeStamp:${user.uid}`;
+  let fresh = false;
+  try { fresh = Date.now() - Number(localStorage.getItem(stampKey) || 0) < 6 * 3600e3; } catch { /* ignoré */ }
+  const changed = (user.displayName && user.displayName !== profile.displayName) || (user.photoURL && user.photoURL !== profile.photoURL);
+  if (profile.status === 'active' && (!fresh || changed)) {
+    try { localStorage.setItem(stampKey, String(Date.now())); } catch { /* ignoré */ }
     updateDoc(ref, {
       displayName: (user.displayName || profile.displayName || '').slice(0, 120),
       photoURL: user.photoURL || profile.photoURL || '',
@@ -75,26 +92,82 @@ async function checkAdmin(uid) {
   }
 }
 
-export function onSession(callback) {
-  callback({ state: 'loading' });
+/**
+ * Démarrage rapide : la dernière session vérifiée est gardée sur l'appareil.
+ * À l'ouverture, l'app s'affiche tout de suite avec elle, pendant que le profil
+ * et le rôle admin sont revérifiés en arrière-plan auprès de Firestore (si le
+ * compte a été désactivé entre-temps, l'écran change dès la réponse).
+ * La sécurité ne dépend pas de ce cache : les règles Firestore décident.
+ */
+const SESSION_KEY = (uid) => `session:${uid}`;
+function readCachedSession(uid) {
+  try { return JSON.parse(localStorage.getItem(SESSION_KEY(uid))); } catch { return null; }
+}
+function writeCachedSession(uid, s) {
+  try {
+    localStorage.setItem('lastUid', uid);
+    localStorage.setItem(SESSION_KEY(uid), JSON.stringify({
+      at: Date.now(),
+      user: { uid, displayName: s.user?.displayName || '', email: s.user?.email || '', photoURL: s.user?.photoURL || '' },
+      isAdmin: Boolean(s.isAdmin),
+      profile: {
+        status: s.profile?.status || 'active',
+        displayName: s.profile?.displayName || '',
+        photoURL: s.profile?.photoURL || '',
+        friendCode: s.profile?.friendCode || null,
+      },
+    }));
+  } catch { /* stockage indisponible */ }
+}
 
+export function onSession(callback) {
+  // 1. Démarrage instantané : dernière session connue sur cet appareil, affichée
+  //    AVANT que Firebase Auth ait fini de s'initialiser (qui demande du réseau).
+  let provisional = null;
+  try {
+    const uid = localStorage.getItem('lastUid');
+    const c = uid && readCachedSession(uid);
+    if (c?.user?.uid === uid && c.profile?.status === 'active') provisional = c;
+  } catch { /* stockage indisponible */ }
+  if (provisional) {
+    callback({ state: 'active', user: provisional.user, profile: provisional.profile, isAdmin: provisional.isAdmin, provisional: true });
+  } else {
+    callback({ state: 'loading' });
+  }
+
+  // 2. Confirmation par Firebase Auth, puis revérification du profil.
   return onAuthStateChanged(auth, async (user) => {
     if (!user) {
+      clearLocalSession();
       callback({ state: 'signed-out' });
       return;
+    }
+    const cached = readCachedSession(user.uid);
+    if (cached?.profile?.status === 'active') {
+      callback({ state: 'active', user, profile: cached.profile, isAdmin: cached.isAdmin, cached: true });
     }
     try {
       const [{ profile, created }, { isAdmin, adminError }] = await Promise.all([
         ensureProfile(user),
         checkAdmin(user.uid),
       ]);
-      callback({
+      // Vérification admin impossible (réseau) : on garde le rôle connu au lieu de le retirer.
+      const admin = adminError ? Boolean(cached?.isAdmin) : isAdmin;
+      const verified = {
         state: profile.status === 'disabled' ? 'disabled' : 'active',
-        user, profile, isAdmin, adminError, created,
-      });
+        user, profile, isAdmin: admin, adminError, created,
+      };
+      writeCachedSession(user.uid, verified);
+      // Déjà affiché depuis le cache et rien n'a changé : pas de nouveau rendu,
+      // mais le profil affiché reçoit les champs à jour (code ami…).
+      if (cached && verified.state === 'active' && cached.isAdmin === admin) {
+        Object.assign(cached.profile, { friendCode: profile.friendCode || null, displayName: profile.displayName || '' });
+        return;
+      }
+      callback(verified);
     } catch (error) {
       console.error('[auth] session', error);
-      callback({ state: 'error', user, error });
+      if (!cached) callback({ state: 'error', user, error });   // hors ligne : on garde la session en cache
     }
   });
 }

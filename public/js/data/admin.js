@@ -14,7 +14,7 @@ import { toast } from '../ui/toast.js';
 import { normalizeGoals, emptyGoals } from './goals.js';
 
 const {
-  doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp, writeBatch, getDoc,
+  doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp, writeBatch, getDoc, FieldPath,
 } = fs;
 
 const DATA_KEY = { workout: 'workouts', diet: 'diet', protocol: 'protocol' };
@@ -103,6 +103,14 @@ export function cancelProposal(uid, itemId) {
 }
 
 /**
+ * Écriture des profils d'UNE catégorie seulement : si l'utilisateur modifie une
+ * autre catégorie au même moment, les deux écritures ne s'écrasent pas.
+ */
+const profilesWrite = (uid, next, cat) => [
+  doc(db, 'users', uid, 'data', 'profiles'), { [cat]: next[cat] }, { mergeFields: [new FieldPath(cat)] },
+];
+
+/**
  * Installe DIRECTEMENT un profil chez l'utilisateur et le rend actif.
  * @param {object} profiles  document `profiles` actuel de l'utilisateur
  */
@@ -113,8 +121,8 @@ export function installProfileForUser(uid, profiles, cat, name, data) {
   next[cat].list.push({ id: pid, name: String(name).slice(0, 60) });
   next[cat].active = pid;
   const batch = writeBatch(db);
-  batch.set(doc(db, 'users', uid, 'data', DATA_KEY[cat]), { [pid]: data }, { mergeFields: [pid] });
-  batch.set(doc(db, 'users', uid, 'data', 'profiles'), next);
+  batch.set(doc(db, 'users', uid, 'data', DATA_KEY[cat]), { [pid]: data }, { mergeFields: [new FieldPath(pid)] });
+  batch.set(...profilesWrite(uid, next, cat));
   return batch.commit().catch(fail('installation'));
 }
 
@@ -123,14 +131,14 @@ export function renameUserProfile(uid, profiles, cat, pid, name) {
   const p = next[cat]?.list?.find((x) => x.id === pid);
   if (!p) return Promise.resolve();
   p.name = String(name).slice(0, 60);
-  return setDoc(doc(db, 'users', uid, 'data', 'profiles'), next).catch(fail('renommage'));
+  return setDoc(...profilesWrite(uid, next, cat)).catch(fail('renommage'));
 }
 
 export function setUserActiveProfile(uid, profiles, cat, pid) {
   const next = structuredClone(profiles);
   if (!next[cat]) return Promise.resolve();
   next[cat].active = pid;
-  return setDoc(doc(db, 'users', uid, 'data', 'profiles'), next).catch(fail('profil actif'));
+  return setDoc(...profilesWrite(uid, next, cat)).catch(fail('profil actif'));
 }
 
 export function deleteUserProfile(uid, profiles, cat, pid) {
@@ -139,7 +147,7 @@ export function deleteUserProfile(uid, profiles, cat, pid) {
   next[cat].list = next[cat].list.filter((x) => x.id !== pid);
   if (next[cat].active === pid) next[cat].active = next[cat].list[0]?.id || null;
   const batch = writeBatch(db);
-  batch.set(doc(db, 'users', uid, 'data', 'profiles'), next);
+  batch.set(...profilesWrite(uid, next, cat));
   batch.set(doc(db, 'users', uid, 'data', DATA_KEY[cat]), { [pid]: deleteField() }, { merge: true });
   return batch.commit().catch(fail('suppression'));
 }

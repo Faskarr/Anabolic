@@ -47,10 +47,14 @@ export function showTimer(visible) {
   root.hidden = !visible;
 }
 
-/** Parse « 2'30 », « 90s », « 1:30 », « 2 min ». Renvoie des secondes ou null. */
+/**
+ * Parse « 2'30 », « 2’30 » (apostrophe typographique de l'iPhone), « 90s »,
+ * « 45" », « 1:30 », « 1min30 », « 2 min ». Renvoie des secondes ou null.
+ */
 export function parseRest(text) {
-  const t = String(text || '').toLowerCase().replace(/\s/g, '');
-  let m = t.match(/^(\d+)[':m](\d{1,2})?/);
+  const t = String(text || '').toLowerCase().replace(/\s/g, '')
+    .replace(/[’‘′´`]/g, "'").replace(/[″"]/g, 's');
+  let m = t.match(/^(\d+)(?:'|:|min|mn|m)(\d{1,2})?/);
   if (m) return (+m[1]) * 60 + (+(m[2] || 0));
   m = t.match(/^(\d+)(s|sec)?$/);
   if (m) return +m[1] >= 10 ? +m[1] : (+m[1]) * 60;
@@ -66,7 +70,7 @@ export function startTimer(seconds) {
   root.classList.remove('timer--done');
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    audioCtx.resume?.();
+    audioCtx.resume?.()?.catch?.(() => {});
   } catch { /* audio indisponible */ }
   clearInterval(tickId);
   tickId = setInterval(tick, 250);
@@ -75,7 +79,11 @@ export function startTimer(seconds) {
 
 function tick() {
   const left = Math.ceil((endAt - Date.now()) / 1000);
-  if (left > 0) { display.textContent = fmt(left); return; }
+  if (left > 0) {
+    const txt = fmt(left);
+    if (display.textContent !== txt) display.textContent = txt;   // une écriture par seconde
+    return;
+  }
   clearInterval(tickId);
   endAt = null;
   root.classList.remove('timer--running');
@@ -89,6 +97,8 @@ function tick() {
 function beep() {
   if (!audioCtx) return;
   try {
+    // iOS suspend l'audio quand l'app passe en arrière-plan : on le réveille.
+    audioCtx.resume?.()?.catch?.(() => {});
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.frequency.value = 880;

@@ -27,6 +27,7 @@ import { InstallCard } from '../ui/install.js';
 import { GoalsCompact } from './goals.js';
 import { updateHome } from '../data/repo.js';
 import { openSheet } from '../ui/sheet.js';
+import { undoToast } from '../ui/toast.js';
 
 function Widget({ eyebrow, action, children, tone, cls = '' }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
@@ -48,7 +49,11 @@ function CoachSends(session) {
       h('p', { class: 'widget__title' }, it.title),
       it.message ? h('p', { class: 'muted' }, it.message) : null,
       h('div', { class: 'btn-row' },
-        h('button', { class: 'btn btn--primary', type: 'button', onclick: () => acceptItem(session.user.uid, it) }, icon('check', 18), 'Ajouter et activer'),
+        h('button', {
+          class: 'btn btn--primary', type: 'button',
+          // Désactivé au 1er tap : un double tap n'importe pas deux fois le programme.
+          onclick: (e) => { e.currentTarget.disabled = true; acceptItem(session.user.uid, it); },
+        }, icon('check', 18), 'Ajouter et activer'),
         h('button', { class: 'btn btn--ghost', type: 'button', onclick: () => dismissItem(session.user.uid, it) }, 'Ignorer')),
     ],
   }));
@@ -114,7 +119,7 @@ function FriendsWidget(session) {
           'aria-label': `${x.name} : ${done ? `entraîné (${x.act.sessionName || 'séance faite'})` : 'pas encore entraîné'}`,
         },
         h('span', { class: 'fstrip__ava' }, Avatar({ uid: x.uid, name: x.name, size: 'sm' }), done ? h('span', { class: 'fstrip__ok' }, icon('check', 10)) : null),
-        h('span', { class: 'fstrip__name' }, x.name.split(' ')[0]));
+        h('span', { class: 'fstrip__name' }, String(x.name || 'Ami').split(' ')[0]));
       })),
       lastPr ? h('ul', { class: 'records records--one' }, PostRow(lastPr, me)) : null,
       h('div', { class: 'music-head' },
@@ -158,7 +163,11 @@ function TodaySession() {
         h('span', { class: 'today-session__meta' }, `${n} exercice${n > 1 ? 's' : ''}${session.weekdays?.length ? ` · ${formatWeekdays(session.weekdays)}` : ''}`)),
       h('button', {
         class: 'today-row__check', type: 'button', 'aria-label': `Marquer ${session.name} comme faite`,
-        onclick: () => setSessionDone(pid, session, true),
+        onclick: (e) => {
+          e.currentTarget.disabled = true;
+          setSessionDone(pid, session, true);
+          undoToast(`${session.name} terminée 💪`, () => setSessionDone(pid, session, false));
+        },
       }, icon('check', 22)),
       h('a', { class: 'today-session__go', href: '#/training', 'aria-label': `Ouvrir ${session.name}`, onclick: () => selectSession(session.id) }, icon('chevron', 22))),
   });

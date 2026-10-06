@@ -46,7 +46,11 @@ export function InstallCard({ compact = false, force = false } = {}) {
   if (deferred) {
     body = h('button', {
       class: 'btn btn--primary btn--block', type: 'button',
-      onclick: async () => { deferred.prompt(); await deferred.userChoice.catch(() => {}); deferred = null; window.dispatchEvent(new Event('app:render')); },
+      onclick: async () => {
+        const d = deferred; deferred = null;          // un double tap n'appelle pas prompt() deux fois
+        if (!d) return;
+        d.prompt(); await d.userChoice.catch(() => {}); window.dispatchEvent(new Event('app:render'));
+      },
     }, icon('download', 18), 'Installer l’app');
   } else if (isIOS()) {
     body = h('ol', { class: 'install__steps' },

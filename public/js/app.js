@@ -19,27 +19,21 @@ initAmbient();
 import { mount, h } from './lib/dom.js';
 import { toast } from './ui/toast.js';
 import { onSession } from './auth.js';
-import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
+import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount, rollWeekIfNeeded } from './store.js';
+import { Skeleton } from './ui/layout.js';
 import { TabBar } from './ui/tabbar.js';
 import { showTimer, stopTimer } from './ui/timer.js';
 import { LoginView } from './views/login.js';
 import { DisabledView } from './views/disabled.js';
-import { FoundationView } from './views/foundation.js';
 import { HomeView } from './views/home.js';
 import { TrainingView } from './views/training.js';
 import { DietView } from './views/diet.js';
-import { DietCalcView } from './views/diet-calc.js';
 import { ProtocolView } from './views/protocol.js';
 import { MeView } from './views/me.js';
 import { WeightView } from './views/weight.js';
-import { ShareView } from './views/share.js';
 import { ContactView, leaveContact } from './views/contact.js';
-import { AdminInboxView, AdminConversationView, leaveAdminConversation } from './views/admin-messages.js';
-import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat, leaveHub } from './views/messages-hub.js';
 import { GoalsView } from './views/goals.js';
-import { AdminLibraryView } from './views/admin-library.js';
-import { AdminLinksView } from './views/admin-links.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
 export const ASSET_VERSION = '0.9.1';
@@ -66,6 +60,33 @@ const standalone = window.navigator.standalone === true || window.matchMedia('(d
 document.documentElement.classList.toggle('in-browser', !standalone);
 
 /**
+ * Écrans rarement ouverts (admin, calculateur, import/export, diagnostic) :
+ * chargés À LA DEMANDE. Le démarrage n'a pas à télécharger ni analyser leur code.
+ */
+const lazyModules = new Map();
+const once = (load) => { let p = null; return () => (p ||= load()); };
+const LAZY = {
+  admin:    once(() => import('./views/admin.js')),
+  adminMsg: once(() => import('./views/admin-messages.js')),
+  library:  once(() => import('./views/admin-library.js')),
+  links:    once(() => import('./views/admin-links.js')),
+  calc:     once(() => import('./views/diet-calc.js')),
+  share:    once(() => import('./views/share.js')),
+  check:    once(() => import('./views/foundation.js')),
+};
+/** Vue d'un module chargé à la demande (écran de chargement en attendant). */
+function lazyView(key, name) {
+  return (...args) => {
+    const mod = lazyModules.get(key);
+    if (mod) return mod[name](...args);
+    LAZY[key]().then((m) => { lazyModules.set(key, m); render(); })
+      .catch((err) => { console.error('[lazy]', err); toast('Écran indisponible hors connexion.', { type: 'error' }); });
+    return Skeleton(4);
+  };
+}
+const lazyLeave = (key, name) => () => lazyModules.get(key)?.[name]?.();
+
+/**
  * Table de routage. `admin: true` = réservé à l'administrateur.
  * `leave` = nettoyage quand on quitte l'écran (abonnements temps réel).
  */
@@ -73,24 +94,24 @@ const ROUTES = {
   home:           { view: HomeView },
   training:       { view: TrainingView },
   diet:           { view: DietView },
-  'diet/calc':    { view: DietCalcView },
+  'diet/calc':    { view: lazyView('calc', 'DietCalcView') },
   protocol:       { view: ProtocolView },
   me:             { view: MeView },
   'me/weight':    { view: WeightView },
-  'me/share':     { view: ShareView },
+  'me/share':     { view: lazyView('share', 'ShareView') },
   goals:          { view: GoalsView },
   'me/goals':     { view: GoalsView },   // ancien lien
   // Contact = messagerie : coach (ou messages des utilisateurs pour l'admin) + amis.
   contact:          { view: MessagesHubView, leave: leaveHub },
   'contact/coach':  { view: ContactView, leave: leaveContact, chat: true },
   friends:          { view: FriendChatView, param: true, leave: leaveFriendChat, chat: true },
-  'admin/messages': { view: AdminInboxView, admin: true },
-  'me/check':     { view: FoundationView },
-  admin:          { view: AdminHomeView, admin: true },
-  'admin/library': { view: AdminLibraryView, admin: true },
-  'admin/links':   { view: AdminLinksView, admin: true },
-  'admin/user':   { view: AdminUserView, admin: true, param: true, leave: leaveAdminUser },
-  'admin/conv':   { view: AdminConversationView, admin: true, param: true, leave: leaveAdminConversation, chat: true },
+  'admin/messages': { view: lazyView('adminMsg', 'AdminInboxView'), admin: true },
+  'me/check':     { view: lazyView('check', 'FoundationView') },
+  admin:          { view: lazyView('admin', 'AdminHomeView'), admin: true },
+  'admin/library': { view: lazyView('library', 'AdminLibraryView'), admin: true },
+  'admin/links':   { view: lazyView('links', 'AdminLinksView'), admin: true },
+  'admin/user':   { view: lazyView('admin', 'AdminUserView'), admin: true, param: true, leave: lazyLeave('admin', 'leaveAdminUser') },
+  'admin/conv':   { view: lazyView('adminMsg', 'AdminConversationView'), admin: true, param: true, leave: lazyLeave('adminMsg', 'leaveAdminConversation'), chat: true },
 };
 
 const root = document.getElementById('app');
@@ -101,7 +122,7 @@ const root = document.getElementById('app');
  * en plein milieu ne coupe pas l'animation, chaque rendu recalcule le délai
  * de chaque bloc par rapport à l'instant de départ (délai négatif = reprise).
  */
-const ENTER = { STEP_MS: 60, DURATION_MS: 520 };
+const ENTER = { STEP_MS: 45, DURATION_MS: 420 };
 let enter = { pending: true, at: 0 };
 
 function applyEnter() {
@@ -124,6 +145,7 @@ let current = { key: 'home', param: null };
 let viewEl = null;
 let tabHost = null;
 let unsubStore = null;
+let adminFeeds = false;
 
 /** '#/admin/conv/abc' → { key: 'admin/conv', param: 'abc' } */
 function parseRoute() {
@@ -133,7 +155,11 @@ function parseRoute() {
     const def = ROUTES[key];
     if (!def) continue;
     const rest = parts.slice(n);
-    if (def.param && rest.length === 1) return { key, param: decodeURIComponent(rest[0]) };
+    if (def.param && rest.length === 1) {
+      let param = rest[0];
+      try { param = decodeURIComponent(param); } catch { /* lien mal formé : gardé tel quel */ }
+      return { key, param };
+    }
     if (!def.param && rest.length === 0) return { key, param: null };
   }
   return { key: 'home', param: null };
@@ -172,7 +198,9 @@ function render({ scrollTop = false } = {}) {
   if (def.admin && !session.isAdmin) { location.hash = '#/home'; return; }
 
   const active = document.activeElement;
+  // Champ en cours de saisie (texte uniquement : jamais fichier, case, curseur…).
   const keep = active && active.id && viewEl.contains(active) && 'value' in active
+    && !['file', 'checkbox', 'radio', 'range', 'time', 'date'].includes(active.type)
     ? { id: active.id, value: active.value, start: active.selectionStart, end: active.selectionEnd }
     : null;
 
@@ -209,7 +237,20 @@ window.addEventListener('hashchange', () => {
 window.addEventListener('app:render', () => render());
 
 onSession((s) => {
+  // Autre compte que la session affichée en attendant Firebase, ou déconnexion :
+  // on recharge la page (rapide grâce au service worker) pour repartir d'un état
+  // propre — aucun cache en mémoire (code ami, brouillons, liens…) ne survit.
+  if (session?.state === 'active' && s.state === 'active' && session.user.uid !== s.user.uid) {
+    try { localStorage.setItem('lastUid', s.user.uid); } catch { /* ignoré */ }
+    location.reload();
+    return;
+  }
+  if (session?.state === 'active' && s.state === 'signed-out') {
+    location.reload();
+    return;
+  }
   const wasActive = session?.state === 'active';
+  const sameSession = wasActive && s.state === 'active';
   session = s;
 
   // Dès que l'état de session est connu, l'animation d'ouverture s'efface.
@@ -234,13 +275,24 @@ onSession((s) => {
   if (!wasActive) {
     enter = { pending: true, at: 0 };
     startStore(s.user.uid, s.user);
-    if (s.isAdmin) startAdminFeeds();
+    adminFeeds = false;
+  }
+  if (s.isAdmin && !adminFeeds) { adminFeeds = true; startAdminFeeds(); }
+  if (!wasActive) {
     unsubStore = subscribe(() => render());
     mountShell();
   }
   current = parseRoute();
-  render({ scrollTop: true });
+  // Confirmation d'une session déjà affichée : simple mise à jour, sans remonter en haut.
+  render({ scrollTop: !sameSession });
 });
+
+// Minuit : « aujourd'hui » change (accueil, protocole, habitudes) et, le lundi, la semaine.
+(function scheduleMidnight() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+  setTimeout(() => { rollWeekIfNeeded(); render(); scheduleMidnight(); }, next - now);
+}());
 
 // Retour dans l'app après une longue absence : animation rejouée + accueil.
 watchResume(() => {

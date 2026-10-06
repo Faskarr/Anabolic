@@ -25,12 +25,6 @@ const DEFAULTS = [
   { label: 'Hemia Cosmetics', sub: 'hemiacosmetics.com', href: 'https://www.hemiacosmetics.com/', icon: 'link' },
 ].map((l, i) => ({ id: `def${i}`, ...l, private: false }));
 
-/** Liens personnels de l'admin déjà en place (jamais montrés aux autres). */
-const PRIVATE_DEFAULTS = [
-  { label: 'The Ped Shop', sub: 'thepedshop.to', href: 'https://thepedshop.to/', icon: 'link' },
-  { label: 'Wolf SARMs', sub: 'wolfsarms.com', href: 'https://wolfsarms.com/', icon: 'link' },
-].map((l, i) => ({ id: `priv${i}`, ...l, private: true }));
-
 /** Valide un lien : https uniquement, champs bornés. */
 export function cleanLink(l) {
   const href = String(l?.href || '').trim();
@@ -49,14 +43,15 @@ export function cleanLink(l) {
 
 const clean = (items) => (Array.isArray(items) ? items : []).map(cleanLink).filter(Boolean).slice(0, 30);
 
-let cache = null;      // { items, ready }
+let cache = null;      // { items, admin, ok }
 let loading = null;
 
 const rerender = () => window.dispatchEvent(new Event('app:render'));
 
-/** Liens à afficher (chargés une fois par session). */
+/** Liens à afficher (chargés une fois par session, rechargés si le rôle change ou après un échec). */
 export function linksOf(isAdmin) {
-  if (!cache && !loading) load(isAdmin);
+  const admin = Boolean(isAdmin);
+  if (!loading && (!cache || cache.admin !== admin || (!cache.ok && Date.now() - cache.at > 30_000))) load(admin);
   return cache?.items || DEFAULTS;
 }
 
@@ -66,21 +61,17 @@ async function load(isAdmin) {
       const pub = await getDoc(doc(db, 'config', 'links'));
       let items = pub.exists() ? clean(pub.data().items).map((l) => ({ ...l, private: false })) : DEFAULTS;
       if (isAdmin) {
-        const priv = await getDoc(doc(db, 'config', 'linksPrivate')).catch(() => null);
-        if (!priv?.exists()) {
-          // Tant que rien n'est enregistré : liens perso existants (visibles par l'admin seul).
-          items = [...items, ...PRIVATE_DEFAULTS];
-        } else {
+        const priv = await getDoc(doc(db, 'config', 'linksPrivate'));
+        if (priv.exists()) {
           const p = clean(priv.data().items).map((l) => ({ ...l, private: true }));
-          // Ordre global conservé via la propriété `pos` enregistrée par l'admin.
-          const order = priv.data().order;
+          const order = priv.data().order;       // ordre global choisi par l'admin
           items = [...items, ...p];
           if (Array.isArray(order)) items.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
         }
       }
-      cache = { items };
+      cache = { items, admin: isAdmin, ok: true, at: Date.now() };
     } catch {
-      cache = { items: DEFAULTS };
+      cache = { items: cache?.items || DEFAULTS, admin: isAdmin, ok: false, at: Date.now() };
     } finally {
       loading = null;
       rerender();
@@ -90,6 +81,9 @@ async function load(isAdmin) {
 
 /** ADMIN : enregistre la liste complète (publics + privés) en une écriture groupée. */
 export async function saveLinks(items) {
+  // Garde-fou : jamais d'enregistrement à partir de la liste par défaut affichée
+  // quand le serveur n'a pas répondu (elle écraserait les vrais liens).
+  if (!cache?.ok || !cache.admin) throw new Error('Liens pas encore chargés depuis le serveur : réessaie en ligne dans un instant.');
   const all = clean(items);
   const batch = writeBatch(db);
   batch.set(doc(db, 'config', 'links'), {
@@ -101,6 +95,6 @@ export async function saveLinks(items) {
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
-  cache = { items: all };
+  cache = { items: all, admin: true, ok: true, at: Date.now() };
   rerender();
 }

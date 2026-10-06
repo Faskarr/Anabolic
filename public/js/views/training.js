@@ -2,11 +2,11 @@
  * Entraînement : profils, séances (avec jours de la semaine), exercices,
  * séance faite cette semaine, minuteur, carnet de charges.
  */
-import { h } from '../lib/dom.js';
+import { h, mount } from '../lib/dom.js';
 import { uid } from '../lib/ids.js';
 import { formatWeekdays, formatShortDate, isoWeekday, frNum, localISODate } from '../lib/dates.js';
 import {
-  state, activeProfileId, profileData, sessionCount, sessionWeekKey, subscribe,
+  state, activeProfileId, profileData, sessionCount, sessionWeekKey, subscribe, ensureExlogs,
 } from '../store.js';
 import {
   updateProfileData, setWeekItem, setCounterBase, addLog, deleteLog,
@@ -259,12 +259,24 @@ function groupSupersets(exercises) {
   return groups;
 }
 
-function moveExercise(session, index, delta) {
+/**
+ * Déplace un exercice (repéré par son id : la liste a pu changer depuis
+ * l'affichage). Un exercice déplacé quitte son superset, et celui qui le
+ * suivait dans le superset aussi (sinon il se lierait à un autre exercice).
+ */
+function moveExercise(session, exId, delta) {
   updateProfileData(CAT, (d) => {
     const s = d.sessions.find((x) => x.id === session.id);
-    const j = index + delta;
-    if (!s || j < 0 || j >= s.exercises.length) return;
-    [s.exercises[index], s.exercises[j]] = [s.exercises[j], s.exercises[index]];
+    if (!s) return;
+    const i = s.exercises.findIndex((e) => e.id === exId);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= s.exercises.length) return;
+    const moved = s.exercises[i];
+    const next = s.exercises[i + 1];
+    if (next?.ss) delete next.ss;
+    delete moved.ss;
+    [s.exercises[i], s.exercises[j]] = [s.exercises[j], s.exercises[i]];
+    if (s.exercises[0]?.ss) delete s.exercises[0].ss;   // le premier ne peut pas être lié au précédent
   });
 }
 
@@ -317,7 +329,7 @@ function openLog(exercise) {
       suggestEl.hidden = false;
     } else { suggestEl.hidden = true; }
     if (!arr.length) {
-      content.replaceChildren(h('p', { class: 'muted center' }, 'Aucune charge enregistrée. Ajoute ta première série.'));
+      mount(content, h('p', { class: 'muted center' }, 'Aucune charge enregistrée. Ajoute ta première série.'));
       return;
     }
     // Meilleur 1RM par jour → progression
@@ -328,7 +340,8 @@ function openLog(exercise) {
     const delta = days.length > 1 ? byDay[days.at(-1)] - byDay[days.at(-2)] : null;
 
     const bestSet = arr.reduce((b, x) => (est1RM(x.w, x.r) > est1RM(b.w, b.r) ? x : b), arr[0]);
-    content.replaceChildren(
+    // mount (et non replaceChildren) : ignore les blocs absents au lieu d'afficher « null ».
+    mount(content,
       state.me ? h('button', {
         class: 'btn btn--ghost btn--block share-pr', type: 'button',
         onclick: () => sharePR(state.me, { exercise: exercise.n, w: bestSet.w, r: bestSet.r }),
@@ -376,7 +389,7 @@ async function editCounter() {
 
 // ── Vue ─────────────────────────────────────────────────────────────────
 
-function ExerciseCard(session, ex, index, total, ssLabel) {
+function ExerciseCard(session, ex, index, total, label, inSuperset = false) {
   const logs = state.exlogs[ex.id] || [];
   const last = logs.at(-1);
   const restSec = parseRest(ex.r);
@@ -387,14 +400,14 @@ function ExerciseCard(session, ex, index, total, ssLabel) {
     actions: [
       { label: 'Modifier', icon: 'edit', onClick: () => editExercise(session, ex) },
       index > 0 && { label: ex.ss ? 'Délier du précédent (superset)' : 'Lier au précédent (superset)', icon: 'link2', onClick: () => toggleSuperset(session, ex.id) },
-      index > 0 && { label: 'Monter', icon: 'up', onClick: () => moveExercise(session, index, -1) },
-      index < total - 1 && { label: 'Descendre', icon: 'down', onClick: () => moveExercise(session, index, 1) },
+      index > 0 && { label: 'Monter', icon: 'up', onClick: () => moveExercise(session, ex.id, -1) },
+      index < total - 1 && { label: 'Descendre', icon: 'down', onClick: () => moveExercise(session, ex.id, 1) },
     ],
   });
 
-  return h('article', { class: `exercise${ssLabel ? ' exercise--ss' : ''}` },
+  return h('article', { class: `exercise${inSuperset ? ' exercise--ss' : ''}` },
     h('button', { class: 'exercise__main', type: 'button', 'aria-label': `Modifier ${ex.n}`, onclick: () => editExercise(session, ex) },
-      h('span', { class: 'exercise__index' }, ssLabel || String(index + 1).padStart(2, '0')),
+      h('span', { class: 'exercise__index' }, label || String(index + 1).padStart(2, '0')),
       h('span', { class: 'exercise__body' },
         h('span', { class: 'exercise__name' }, ex.n),
         ex.no ? h('span', { class: 'exercise__note' }, ex.no) : null,
@@ -422,19 +435,20 @@ function ExerciseList(session, exercises) {
   let n = 0;
   return h('div', { class: 'stack' }, groupSupersets(exercises).map((group) => {
     n += 1;
+    const num = String(n).padStart(2, '0');     // numérotation continue : 01, 02A, 02B, 03…
     if (group.length === 1) {
       const { ex, i } = group[0];
-      return ExerciseCard(session, ex, i, exercises.length);
+      return ExerciseCard(session, ex, i, exercises.length, num);
     }
-    const num = String(n).padStart(2, '0');
     return h('section', { class: 'superset', 'aria-label': `Superset de ${group.length} exercices` },
       h('p', { class: 'superset__label' }, icon('link2', 14), group.length > 2 ? `Circuit · ${group.length} exercices` : 'Superset', h('span', { class: 'superset__hint' }, ' · sans repos entre eux')),
-      group.map(({ ex, i }, k) => ExerciseCard(session, ex, i, exercises.length, `${num}${String.fromCharCode(65 + k)}`)));
+      group.map(({ ex, i }, k) => ExerciseCard(session, ex, i, exercises.length, `${num}${String.fromCharCode(65 + k)}`, true)));
   }));
 }
 
 export function TrainingView() {
   showTimer(true);
+  ensureExlogs();   // carnet de charges chargé à la demande (pas au démarrage)
   const header = PageHeader({
     eyebrow: 'Programme',
     title: 'Mon entraînement',

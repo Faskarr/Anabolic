@@ -154,8 +154,8 @@ export function publishActivity(user, sessionName, done) {
   }, { merge: true }).catch((err) => console.warn('[friends] activité', err));
 }
 
-export function watchActivity(uid, cb) {
+export function watchActivity(uid, cb, onError) {
   return onSnapshot(doc(db, 'activity', uid),
     (snap) => cb(snap.exists() ? read(snap) : null),
-    () => cb(null));
+    (err) => { cb(null); onError?.(err); });
 }

@@ -45,7 +45,8 @@ export function openSheet({ title, subtitle, body, footer, onClose, label }) {
       overlay.remove();
       openCount -= 1;
       if (openCount === 0) document.documentElement.classList.remove('no-scroll');
-      previousFocus?.focus?.({ preventScroll: true });
+      // Ne pas voler le focus d'un panneau ouvert juste après (confirmation…).
+      if (openCount === 0) previousFocus?.focus?.({ preventScroll: true });
     }, 220);
     onClose?.(result);
   }
@@ -199,7 +200,8 @@ function inputField(field) {
       const v = input.value.trim();
       if (!isNum) return v;
       if (v === '') return null;
-      const n = parseFloat(v.replace(',', '.'));
+      // Strict : « 1 200 » → 1200, « 12abc » → invalide (parseFloat lisait 12).
+      const n = Number(v.replace(/[\s\u00a0\u202f]/g, '').replace(',', '.'));
       return Number.isFinite(n) ? n : NaN;
     },
   };
@@ -286,13 +288,14 @@ export function confirmSheet({ title, message, confirmLabel = 'Supprimer', dange
 
 /** Menu d'actions. actions: [{ label, icon, danger, onClick }] */
 export function actionSheet({ title, subtitle, actions }) {
+  let picked = false;   // un double tap ne lance pas l'action deux fois
   const sheet = openSheet({
     title,
     subtitle,
     body: h('div', { class: 'action-list' }, actions.filter(Boolean).map((a) =>
       h('button', {
         class: `action${a.danger ? ' action--danger' : ''}`, type: 'button',
-        onclick: () => { sheet.close(); setTimeout(a.onClick, 230); },
+        onclick: () => { if (picked) return; picked = true; sheet.close(); setTimeout(a.onClick, 230); },
       }, a.icon ? icon(a.icon, 20) : null, h('span', {}, a.label)))),
   });
   return sheet;

@@ -35,7 +35,11 @@ export function recentPosts(days = 7, max = 5) {
 export function recentMusic(days = 14, max = 3) {
   const since = Date.now() - days * 86400000;
   return Object.entries(state.friendActivity)
-    .map(([uid, a]) => (a?.lastMusic?.url ? { ...a.lastMusic, owner: uid, name: a.name, partial: true } : null))
+    .map(([uid, a]) => {
+      // Re-vérification du lien (défense en profondeur) : jamais de lien arbitraire.
+      const m = a?.lastMusic?.url ? detectMusic(a.lastMusic.url) : null;
+      return m ? { ...a.lastMusic, url: m.url, service: m.service, owner: uid, name: String(a.name || 'Ami'), partial: true } : null;
+    })
     .filter((p) => p && ms(p.at) > since)
     .sort((a, b) => ms(b.at) - ms(a.at))
     .slice(0, max);
@@ -61,6 +65,9 @@ export function PostRow(post, me) {
   const head = h('span', { class: 'record__who' }, who, h('span', { class: 'record__when' }, ` · ${shortWhen(post.at)}`));
 
   if (post.type === 'music') {
+    const ok = detectMusic(post.url);
+    if (!ok) return null;                       // lien non conforme : ignoré
+    post = { ...post, url: ok.url, service: ok.service };
     const svc = MUSIC_SERVICES[post.service]?.label || 'Musique';
     return h('li', { class: 'record record--music' },
       Avatar({ uid: post.owner, name: post.name, size: 'sm' }),

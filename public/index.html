@@ -13,8 +13,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="AnabolicOS">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2">
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=2">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=474e0ca378">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=474e0ca378">
 
   <!-- Thème (clair/sombre) appliqué AVANT l'affichage : pas de flash -->
   <script>
@@ -34,13 +34,61 @@
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js">
   <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js">
 
-  <!-- Animation d'ouverture : feuille dédiée, chargée avant le JavaScript -->
-  <link rel="stylesheet" href="/css/splash.css?v=0.9.1">
+  <!-- Modules de l'app préchargés en parallèle (évite la cascade d'imports) -->
+  <!-- modulepreload:start -->
+  <link rel="modulepreload" href="/js/auth.js">
+  <link rel="modulepreload" href="/js/data/admin.js">
+  <link rel="modulepreload" href="/js/data/avatars.js">
+  <link rel="modulepreload" href="/js/data/friends.js">
+  <link rel="modulepreload" href="/js/data/goals.js">
+  <link rel="modulepreload" href="/js/data/importer.js">
+  <link rel="modulepreload" href="/js/data/inbox.js">
+  <link rel="modulepreload" href="/js/data/links.js">
+  <link rel="modulepreload" href="/js/data/messages.js">
+  <link rel="modulepreload" href="/js/data/posts.js">
+  <link rel="modulepreload" href="/js/data/repo.js">
+  <link rel="modulepreload" href="/js/firebase.js">
+  <link rel="modulepreload" href="/js/lib/dates.js">
+  <link rel="modulepreload" href="/js/lib/dom.js">
+  <link rel="modulepreload" href="/js/lib/ids.js">
+  <link rel="modulepreload" href="/js/lib/schedule.js">
+  <link rel="modulepreload" href="/js/lib/schema.js">
+  <link rel="modulepreload" href="/js/store.js">
+  <link rel="modulepreload" href="/js/ui/ambient.js">
+  <link rel="modulepreload" href="/js/ui/avatar.js">
+  <link rel="modulepreload" href="/js/ui/chart.js">
+  <link rel="modulepreload" href="/js/ui/chat.js">
+  <link rel="modulepreload" href="/js/ui/feed.js">
+  <link rel="modulepreload" href="/js/ui/icons.js">
+  <link rel="modulepreload" href="/js/ui/install.js">
+  <link rel="modulepreload" href="/js/ui/layout.js">
+  <link rel="modulepreload" href="/js/ui/logo.js">
+  <link rel="modulepreload" href="/js/ui/sheet.js">
+  <link rel="modulepreload" href="/js/ui/splash.js">
+  <link rel="modulepreload" href="/js/ui/tabbar.js">
+  <link rel="modulepreload" href="/js/ui/theme.js">
+  <link rel="modulepreload" href="/js/ui/timer.js">
+  <link rel="modulepreload" href="/js/ui/toast.js">
+  <link rel="modulepreload" href="/js/views/contact.js">
+  <link rel="modulepreload" href="/js/views/diet.js">
+  <link rel="modulepreload" href="/js/views/disabled.js">
+  <link rel="modulepreload" href="/js/views/goals.js">
+  <link rel="modulepreload" href="/js/views/home.js">
+  <link rel="modulepreload" href="/js/views/login.js">
+  <link rel="modulepreload" href="/js/views/me.js">
+  <link rel="modulepreload" href="/js/views/messages-hub.js">
+  <link rel="modulepreload" href="/js/views/protocol.js">
+  <link rel="modulepreload" href="/js/views/training.js">
+  <link rel="modulepreload" href="/js/views/weight.js">
+  <!-- modulepreload:end -->
 
-  <link rel="stylesheet" href="/css/tokens.css?v=0.9.1">
-  <link rel="stylesheet" href="/css/base.css?v=0.9.1">
-  <link rel="stylesheet" href="/css/components.css?v=0.9.1">
-  <link rel="stylesheet" href="/css/app.css?v=0.9.1">
+  <!-- Animation d'ouverture : feuille dédiée, chargée avant le JavaScript -->
+  <link rel="stylesheet" href="/css/splash.css?v=474e0ca378">
+
+  <link rel="stylesheet" href="/css/tokens.css?v=474e0ca378">
+  <link rel="stylesheet" href="/css/base.css?v=474e0ca378">
+  <link rel="stylesheet" href="/css/components.css?v=474e0ca378">
+  <link rel="stylesheet" href="/css/app.css?v=474e0ca378">
 </head>
 <body>
   <div id="splash" role="presentation" aria-hidden="true">
@@ -65,6 +113,8 @@
       var b = document.createElement('button'); b.textContent = 'Réparer et recharger';
       b.style.cssText = 'padding:14px 22px;border:0;border-radius:14px;background:#6E1F2C;color:#fff;font-size:16px;font-weight:600';
       b.onclick = function () {
+        // Hors ligne : surtout ne pas vider le cache (l'app ne pourrait plus se recharger).
+        if (navigator.onLine === false) { d.textContent = 'Pas de connexion internet : reconnecte-toi puis réessaie.'; return; }
         var jobs = [];
         if ('serviceWorker' in navigator) jobs.push(navigator.serviceWorker.getRegistrations().then(function (r) { return Promise.all(r.map(function (x) { return x.unregister(); })); }));
         if (window.caches) jobs.push(caches.keys().then(function (k) { return Promise.all(k.filter(function (n) { return n.indexOf('avatars') !== 0; }).map(function (n) { return caches.delete(n); })); }));
@@ -74,6 +124,6 @@
     }, 7000);
   </script>
   <noscript><p style="padding:24px">AnabolicOS nécessite JavaScript.</p></noscript>
-  <script type="module" src="/js/app.js?v=0.9.1"></script>
+  <script type="module" src="/js/app.js?v=474e0ca378"></script>
 </body>
 </html>
