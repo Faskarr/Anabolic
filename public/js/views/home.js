@@ -18,6 +18,10 @@ import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
 import { friendOf, unreadFriend } from '../data/friends.js';
 import { trainedToday } from './messages-hub.js';
+import { toggleLike } from '../data/posts.js';
+import { ms } from '../data/messages.js';
+import { shortWhen } from '../ui/chat.js';
+import { Avatar } from '../ui/avatar.js';
 
 function Widget({ eyebrow, action, children, tone, cls = '' }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
@@ -78,11 +82,29 @@ function MessagesWidget(session) {
 
 // ── Amis entraînés aujourd'hui ──────────────────────────────────────────
 
+function RecordRow(post, me) {
+  const mine = post.owner === me;
+  const liked = (post.likes || []).includes(me);
+  const n = (post.likes || []).length;
+  return h('li', { class: 'record' },
+    Avatar({ uid: post.owner, name: post.name, size: 'sm' }),
+    h('span', { class: 'record__body' },
+      h('span', { class: 'record__who' }, mine ? 'Toi' : post.name.split(' ')[0], h('span', { class: 'record__when' }, ` · ${shortWhen(post.at)}`)),
+      h('span', { class: 'record__what' }, '🏆 ', post.exercise, ' · ', h('strong', {}, `${frNum(post.w, post.w % 1 ? 1 : 0)} kg × ${post.r}`))),
+    mine
+      ? h('span', { class: `like like--static${n ? ' like--on' : ''}`, 'aria-label': `${n} like${n > 1 ? 's' : ''}` }, icon('heart', 18), n ? String(n) : '')
+      : h('button', {
+        class: `like${liked ? ' like--on' : ''}`, type: 'button', 'aria-pressed': String(liked),
+        'aria-label': liked ? 'Retirer mon like' : 'Liker ce record',
+        onclick: (e) => { e.currentTarget.classList.toggle('like--on'); e.currentTarget.classList.add('like--pop'); toggleLike(me, post); },
+      }, icon('heart', 18), n ? String(n) : ''));
+}
+
 function FriendsWidget(session) {
   const me = session.user.uid;
   const friends = state.friendships.map((f) => {
     const uid = friendOf(f, me);
-    return { f, name: f.names?.[uid] || 'Ami', act: state.friendActivity[uid] };
+    return { f, uid, name: f.names?.[uid] || 'Ami', act: state.friendActivity[uid] };
   });
   if (!friends.length) {
     return Widget({ eyebrow: 'Amis', children: [
@@ -90,18 +112,28 @@ function FriendsWidget(session) {
       h('a', { class: 'btn btn--ghost btn--block', href: '#/contact' }, icon('plus', 18), 'Ajouter un ami')] });
   }
   const trained = friends.filter((x) => trainedToday(x.act));
-  const rest = friends.length - trained.length;
+  const weekAgo = Date.now() - 7 * 86400000;
+  const records = Object.values(state.posts).flat()
+    .filter((p) => ms(p.at) > weekAgo)
+    .sort((a, b) => ms(b.at) - ms(a.at))
+    .slice(0, 4);
+
   return Widget({
     eyebrow: 'Amis aujourd’hui',
     action: link(`${trained.length}/${friends.length}`, '#/contact'),
-    children: trained.length
-      ? [h('ul', { class: 'friends-today' }, trained.map((x) => h('li', {},
-        h('a', { href: `#/friends/${encodeURIComponent(x.f.id)}` },
-          h('span', { class: 'avatar avatar--sm' }, x.name.charAt(0).toUpperCase()),
-          h('span', { class: 'friends-today__name' }, x.name),
-          h('span', { class: 'tag tag--ok' }, icon('dumbbell', 14), x.act.sessionName || 'Séance faite'))))),
-      rest ? h('p', { class: 'muted small' }, `${rest} ami${rest > 1 ? 's' : ''} pas encore entraîné${rest > 1 ? 's' : ''}.`) : null]
-      : h('p', { class: 'muted' }, 'Aucun de tes amis ne s’est encore entraîné aujourd’hui. Montre l’exemple 💪'),
+    children: [
+      trained.length
+        ? h('ul', { class: 'friends-today' }, trained.map((x) => h('li', {},
+          h('a', { href: `#/friends/${encodeURIComponent(x.f.id)}` },
+            Avatar({ uid: x.uid, name: x.name, size: 'sm' }),
+            h('span', { class: 'friends-today__name' }, x.name),
+            h('span', { class: 'tag tag--ok' }, icon('dumbbell', 14), x.act.sessionName || 'Séance faite')))))
+        : h('p', { class: 'muted' }, 'Aucun de tes amis ne s’est encore entraîné aujourd’hui. Montre l’exemple 💪'),
+      records.length ? [
+        h('p', { class: 'eyebrow', style: { marginTop: '18px' } }, 'Records de la semaine'),
+        h('ul', { class: 'records' }, records.map((p) => RecordRow(p, me))),
+      ] : null,
+    ],
   });
 }
 
@@ -163,13 +195,11 @@ function ProtocolWidget() {
     eyebrow: 'Prochaines prises',
     action: link(progress || 'Planning', '#/protocol'),
     children: items.length
-      ? h('div', { class: 'check-list check-list--flat' }, items.map(({ item, day, minutes, tomorrow }) => (tomorrow
-        ? h('div', { class: 'check-item check-item--later' },
-          h('div', { class: 'check-item__toggle' },
-            h('span', { class: 'check-item__box' }),
-            h('span', { class: 'check-item__body' }, h('span', { class: 'check-item__name' }, item.name), item.type ? h('span', { class: 'check-item__meta' }, item.type) : null),
-            h('span', { class: 'check-item__time' }, `Demain · ${item.time || formatMinutes(minutes)}`)))
-        : ItemRow(pid, day, item, null, h('span', { class: 'check-item__time' }, item.time || formatMinutes(minutes))))))
+      ? h('div', { class: 'pr-list' }, items.map(({ item, day, minutes, tomorrow }) => (tomorrow
+        ? h('div', { class: 'pr-row pr-row--later' },
+          h('span', { class: 'pr-row__time pr-row__time--word' }, 'Demain', h('br'), item.time || formatMinutes(minutes)),
+          h('span', { class: 'pr-row__body' }, h('span', { class: 'pr-row__name' }, item.name), item.type ? h('span', { class: 'pr-row__dose' }, item.type) : null))
+        : ItemRow(pid, day, item, null, item.time || formatMinutes(minutes)))))
       : h('p', { class: 'muted' }, todayTotal ? 'Tout est fait pour aujourd’hui ✓' : 'Rien de prévu aujourd’hui ni demain.'),
   });
 }

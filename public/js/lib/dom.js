@@ -28,8 +28,8 @@ export function h(tag, props = {}, ...children) {
     } else if (BOOLEAN_PROPS.has(key)) {
       el[key] = Boolean(value);
     } else if (key === 'href' || key === 'src') {
-      // Bloque les URL javascript: / data: injectées.
-      el.setAttribute(key, safeUrl(value));
+      // Bloque les URL javascript: / data: injectées (images base64 autorisées en src uniquement).
+      el.setAttribute(key, safeUrl(value, key === 'src' && tag === 'img'));
     } else {
       el.setAttribute(key, String(value));
     }
@@ -46,10 +46,14 @@ function append(parent, children) {
   }
 }
 
-/** N'autorise que http(s), les chemins relatifs et les ancres. */
-export function safeUrl(url) {
+/**
+ * N'autorise que http(s), les chemins relatifs et les ancres ; pour une image,
+ * accepte aussi les photos base64 (JPEG/PNG/WebP) — jamais pour un lien.
+ */
+export function safeUrl(url, allowImageData = false) {
   const s = String(url).trim();
   if (/^(https?:|\/|\.\/|#)/i.test(s)) return s;
+  if (allowImageData && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(s)) return s;
   return '#';
 }
 

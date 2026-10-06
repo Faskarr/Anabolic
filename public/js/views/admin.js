@@ -22,6 +22,7 @@ import { PageHeader, IconButton, Skeleton, Empty, SectionTitle } from '../ui/lay
 import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
+import { Avatar as AvatarUI } from '../ui/avatar.js';
 import { lineChart } from '../ui/chart.js';
 import { dietTotals, MacroBar, SupplementList } from './diet.js';
 import { weightStats } from './weight.js';
@@ -46,9 +47,7 @@ function ago(v) {
 }
 
 function Avatar(u, size = '') {
-  return u.photoURL
-    ? h('img', { class: `avatar ${size}`, src: u.photoURL, alt: '', referrerpolicy: 'no-referrer' })
-    : h('span', { class: `avatar ${size}`, 'aria-hidden': 'true' }, (u.displayName || u.email || '?').trim().charAt(0).toUpperCase());
+  return AvatarUI({ uid: u.id, name: u.displayName || u.email, photoURL: u.photoURL, size: size.replace('avatar--', '') });
 }
 
 const Stat = (value, label, tone = '') => h('div', { class: `stat${tone ? ` stat--${tone}` : ''}` },

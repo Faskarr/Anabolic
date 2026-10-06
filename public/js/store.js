@@ -18,6 +18,7 @@ import { watchConversation, watchAllConversations, unreadForUser, unreadForAdmin
 import { watchPendingInbox } from './data/inbox.js';
 import { watchUsers } from './data/admin.js';
 import { watchFriendships, watchActivity, unreadFriend, friendOf } from './data/friends.js';
+import { watchPosts } from './data/posts.js';
 
 const { doc, onSnapshot } = fs;
 
@@ -47,6 +48,7 @@ export const state = {
   me: null,                  // { uid, displayName, email } de l'utilisateur connecté
   friendships: [],           // mes amitiés (avec aperçu du dernier message)
   friendActivity: {},        // { [uidAmi]: { name, day, sessionName } }
+  posts: {},                 // { [uid]: [records partagés] } — mes amis + moi
   adminUsers: null,          // ADMIN : tous les utilisateurs (null = non chargé)
   adminConversations: null,  // ADMIN : toutes les conversations (null = non chargé)
   error: null,
@@ -124,15 +126,26 @@ function listenWeek() {
 /** Démarre la synchro pour un utilisateur. */
 const activityUnsubs = new Map();
 
-/** Abonne/désabonne l'activité de chaque ami quand la liste d'amis change. */
+/**
+ * Abonne/désabonne l'activité et les records de chaque ami (et mes propres
+ * records) quand la liste d'amis change.
+ */
 function syncFriendActivity() {
-  const wanted = new Set(state.friendships.map((f) => friendOf(f, state.uid)));
+  const friends = new Set(state.friendships.map((f) => friendOf(f, state.uid)));
+  const wanted = new Set([...friends, state.uid]);
   for (const [uid, unsub] of activityUnsubs) {
-    if (!wanted.has(uid)) { unsub(); activityUnsubs.delete(uid); delete state.friendActivity[uid]; }
+    if (!wanted.has(uid)) {
+      unsub(); activityUnsubs.delete(uid);
+      delete state.friendActivity[uid]; delete state.posts[uid];
+    }
   }
   for (const uid of wanted) {
     if (activityUnsubs.has(uid)) continue;
-    activityUnsubs.set(uid, watchActivity(uid, (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); }));
+    const subs = [watchPosts(uid, (list) => { state.posts = { ...state.posts, [uid]: list }; emit(); })];
+    if (uid !== state.uid) {
+      subs.push(watchActivity(uid, (a) => { state.friendActivity = { ...state.friendActivity, [uid]: a }; emit(); }));
+    }
+    activityUnsubs.set(uid, () => subs.forEach((u) => u()));
   }
 }
 
@@ -186,7 +199,7 @@ export function stopStore() {
     uid: null, ready: false, profiles: emptyProfiles(), workouts: {}, diet: {}, protocol: {},
     weights: [], exlogs: {}, counterBase: 0, week: {}, error: null,
     conversation: null, adminConversations: null, inbox: [], adminUsers: null,
-    me: null, friendships: [], friendActivity: {},
+    me: null, friendships: [], friendActivity: {}, posts: {},
   });
 }
 

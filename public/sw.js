@@ -11,7 +11,7 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v9';
+const VERSION = 'v10';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 
@@ -27,18 +27,22 @@ const APP_SHELL = [
   '/js/app.js',
   '/js/auth.js',
   '/js/data/admin.js',
+  '/js/data/avatars.js',
   '/js/data/friends.js',
   '/js/data/importer.js',
   '/js/data/inbox.js',
   '/js/data/messages.js',
+  '/js/data/posts.js',
   '/js/data/repo.js',
   '/js/firebase.js',
   '/js/lib/dates.js',
   '/js/lib/dom.js',
   '/js/lib/ids.js',
+  '/js/lib/image.js',
   '/js/lib/schedule.js',
   '/js/lib/schema.js',
   '/js/store.js',
+  '/js/ui/avatar.js',
   '/js/ui/chart.js',
   '/js/ui/chat.js',
   '/js/ui/icons.js',

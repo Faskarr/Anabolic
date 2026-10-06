@@ -51,6 +51,25 @@ export function FoundationView(session) {
   return cached;
 }
 
+/** Mesures d'affichage (pour régler la barre d'onglets dans Safari). */
+function screenInfo() {
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;padding-bottom:env(safe-area-inset-bottom);visibility:hidden';
+  document.body.appendChild(probe);
+  const safe = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+  probe.remove();
+  const tab = document.querySelector('.tabbar')?.getBoundingClientRect();
+  const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+  return [
+    ['Mode', standalone ? 'App installée' : 'Safari (onglet)'],
+    ['Safe-area bas', `${Math.round(safe)} px`],
+    ['Fenêtre', `${innerWidth} × ${innerHeight}`],
+    ['Viewport visuel', `${Math.round(visualViewport?.height || 0)} px`],
+    ['Écran', `${screen.width} × ${screen.height}`],
+    ['Barre d’onglets', tab ? `haut ${Math.round(tab.top)} · bas ${Math.round(tab.bottom)}` : '—'],
+  ];
+}
+
 function buildFoundation(session) {
   const { user, isAdmin, adminError, created } = session;
   const first = (user.displayName || '').split(' ')[0];
@@ -99,6 +118,17 @@ function buildFoundation(session) {
       list,
     ),
     uidCard,
+    h('section', { class: 'card' },
+      h('h2', { class: 'card__title' }, 'Affichage'),
+      h('p', { class: 'card__text' }, 'Fais une capture de ce bloc si la barre du bas est mal placée.'),
+      (() => {
+        // Mesuré après l'affichage (la barre d'onglets doit être en place).
+        const ul = h('ul', { class: 'kv' });
+        const fill = () => ul.replaceChildren(...screenInfo().map(([k, v]) => h('li', {}, h('span', {}, k), h('strong', {}, v))));
+        setTimeout(fill, 400);
+        window.addEventListener('resize', fill);
+        return ul;
+      })()),
     h('section', { class: 'card' },
       h('h2', { class: 'card__title' }, 'Prochaine étape'),
       h('p', { class: 'card__text' },

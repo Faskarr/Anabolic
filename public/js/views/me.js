@@ -9,8 +9,11 @@ import { PageHeader } from '../ui/layout.js';
 import { confirmSheet } from '../ui/sheet.js';
 import { icon } from '../ui/icons.js';
 import { weightStats } from './weight.js';
+import { Avatar } from '../ui/avatar.js';
+import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
+import { toast } from '../ui/toast.js';
 
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.7.0';
 
 function Row({ href, onclick, iconName, label, value, badge, danger }) {
   const inner = [
@@ -25,6 +28,39 @@ function Row({ href, onclick, iconName, label, value, badge, danger }) {
     : h('button', { class: `menu-row${danger ? ' menu-row--danger' : ''}`, type: 'button', onclick }, inner);
 }
 
+let uploading = false;
+
+/** Photo de profil : tap → choisir/prendre une photo → compressée et enregistrée. */
+function AvatarPicker(user) {
+  const input = h('input', {
+    type: 'file', accept: 'image/*', class: 'sr-only', id: 'avatar-file',
+    onchange: async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      uploading = true;
+      window.dispatchEvent(new Event('app:render'));
+      try {
+        await uploadMyAvatar(user.uid, file);
+        toast('Photo de profil mise à jour');
+      } catch (err) {
+        toast(err.message || 'Envoi impossible.', { type: 'error' });
+      } finally {
+        uploading = false;
+        window.dispatchEvent(new Event('app:render'));
+      }
+    },
+  });
+  return h('div', { class: 'avatar-picker' },
+    h('label', { for: 'avatar-file', class: 'avatar-picker__btn', 'aria-label': 'Changer ma photo de profil' },
+      Avatar({ uid: user.uid, name: user.displayName, photoURL: user.photoURL, size: 'lg' }),
+      h('span', { class: 'avatar-picker__badge' }, uploading ? h('span', { class: 'spinner spinner--xs' }) : icon('camera', 15))),
+    input,
+    avatarOf(user.uid) ? h('button', {
+      class: 'link-btn link-btn--danger avatar-picker__remove', type: 'button',
+      onclick: async () => { if (await confirmSheet({ title: 'Retirer ta photo ?', confirmLabel: 'Retirer' })) removeMyAvatar(user.uid); },
+    }, 'Retirer') : null);
+}
+
 export function MeView(session) {
   const { user, isAdmin } = session;
   const s = weightStats();
@@ -32,12 +68,11 @@ export function MeView(session) {
   return [
     PageHeader({ eyebrow: 'Compte', title: 'Moi' }),
     h('section', { class: 'card profile-card' },
-      user.photoURL
-        ? h('img', { class: 'avatar avatar--lg', src: user.photoURL, alt: '', referrerpolicy: 'no-referrer' })
-        : h('div', { class: 'avatar avatar--lg', 'aria-hidden': 'true' }, (user.displayName || '?').charAt(0).toUpperCase()),
-      h('div', {},
+      AvatarPicker(user),
+      h('div', { style: { minWidth: 0 } },
         h('p', { class: 'profile-card__name' }, user.displayName || 'Athlète', isAdmin ? h('span', { class: 'badge badge--inline' }, 'Admin') : null),
-        h('p', { class: 'muted' }, user.email))),
+        h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
+        h('p', { class: 'muted small' }, 'Photo visible par tes amis et ton coach.'))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),

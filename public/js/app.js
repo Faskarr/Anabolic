@@ -33,7 +33,7 @@ import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat } from './views/messages-hub.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.6.0';
+export const ASSET_VERSION = '0.7.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
@@ -82,7 +82,7 @@ const ROUTES = {
 const root = document.getElementById('app');
 
 /**
- * Entrée de l'accueil : les widgets glissent en place l'un après l'autre.
+ * Entrée des pages : les blocs glissent en place l'un après l'autre.
  * Les vues sont re-rendues à chaque mise à jour temps réel ; pour qu'un rendu
  * en plein milieu ne coupe pas l'animation, chaque rendu recalcule le délai
  * de chaque bloc par rapport à l'instant de départ (délai négatif = reprise).
@@ -91,7 +91,9 @@ const ENTER = { STEP_MS: 90, DURATION_MS: 700 };
 let enter = { pending: true, at: 0 };
 
 function applyEnter() {
-  if (current.key !== 'home' || !state.ready) { viewEl.classList.remove('view--enter'); return; }
+  const def = ROUTES[current.key];
+  // Toutes les pages, sauf les conversations (défilement en bas + zone de saisie fixe).
+  if (def.chat || !state.ready) { viewEl.classList.remove('view--enter'); return; }
   const now = performance.now();
   if (enter.pending) {
     // Départ juste après l'effacement du splash (ou tout de suite s'il est parti).
@@ -187,7 +189,7 @@ window.addEventListener('hashchange', () => {
   const prev = ROUTES[current.key];
   if (prev?.leave && (next.key !== current.key || next.param !== current.param)) prev.leave();
   current = next;
-  if (current.key === 'home') enter = { pending: true, at: 0 };
+  enter = { pending: true, at: 0 };
   render({ scrollTop: true });
 });
 window.addEventListener('app:render', () => render());

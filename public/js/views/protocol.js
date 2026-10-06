@@ -8,7 +8,8 @@ import { formatWeekdays, isoWeekday, localISODate } from '../lib/dates.js';
 import { guessWeekdays } from '../lib/schema.js';
 import { state, activeProfileId, profileData, injectionWeekKey } from '../store.js';
 import { updateProfileData, setWeekItem, resetWeek } from '../data/repo.js';
-import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, IconButton } from '../ui/layout.js';
+import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, IconButton, SectionTitle } from '../ui/layout.js';
+import { parseTimeOfDay } from '../lib/schedule.js';
 import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { undoToast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
@@ -99,31 +100,63 @@ export function itemKey(pid, day, item, date = localISODate()) {
     : injectionWeekKey(pid, item.id);
 }
 
-/** Ligne cochable d'un produit (réutilisée par l'accueil). */
-export function ItemRow(pid, day, item, onEdit, extra) {
+/**
+ * Ligne de produit, lisible d'un coup d'œil :  [ HEURE ]  Produit / dose  [ ✓ ]
+ * La case coche/décoche ; un tap sur le texte ouvre l'édition (si onEdit),
+ * sinon coche aussi. Réutilisée par l'accueil.
+ */
+export function ItemRow(pid, day, item, onEdit, timeText) {
   const key = itemKey(pid, day, item);
   const on = Boolean(state.week[key]?.done);
-  return h('div', { class: `check-item${on ? ' check-item--on' : ''}` },
+  const toggle = () => setWeekItem(key, { done: !on });
+  const time = typeof timeText === 'string' ? timeText : (item.time || '');
+  return h('div', { class: `pr-row${on ? ' pr-row--on' : ''}` },
+    h('span', { class: `pr-row__time${time.length > 5 ? ' pr-row__time--word' : ''}` }, time || '—'),
     h('button', {
-      class: 'check-item__toggle', type: 'button', 'aria-pressed': String(on),
-      onclick: () => setWeekItem(key, { done: !on }),
+      class: 'pr-row__body', type: 'button',
+      'aria-label': onEdit ? `Modifier ${item.name}` : `${on ? 'Décocher' : 'Cocher'} ${item.name}`,
+      onclick: onEdit || toggle,
     },
-    h('span', { class: 'check-item__box' }, icon('check', 16)),
-    h('span', { class: 'check-item__body' },
-      h('span', { class: 'check-item__name' }, item.name),
-      item.type ? h('span', { class: 'check-item__meta' }, item.type) : null),
-    extra || (item.time ? h('span', { class: 'check-item__time' }, item.time) : null)),
-    onEdit ? IconButton('edit', `Modifier ${item.name}`, onEdit, 'icon-btn--ghost') : null);
+    h('span', { class: 'pr-row__name' }, item.name),
+    item.type ? h('span', { class: 'pr-row__dose' }, item.type) : null),
+    h('button', {
+      class: 'pr-check', type: 'button', 'aria-pressed': String(on), 'aria-label': `${on ? 'Décocher' : 'Cocher'} ${item.name}`,
+      onclick: toggle,
+    }, icon('check', 18)));
+}
+
+const byTime = (a, b) => (parseTimeOfDay(a.i.time) ?? 9999) - (parseTimeOfDay(b.i.time) ?? 9999);
+
+/** Bloc « Aujourd'hui » : toutes les prises du jour, triées par heure. */
+function TodayCard(pid, days) {
+  const today = isoWeekday();
+  const items = days.filter((d) => effectiveWeekdays(d).includes(today))
+    .flatMap((d) => (d.injections || []).map((i) => ({ d, i })))
+    .sort(byTime);
+  const done = items.filter(({ d, i }) => state.week[itemKey(pid, d, i)]?.done).length;
+  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+  const dayName = new Date().toLocaleDateString('fr-FR', { weekday: 'long' });
+
+  return h('section', { class: 'card proto-today' },
+    h('div', { class: 'card__row' },
+      h('div', {},
+        h('p', { class: 'eyebrow' }, `Aujourd’hui · ${dayName}`),
+        h('p', { class: 'proto-today__count' }, items.length ? `${done}/${items.length}` : '—', h('span', {}, items.length ? ' pris' : ''))),
+      items.length ? h('span', { class: `proto-today__pct${pct === 100 ? ' proto-today__pct--done' : ''}` }, pct === 100 ? 'Terminé ✓' : `${pct} %`) : null),
+    items.length ? h('div', { class: 'bar' }, h('div', { class: 'bar__fill bar__fill--p', style: { width: `${pct}%` } })) : null,
+    items.length
+      ? h('div', { class: 'pr-list' }, items.map(({ d, i }) => ItemRow(pid, d, i)))
+      : h('p', { class: 'muted', style: { marginTop: '8px' } }, 'Rien de prévu aujourd’hui.'));
 }
 
 function DayCard(pid, day, isToday) {
-  const items = day.injections || [];
+  const items = [...(day.injections || [])].sort((a, b) => (parseTimeOfDay(a.time) ?? 9999) - (parseTimeOfDay(b.time) ?? 9999));
   const wd = effectiveWeekdays(day);
   return h('section', { class: `card card--flush${isToday ? ' card--today' : ''}` },
     h('header', { class: 'meal__head' },
       h('div', {},
         h('h3', { class: 'meal__name' }, day.name, isToday ? h('span', { class: 'badge badge--inline' }, "Aujourd'hui") : null),
-        h('span', { class: 'meal__kcal' }, [day.label, wd.length ? formatWeekdays(wd) : null].filter(Boolean).join(' · '))),
+        h('span', { class: 'meal__kcal' }, [wd.length ? formatWeekdays(wd) : 'Aucun jour assigné', day.label].filter(Boolean).join(' · '))),
       h('div', { class: 'row-gap' },
         IconButton('plus', `Ajouter à ${day.name}`, () => editItem(day, null), 'icon-btn--soft'),
         IconButton('more', `Options de ${day.name}`, () => actionSheet({
@@ -134,7 +167,7 @@ function DayCard(pid, day, isToday) {
           ],
         }), 'icon-btn--soft'))),
     items.length
-      ? h('div', { class: 'check-list' }, items.map((it) => ItemRow(pid, day, it, () => editItem(day, it))))
+      ? h('div', { class: 'pr-list pr-list--card' }, items.map((it) => ItemRow(pid, day, it, () => editItem(day, it))))
       : h('button', { class: 'meal__empty', type: 'button', onclick: () => editItem(day, null) }, 'Aucun produit — appuie pour ajouter'));
 }
 
@@ -146,19 +179,13 @@ export function ProtocolView() {
 
   const days = profileData(CAT).days || [];
   const today = isoWeekday();
-  const allItems = days.flatMap((d) => (d.injections || []).map((i) => ({ d, i })));
-  const doneCount = allItems.filter(({ d, i }) => state.week[itemKey(pid, d, i)]?.done).length;
-  const pct = allItems.length ? Math.round((doneCount / allItems.length) * 100) : 0;
 
   return [
     header,
     ProfileBar(CAT),
-    h('section', { class: 'card' },
-      h('div', { class: 'card__row' },
-        h('p', { class: 'eyebrow' }, 'Progression'),
-        h('span', { class: 'muted' }, `${doneCount} / ${allItems.length}`)),
-      h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, `${pct}`), h('span', { class: 'kcal__unit' }, ' % complété')),
-      h('div', { class: 'bar bar--lg' }, h('div', { class: 'bar__fill', style: { width: `${pct}%` } }))),
+    days.length ? TodayCard(pid, days) : null,
+    days.length ? SectionTitle('Planning de la semaine') : null,
+    h('p', { class: 'hint' }, 'Touche un produit pour le modifier, la case pour le cocher.'),
     days.length
       ? h('div', { class: 'stack' }, days.map((d) => DayCard(pid, d, effectiveWeekdays(d).includes(today))))
       : Empty({ iconName: 'pill', title: 'Protocole vide', text: 'Ajoute un jour puis ses produits.' }),

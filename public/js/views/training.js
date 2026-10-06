@@ -12,9 +12,10 @@ import {
   updateProfileData, setWeekItem, setCounterBase, addLog, deleteLog,
 } from '../data/repo.js';
 import { publishActivity } from '../data/friends.js';
+import { sharePR } from '../data/posts.js';
 import { PageHeader, ProfileBar, NoProfile, Empty, Skeleton, IconButton, SectionTitle } from '../ui/layout.js';
 import { formSheet, confirmSheet, actionSheet, openSheet } from '../ui/sheet.js';
-import { undoToast } from '../ui/toast.js';
+import { undoToast, toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { lineChart } from '../ui/chart.js';
 import { startTimer, parseRest, showTimer } from '../ui/timer.js';
@@ -205,7 +206,15 @@ function openLog(exercise) {
       }
       weightIn.classList.remove('input--invalid');
       repsIn.classList.remove('input--invalid');
+      const prevBest = Math.max(0, ...(state.exlogs[eid] || []).map((x) => est1RM(x.w, x.r)));
       addLog(eid, w, r);
+      // Nouveau record (1RM estimé) → proposition de partage aux amis.
+      if (prevBest > 0 && est1RM(w, r) > prevBest && state.me) {
+        toast(`Nouveau record ! ${frNum(w, w % 1 ? 1 : 0)} kg × ${r} 🏆`, {
+          duration: 7000,
+          action: { label: 'Partager', onClick: () => sharePR(state.me, { exercise: exercise.n, w, r }) },
+        });
+      }
       repsIn.value = '';
       repsIn.focus();
     },
@@ -230,7 +239,12 @@ function openLog(exercise) {
     const best = Math.max(...Object.values(byDay));
     const delta = days.length > 1 ? byDay[days.at(-1)] - byDay[days.at(-2)] : null;
 
+    const bestSet = arr.reduce((b, x) => (est1RM(x.w, x.r) > est1RM(b.w, b.r) ? x : b), arr[0]);
     content.replaceChildren(
+      state.me ? h('button', {
+        class: 'btn btn--ghost btn--block share-pr', type: 'button',
+        onclick: () => sharePR(state.me, { exercise: exercise.n, w: bestSet.w, r: bestSet.r }),
+      }, icon('share', 18), `Partager mon record · ${frNum(bestSet.w, bestSet.w % 1 ? 1 : 0)} kg × ${bestSet.r}`) : null,
       h('div', { class: 'stats' },
         Stat(`${frNum(last.w, last.w % 1 ? 1 : 0)} kg × ${last.r}`, 'Dernière série'),
         Stat(`${frNum(best, 0)} kg`, '1RM estimé max'),

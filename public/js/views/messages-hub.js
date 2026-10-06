@@ -16,6 +16,7 @@ import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
 import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
+import { Avatar } from '../ui/avatar.js';
 
 const rerender = () => window.dispatchEvent(new Event('app:render'));
 const initial = (n) => (n || '?').trim().charAt(0).toUpperCase();
@@ -98,7 +99,7 @@ function FriendRow(f, me) {
     title: name,
     preview: f.lastText ? `${f.lastFrom === me ? 'Toi : ' : ''}${f.lastText}` : 'Dis bonjour 👋',
     when: shortWhen(f.lastAt), unread: unreadFriend(f, me),
-    avatar: h('span', { class: 'avatar' }, initial(name)),
+    avatar: Avatar({ uid: other, name }),
     tag: trainedToday(act) ? h('span', { class: 'tag tag--ok', title: act.sessionName || '' }, icon('dumbbell', 14), 'Auj.') : null,
   });
 }
@@ -169,6 +170,7 @@ export function FriendChatView(session, pid) {
   const header = PageHeader({
     eyebrow: 'Ami', title: name,
     trailing: h('div', { class: 'row-gap' },
+      Avatar({ uid: other, name }),
       IconButton('more', 'Options', () => actionSheet({
         title: name,
         actions: [{ label: 'Retirer de mes amis', icon: 'trash', danger: true, onClick: async () => {
