@@ -54,7 +54,7 @@ export function showTimer(visible) {
 export function parseRest(text) {
   const t = String(text || '').toLowerCase().replace(/\s/g, '')
     .replace(/[’‘′´`]/g, "'").replace(/[″"]/g, 's');
-  let m = t.match(/^(\d+)(?:'|:|min|mn|m)(\d{1,2})?/);
+  let m = t.match(/^(\d+)(?:'|:|min|mn|m|\.|,)(\d{1,2})?/);
   if (m) return (+m[1]) * 60 + (+(m[2] || 0));
   m = t.match(/^(\d+)(s|sec)?$/);
   if (m) return +m[1] >= 10 ? +m[1] : (+m[1]) * 60;

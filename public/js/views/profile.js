@@ -150,18 +150,22 @@ export function ProfileView(session, uid) {
   const name = String(sh?.name || (isMe ? session.user.displayName : f?.names?.[uid]) || 'Ami');
   const first = name.split(' ')[0];
   const act = isMe ? null : state.friendActivity[uid];
-  const header = PageHeader({ eyebrow: isMe ? 'Mon profil' : 'Profil', title: name, trailing: back });
+  // En-tête discret : la carte de profil porte le nom.
+  const header = h('div', { class: 'ptop' }, h('p', { class: 'eyebrow' }, isMe ? 'Mon profil' : 'Profil'), back);
 
-  const hero = h('section', { class: 'card phero' },
-    Avatar({ uid, name, photoURL: isMe ? session.user.photoURL : null, size: 'lg' }),
-    h('div', { class: 'phero__txt' },
-      act && trainedToday(act)
-        ? h('p', { class: 'friend-status' }, icon('dumbbell', 15), `Entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}`)
-        : h('p', { class: 'muted small' }, isMe ? 'Voici ce que voient tes amis.' : 'Pas encore entraîné aujourd’hui.'),
-      h('div', { class: 'phero__actions' },
-        isMe
-          ? h('button', { class: 'btn btn--ghost', type: 'button', onclick: editSharing }, icon('eye', 16), 'Ce que voient mes amis')
-          : h('a', { class: 'btn btn--ghost', href: `#/friends/${encodeURIComponent(f.id)}` }, icon('message', 16), 'Message'))));
+  const statusLine = act && trainedToday(act)
+    ? h('p', { class: 'phero__status phero__status--on' }, icon('dumbbell', 14), `Entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}`)
+    : h('p', { class: 'phero__status' }, isMe ? 'Voici ce que voient tes amis' : 'Pas encore entraîné aujourd’hui');
+  const action = isMe
+    ? h('button', { class: 'btn btn--ghost phero__btn', type: 'button', onclick: editSharing }, icon('eye', 16), 'Ce que voient mes amis')
+    : h('a', { class: 'btn btn--primary phero__btn', href: `#/friends/${encodeURIComponent(f.id)}` }, icon('message', 16), 'Message');
+  const heroParts = (extra = []) => h('section', { class: 'card phero' },
+    h('div', { class: 'phero__ava' }, Avatar({ uid, name, photoURL: isMe ? session.user.photoURL : null, size: 'lg' })),
+    h('h1', { class: 'phero__name' }, name),
+    statusLine,
+    ...extra,
+    action);
+  const hero = heroParts();
 
   if (sh === undefined && !view.denied) return [header, hero, Skeleton(3)];
 
@@ -181,15 +185,14 @@ export function ProfileView(session, uid) {
   ].filter(Boolean);
 
   const nothing = !w && !d && !p && !weight && !Number.isInteger(sh?.sessions);
-  const noteCard = noteText || isMe ? h('section', { class: `card pnote${noteText ? '' : ' pnote--empty'}` },
-    h('p', { class: 'pnote__text' }, noteText || 'Ajoute une note pour tes amis : ton objectif, ta prépa, ton mood du moment…'),
+  const noteEl = noteText || isMe ? h('div', { class: `pnote${noteText ? '' : ' pnote--empty'}` },
+    h('p', { class: 'pnote__text' }, noteText || 'Ajoute une note : ton objectif, ta prépa, ton mood du moment…'),
     isMe ? h('button', { class: 'link-btn pnote__edit', type: 'button', onclick: () => editNote(noteText) }, icon('edit', 15), noteText ? 'Modifier' : 'Écrire une note') : null) : null;
+  const heroFull = heroParts([noteEl, stats.length ? h('div', { class: 'pstats' }, stats) : null]);
 
   return [
     header,
-    hero,
-    noteCard,
-    h('div', { class: 'pstats' }, stats),
+    heroFull,
     // Records et sons réunis, du plus récent au plus ancien.
     posts.length ? h('section', { class: 'card pcard-sec' },
       h('p', { class: 'eyebrow' }, icon('flame', 13), ' Records & sons partagés'),

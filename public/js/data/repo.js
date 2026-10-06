@@ -300,8 +300,11 @@ function compactExlogs() {
   write(() => setDoc(dataRef('exlogs'), { logs: clone(next) }), 'carnet');
 }
 
-export function addLog(eid, w, r) {
+/** @param {{ rir?: 0|1|2, drop?: boolean }} [opts]  RIR et série dégressive (facultatifs) */
+export function addLog(eid, w, r, opts = {}) {
   const entry = { ts: Date.now(), d: localISODate(), w, r };
+  if ([0, 1, 2].includes(opts.rir)) entry.rir = opts.rir;
+  if (opts.drop) entry.k = 'drop';
   state.exlogs = { ...state.exlogs, [eid]: [...(state.exlogs[eid] || []), entry] };
   emit();
   write(() => setDoc(dataRef('exlogs'), exlogField(eid, arrayUnion(entry)), { merge: true }), 'carnet');

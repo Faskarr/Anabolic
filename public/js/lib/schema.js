@@ -51,6 +51,7 @@ export function normalizeWorkout(raw) {
         r: str(e?.r ?? e?.rest, 20) || '—',
         no: str(e?.no ?? e?.note, 300),
         ...(e?.ss === true ? { ss: true } : {}),   // superset avec l'exercice précédent
+        ...(['drop', 'up'].includes(e?.m) ? { m: e.m } : {}),   // séries dégressives / montantes
       })),
     })),
   };
@@ -132,6 +133,8 @@ function normalizeExlogs(raw) {
       d: str(e?.d, 10),
       w: num(e?.w, 0, 1000),
       r: int(e?.r, 1, 1000),
+      ...([0, 1, 2].includes(e?.rir) ? { rir: e.rir } : {}),
+      ...(e?.k === 'drop' ? { k: 'drop' } : {}),
     })).filter((e) => e.ts && DATE_RE.test(e.d) && e.w != null && e.r);
     if (clean.length) out[id(eid, 'e')] = clean;
   }
