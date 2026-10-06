@@ -411,7 +411,14 @@ function ProductCards(products, days) {
 }
 
 export function ProtocolView() {
-  const header = PageHeader({ eyebrow: 'Planning', title: 'Mon protocole' });
+  const days0 = activeProfileId(CAT) ? profileData(CAT).days || [] : [];
+  const header = PageHeader({
+    eyebrow: 'Planning', title: 'Mon protocole',
+    trailing: entriesOf(days0).length
+      ? h('button', { class: 'head-action', type: 'button', onclick: () => calendarSheet(days0), 'aria-label': 'Synchroniser le calendrier et les rappels' },
+        icon('bell', 20), h('span', {}, 'Calendrier', h('br'), '& rappels'))
+      : null,
+  });
   if (!state.ready) return [header, Skeleton(4)];
   const pid = activeProfileId(CAT);
   if (!pid) return [header, NoProfile(CAT, 'pill')];
@@ -433,8 +440,7 @@ export function ProtocolView() {
       : Empty({ iconName: 'pill', title: 'Aucun produit', text: 'Ajoute tes compléments et produits (nom + dose), puis place-les dans ta semaine.', actionLabel: 'Ajouter un produit', onAction: () => editProduct(null) }),
 
     products.length ? [
-      SectionTitle('Planning de la semaine',
-        planned ? h('button', { class: 'link-btn', type: 'button', onclick: () => calendarSheet(days) }, icon('bell', 16), 'Rappels') : null),
+      SectionTitle('Planning de la semaine'),
       PlanningTable(products, days),
       h('p', { class: 'hint' }, 'Touche une case pour ajouter le produit ce jour-là, ou pour retirer / changer l’heure. Touche un nom pour gérer toutes ses prises.'),
     ] : null,

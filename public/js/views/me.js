@@ -14,8 +14,9 @@ import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
 import { toast } from '../ui/toast.js';
 import { cropAvatar } from '../ui/cropper.js';
 import { getThemePref, setThemePref } from '../ui/theme.js';
+import { cracksEnabled, setCracks } from '../ui/cracks.js';
 
-export const APP_VERSION = '0.9.0';
+export const APP_VERSION = '0.9.1';
 
 function Row({ href, onclick, iconName, label, value, badge, danger }) {
   const inner = [
@@ -69,8 +70,11 @@ function AvatarPicker(user) {
 
 /** Liens utiles (ouverts dans Safari / l'app correspondante). */
 const LINKS = [
+  { label: 'TheSwoleDoc sur TikTok', sub: '@faskarr', href: 'https://www.tiktok.com/@faskarr', icon: 'play' },
+  { label: 'Discord BioHacking', sub: 'La communauté', href: 'https://discord.gg/DHVucvwrk', icon: 'message' },
   { label: 'HSN', sub: 'Nutrition sportive & compléments', href: 'https://www.hsnstore.fr/' },
   { label: 'High League Supplements', sub: 'hlsupps.com', href: 'https://hlsupps.com/' },
+  { label: 'Hemia Cosmetics', sub: 'hemiacosmetics.com', href: 'https://www.hemiacosmetics.com/' },
 ];
 
 function ThemePicker() {
@@ -83,6 +87,19 @@ function ThemePicker() {
         class: `segment${cur === v ? ' segment--on' : ''}`, type: 'button', role: 'radio', 'aria-checked': String(cur === v),
         onclick: () => { setThemePref(v); window.dispatchEvent(new Event('app:render')); },
       }, l))));
+}
+
+/** Fond « écran fissuré » : activé par défaut, désactivable. */
+function FxToggle() {
+  const input = h('input', {
+    type: 'checkbox', class: 'switch__input', id: 'fx-cracks',
+    onchange: () => setCracks(input.checked),
+  });
+  input.checked = cracksEnabled();
+  return h('label', { class: 'theme-row', for: 'fx-cracks', style: { position: 'relative' } },
+    h('span', { class: 'menu-row__icon' }, icon('flame', 20)),
+    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Écran fissuré, très discret')),
+    input, h('span', { class: 'switch', 'aria-hidden': 'true' }));
 }
 
 export function MeView(session) {
@@ -104,8 +121,9 @@ export function MeView(session) {
     h('p', { class: 'eyebrow menu-title' }, 'Liens & réglages'),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Liens utiles' },
       ThemePicker(),
+      FxToggle(),
       LINKS.map((l) => h('a', { class: 'menu-row', href: l.href, target: '_blank', rel: 'noopener noreferrer' },
-        h('span', { class: 'menu-row__icon' }, icon('link', 20)),
+        h('span', { class: 'menu-row__icon' }, icon(l.icon || 'link', 20)),
         h('span', { class: 'menu-row__label' }, l.label, h('span', { class: 'menu-row__sub' }, l.sub)),
         h('span', { class: 'menu-row__chevron' }, icon('external', 16))))),
     isAdmin ? h('nav', { class: 'menu card card--flush', 'aria-label': 'Administration' },

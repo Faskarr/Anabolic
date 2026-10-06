@@ -285,7 +285,8 @@ function customize() {
   function draw() {
     const { visible, hidden } = layout();
     const move = (i, d) => { const v = [...visible]; [v[i], v[i + d]] = [v[i + d], v[i]]; save(v, hidden); };
-    list.replaceChildren(
+    // replaceChildren n'aplatit pas les tableaux → on aplatit (sinon « [object …] »).
+    list.replaceChildren(...[
       h('p', { class: 'eyebrow' }, `Affichés (${visible.length})`),
       h('div', { class: 'wedit__list' }, visible.map((id, i) => h('div', { class: 'wedit__row' },
         h('span', { class: 'wedit__icon' }, icon(WIDGETS[id].icon, 18)),
@@ -306,7 +307,8 @@ function customize() {
         h('span', { class: 'wedit__plus' }, icon('plus', 18), 'Ajouter')))),
       ] : null,
       h('button', { class: 'btn btn--quiet btn--block', type: 'button', style: { marginTop: '16px' }, onclick: () => save([...DEFAULT_ORDER], [...DEFAULT_HIDDEN]) },
-        icon('reset', 18), 'Disposition par défaut'));
+        icon('reset', 18), 'Disposition par défaut'),
+    ].flat().filter(Boolean));
   }
   draw();
   openSheet({ title: 'Personnaliser l’accueil', subtitle: 'Déplace, masque ou ajoute des widgets. Synchronisé sur tous tes appareils.', body: list });

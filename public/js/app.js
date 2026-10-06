@@ -14,6 +14,8 @@
 // En premier : le splash doit s'afficher avant l'initialisation de Firebase.
 import { hideSplash, watchResume, splashOutAt } from './ui/splash.js';
 import './ui/theme.js';
+import { initCracks } from './ui/cracks.js';
+initCracks();
 import { mount, h } from './lib/dom.js';
 import { onSession } from './auth.js';
 import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';
@@ -38,7 +40,7 @@ import { GoalsView } from './views/goals.js';
 import { AdminLibraryView } from './views/admin-library.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.9.0';
+export const ASSET_VERSION = '0.9.1';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le

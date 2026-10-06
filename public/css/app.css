@@ -1126,3 +1126,22 @@ html[data-theme="dark"] .plan__plus { color: var(--stone); opacity: .5; }
   .plan__row { grid-template-columns: minmax(70px, 1fr) repeat(7, 34px); }
   .plan__time { font-size: 9.5px; }
 }
+
+/* ═══ Fond « écran fissuré » (très discret, derrière l'app) ═════ */
+#app { position: relative; z-index: 1; }
+.cracks {
+  position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
+  fill: none; stroke: var(--ink); stroke-linecap: round; stroke-linejoin: round;
+  opacity: .085; animation: cracks-breathe 9s ease-in-out infinite;
+}
+html[data-theme="dark"] .cracks { stroke: var(--bordeaux); opacity: .16; }
+.cracks__draw { animation: crack-draw 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes crack-draw { to { stroke-dashoffset: 0; } }
+@keyframes cracks-breathe { 50% { opacity: .055; } }
+html[data-theme="dark"] .cracks { animation-name: cracks-breathe-dark; }
+@keyframes cracks-breathe-dark { 50% { opacity: .1; } }
+@media (prefers-reduced-motion: reduce) { .cracks { animation: none; } }
+
+/* Logo dans le titre de la carte d'installation */
+.install__title .brand { font-size: inherit; letter-spacing: inherit; }
+.theme-row + .theme-row { border-top: .5px solid var(--line); }

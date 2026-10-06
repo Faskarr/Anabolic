@@ -63,7 +63,7 @@ export function InstallCard({ compact = false, force = false } = {}) {
     h('div', { class: 'install__head' },
       h('span', { class: 'install__icon' }, icon('phone', 22)),
       h('div', {},
-        h('p', { class: 'install__title' }, 'Installe AnabolicOS'),
+        h('p', { class: 'install__title' }, 'Installe ', h('span', { class: 'brand' }, 'Anabolic', h('span', { class: 'brand__accent' }, 'OS'))),
         h('p', { class: 'muted small' }, 'Plein écran, ouverture instantanée et pastille de messages non lus.'))),
     body,
     compact ? null : h('button', { class: 'link-btn install__later', type: 'button', onclick: () => hideFor(7) }, 'Plus tard'));
