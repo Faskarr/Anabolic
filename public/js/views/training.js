@@ -213,6 +213,8 @@ async function editExercise(session, exercise) {
         { value: 'drop', label: 'Dégressive', sub: 'Charge ↓ à chaque série' },
         { value: 'up', label: 'Montante', sub: 'Charge ↑ à chaque série' },
       ] },
+      { name: 'dw', label: 'Charges prévues (dégressive / montante)', value: exercise?.dw, placeholder: '20 / 18 / 16', maxlength: 60,
+        hint: 'En kg, séparées par « / ». Pré-remplies dans le carnet.' },
       { name: 'ss', type: 'toggle', label: 'Superset avec l’exercice précédent', value: exercise?.ss,
         hint: 'Les exercices s’enchaînent sans repos ; un seul repos après le dernier.' },
     ],
@@ -237,6 +239,7 @@ async function editExercise(session, exercise) {
     no: r.values.no || '',
     ...(r.values.ss ? { ss: true } : {}),
     ...(['drop', 'up'].includes(r.values.m) ? { m: r.values.m } : {}),
+    ...(['drop', 'up'].includes(r.values.m) && parseLoads(r.values.dw).length ? { dw: parseLoads(r.values.dw).map((x) => frNum(x, x % 1 ? 1 : 0)).join(' / ') } : {}),
   };
   updateProfileData(CAT, (d) => {
     const s = d.sessions.find((x) => x.id === session.id);
@@ -297,7 +300,37 @@ function openLog(exercise) {
   const content = h('div', { class: 'log' });
 
   // Options de la série : RIR (répétitions en réserve) et série dégressive.
-  const opts = { rir: null, drop: false };
+  // Exercice « dégressive » : le panneau des paliers est ouvert d'office,
+  // pré-rempli avec les charges prévues (ex. 20 → 18 → 16).
+  const plan = exercise.m === 'drop' ? parseLoads(exercise.dw) : [];
+  if (plan[0]) weightIn.placeholder = frNum(plan[0], plan[0] % 1 ? 1 : 0);
+  const opts = { rir: null, drop: exercise.m === 'drop' };
+  let drops = [];
+  const dropRow = (w = '') => {
+    const wIn = h('input', { class: 'input input--num', inputmode: 'decimal', placeholder: 'kg', 'aria-label': 'Charge du palier en kg', maxlength: 6 });
+    const rIn = h('input', { class: 'input input--num', inputmode: 'numeric', placeholder: 'reps', 'aria-label': 'Répétitions du palier', maxlength: 4 });
+    wIn.value = w === '' ? '' : String(w).replace('.', ',');
+    const row = { wIn, rIn, el: null };
+    row.el = h('div', { class: 'drop-row' },
+      h('span', { class: 'drop-row__arrow', 'aria-hidden': 'true' }, '↘'), wIn, h('span', { class: 'log__x', 'aria-hidden': 'true' }, '×'), rIn,
+      h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': 'Retirer ce palier',
+        onclick: () => { drops = drops.filter((x) => x !== row); renderDrops(); } }, icon('x', 16)));
+    return row;
+  };
+  const resetDrops = () => { drops = plan.slice(1).map((w) => dropRow(w)); if (!drops.length) drops = [dropRow()]; };
+  resetDrops();
+  const dropPanel = h('div', { class: 'drop-panel' });
+  function renderDrops() {
+    dropPanel.hidden = !opts.drop;
+    dropPanel.replaceChildren(
+      h('p', { class: 'drop-panel__hint' }, 'Paliers après la 1re charge, sans repos :'),
+      ...drops.map((x) => x.el),
+      h('button', { class: 'link-btn', type: 'button', onclick: () => {
+        const prev = parseFloat((drops.at(-1)?.wIn.value || weightIn.value || '').replace(',', '.'));
+        drops.push(dropRow(prev > 0 ? Math.round(prev * 0.9 * 2) / 2 : '')); renderDrops();
+      } }, icon('plus', 15), 'Ajouter un palier'));
+  }
+
   const chip = (label, on, onclick, title) => h('button', { class: `chip chip--sm${on ? ' chip--on' : ''}`, type: 'button', 'aria-pressed': String(on), title, onclick }, label);
   const chipsEl = h('div', { class: 'log__opts' });
   function syncChips() {
@@ -305,25 +338,43 @@ function openLog(exercise) {
       h('span', { class: 'log__opts-label' }, 'RIR'),
       ...[2, 1, 0].map((n) => chip(String(n), opts.rir === n, () => { opts.rir = opts.rir === n ? null : n; syncChips(); }, `${n} répétition${n > 1 ? 's' : ''} en réserve`)),
       h('span', { class: 'log__opts-sep', 'aria-hidden': 'true' }),
-      chip('↘ Dégressive', opts.drop, () => { opts.drop = !opts.drop; syncChips(); }, 'Série dégressive (charge baissée sans repos)'));
+      chip('↘ Dégressive', opts.drop, () => { opts.drop = !opts.drop; syncChips(); }, 'Série dégressive : plusieurs charges enchaînées sans repos'));
+    renderDrops();
   }
   syncChips();
 
+  const num = (inp) => parseFloat(String(inp.value).replace(',', '.'));
   const form = h('form', {
     class: 'log__form', novalidate: true,
     onsubmit: (e) => {
       e.preventDefault();
-      const w = parseFloat(weightIn.value.replace(',', '.'));
+      const w = num(weightIn);
       const r = parseInt(repsIn.value, 10);
       if (!(w > 0 && w < 1000) || !(r > 0 && r < 1000)) {
         (w > 0 ? repsIn : weightIn).classList.add('input--invalid');
         return;
       }
+      // Paliers dégressifs : lignes remplies (charge + reps) ; une ligne à moitié remplie est signalée.
+      const steps = [];
+      if (opts.drop) {
+        for (const d of drops) {
+          const dw = num(d.wIn); const dr = parseInt(d.rIn.value, 10);
+          d.wIn.classList.remove('input--invalid'); d.rIn.classList.remove('input--invalid');
+          if (!d.wIn.value.trim() && !d.rIn.value.trim()) continue;
+          if (!(dw > 0 && dw < 1000)) { d.wIn.classList.add('input--invalid'); d.wIn.focus(); return; }
+          if (!(dr > 0 && dr < 1000)) { d.rIn.classList.add('input--invalid'); d.rIn.focus(); return; }
+          steps.push({ w: dw, r: dr });
+        }
+      }
       weightIn.classList.remove('input--invalid');
       repsIn.classList.remove('input--invalid');
       const prevBest = Math.max(0, ...(state.exlogs[eid] || []).map((x) => est1RM(x.w, x.r)));
-      addLog(eid, w, r, { rir: opts.rir, drop: opts.drop });
-      opts.drop = false; syncChips();   // « dégressive » ne vaut que pour cette série
+      const ts = Date.now();
+      addLog(eid, w, r, { rir: opts.rir, ts });
+      steps.forEach((x, i) => addLog(eid, x.w, x.r, { drop: true, ts: ts + i + 1 }));
+      if (steps.length) toast(`Dégressive notée : ${[w, ...steps.map((x) => x.w)].map((x) => frNum(x, x % 1 ? 1 : 0)).join(' → ')} kg`);
+      // Prochaine série : on garde la charge, on vide les reps des paliers.
+      drops.forEach((d) => { d.rIn.value = ''; });
       // Nouveau record (1RM estimé) → proposition de partage aux amis.
       if (prevBest > 0 && est1RM(w, r) > prevBest && state.me) {
         toast(`Nouveau record ! ${frNum(w, w % 1 ? 1 : 0)} kg × ${r} 🏆`, {
@@ -391,7 +442,7 @@ function openLog(exercise) {
   openSheet({
     title: exercise.n,
     subtitle: [exercise.s !== '—' && exercise.s, exercise.r !== '—' && `repos ${exercise.r}`].filter(Boolean).join(' · ') || 'Carnet de charges',
-    body: h('div', {}, suggestEl, form, chipsEl, content),
+    body: h('div', {}, suggestEl, form, chipsEl, dropPanel, content),
     onClose: unsub,
   });
 }
@@ -415,6 +466,12 @@ async function editCounter() {
 // ── Vue ─────────────────────────────────────────────────────────────────
 
 const METHOD = { drop: '↘ Dégressive', up: '↗ Montante' };
+
+/** « 20 / 18,5 / 16 » → [20, 18.5, 16] (charges valides seulement). */
+function parseLoads(text) {
+  return (String(text || '').match(/\d+(?:[.,]\d+)?/g) || [])
+    .map((x) => parseFloat(x.replace(',', '.'))).filter((x) => x > 0 && x < 1000).slice(0, 8);
+}
 
 /**
  * Carte d'exercice. `inSuperset` : version ligne, sans bouton de repos (le
@@ -441,7 +498,8 @@ function ExerciseCard(session, ex, index, total, label, inSuperset = false) {
     h('span', { class: 'exercise__body' },
       h('span', { class: 'exercise__name' }, ex.n),
       ex.no ? h('span', { class: 'exercise__note' }, ex.no) : null,
-      METHOD[ex.m] ? h('span', { class: `exercise__method exercise__method--${ex.m}` }, METHOD[ex.m]) : null,
+      METHOD[ex.m] ? h('span', { class: `exercise__method exercise__method--${ex.m}` }, METHOD[ex.m],
+        ex.dw ? ` · ${parseLoads(ex.dw).map((x) => frNum(x, x % 1 ? 1 : 0)).join(' → ')} kg` : null) : null,
       sug ? h('span', { class: `exercise__suggest${sug.up ? ' exercise__suggest--up' : ''}` },
         icon(sug.up ? 'up' : 'target', 14), `Suggéré ${fmtKg(sug.w)} kg × ${sug.r}`) : null),
     h('span', { class: 'exercise__sets' },

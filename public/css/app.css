@@ -1470,3 +1470,15 @@ html[data-theme="dark"] .music-tag--youtube { color: #f87171; }
 .phero .pstat + .pstat { border-left: .5px solid var(--line); }
 .phero .pstat__value { font-size: 24px; }
 .phero .pstat__label { font-size: 11px; }
+
+/* Dégressive : paliers de charge */
+.drop-panel { margin: 4px 0 8px; padding: 10px 12px; border-radius: var(--r-md); background: var(--bordeaux-tint); }
+.drop-panel[hidden] { display: none; }
+.drop-panel__hint { margin: 0 0 6px; font-size: 12.5px; color: var(--stone); }
+.drop-row { display: grid; grid-template-columns: 18px 1fr auto 1fr auto; align-items: center; gap: 6px; margin-bottom: 6px; }
+.drop-row__arrow { color: var(--bordeaux); font-weight: 700; text-align: center; }
+.drop-row .input { min-height: 42px; }
+
+/* Note du profil : centrée sous la photo */
+.phero .pnote { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.phero .pnote__edit { margin-left: auto; margin-right: auto; }

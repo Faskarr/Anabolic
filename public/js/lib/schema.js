@@ -52,6 +52,7 @@ export function normalizeWorkout(raw) {
         no: str(e?.no ?? e?.note, 300),
         ...(e?.ss === true ? { ss: true } : {}),   // superset avec l'exercice précédent
         ...(['drop', 'up'].includes(e?.m) ? { m: e.m } : {}),   // séries dégressives / montantes
+        ...(['drop', 'up'].includes(e?.m) && str(e?.dw, 60) ? { dw: str(e.dw, 60) } : {}),   // charges prévues « 20 / 18 / 16 »
       })),
     })),
   };
