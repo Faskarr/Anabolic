@@ -13,7 +13,11 @@ import { icon } from '../ui/icons.js';
 const ICON_LABEL = { link: 'Lien', play: 'Vidéo', message: 'Discussion', music: 'Musique', leaf: 'Nutrition', pill: 'Compléments', dumbbell: 'Sport', heart: 'Favori' };
 
 async function persist(next, msg) {
-  try { await saveLinks(next); if (msg) toast(msg); } catch (err) { toast(`Enregistrement impossible : ${err.code || err.message}`, { type: 'error' }); }
+  try { await saveLinks(next); if (msg) toast(msg); } catch (err) {
+    toast(err.code === 'permission-denied'
+      ? 'Refusé par les règles Firebase : elles ne sont pas encore déployées (firebase deploy).'
+      : `Enregistrement impossible : ${err.code || err.message}`, { type: 'error', duration: 6000 });
+  }
 }
 
 async function editLink(items, link) {

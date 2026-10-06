@@ -16,6 +16,8 @@ import { cropAvatar } from '../ui/cropper.js';
 import { getThemePref, setThemePref } from '../ui/theme.js';
 import { ambientEnabled, setAmbient } from '../ui/ambient.js';
 import { linksOf } from '../data/links.js';
+import { InstallRow } from '../ui/install.js';
+import { openSheet } from '../ui/sheet.js';
 
 export const APP_VERSION = '0.9.1';
 
@@ -108,6 +110,7 @@ export function MeView(session) {
         h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
         h('p', { class: 'muted small' }, 'Photo visible par tes amis et ton coach.'))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },
+      InstallRow(openSheet),
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),
       Row({ href: '#/me/check', iconName: 'shield', label: 'Diagnostic' })),

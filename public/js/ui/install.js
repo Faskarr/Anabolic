@@ -5,12 +5,13 @@
  *  • iPhone / iPad (Safari) : pas d'installation automatique possible →
  *    instructions pas à pas (Partager › Sur l'écran d'accueil › Ajouter).
  *  • Android / Chrome / Edge : bouton « Installer » (beforeinstallprompt).
- * « Plus tard » la masque 7 jours (préférence locale à l'appareil).
+ * « Plus tard » la masque jusqu'au lendemain ; elle reste aussi accessible
+ * depuis Moi › « Installer l'app » (préférence locale à l'appareil).
  */
 import { h } from '../lib/dom.js';
 import { icon } from './icons.js';
 
-const KEY = 'installHiddenUntil';
+const KEY = 'installSnooze'; // nouvelle clé : les anciens « Plus tard » (7 j) sont oubliés
 let deferred = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -66,5 +67,17 @@ export function InstallCard({ compact = false, force = false } = {}) {
         h('p', { class: 'install__title' }, 'Installe ', h('span', { class: 'brand' }, 'Anabolic', h('span', { class: 'brand__accent' }, 'OS'))),
         h('p', { class: 'muted small' }, 'Plein écran, ouverture instantanée et pastille de messages non lus.'))),
     body,
-    compact ? null : h('button', { class: 'link-btn install__later', type: 'button', onclick: () => hideFor(7) }, 'Plus tard'));
+    compact ? null : h('button', { class: 'link-btn install__later', type: 'button', onclick: () => hideFor(1) }, 'Plus tard (demain)'));
+}
+
+/** Rappel permanent dans Moi (hors app installée) : rouvre la carte complète. */
+export function InstallRow(openSheet) {
+  if (isStandalone()) return null;
+  return h('button', {
+    class: 'menu-row', type: 'button',
+    onclick: () => openSheet({ title: 'Installer l’app', body: InstallCard({ compact: true, force: true }) }),
+  },
+  h('span', { class: 'menu-row__icon' }, icon('phone', 20)),
+  h('span', { class: 'menu-row__label' }, 'Installer l’app', h('span', { class: 'menu-row__sub' }, 'Sur l’écran d’accueil de ton iPhone')),
+  h('span', { class: 'menu-row__chevron' }, icon('chevron', 18)));
 }

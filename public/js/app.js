@@ -14,8 +14,8 @@
 // En premier : le splash doit s'afficher avant l'initialisation de Firebase.
 import { hideSplash, watchResume, splashOutAt } from './ui/splash.js';
 import './ui/theme.js';
-import { initCracks } from './ui/cracks.js';
-initCracks();
+import { initAmbient } from './ui/ambient.js';
+initAmbient();
 import { mount, h } from './lib/dom.js';
 import { onSession } from './auth.js';
 import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount } from './store.js';

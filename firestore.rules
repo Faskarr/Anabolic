@@ -55,9 +55,11 @@ service cloud.firestore {
     // Activité visible par les amis (+ dernière publication et version de la photo).
     function isActivity(d) {
       return d.get('lastPost', {}) is map
+        && d.get('lastMusic', {}) is map
         && d.get('avatarAt', 0) is int
         && d.get('lastPost', {}).size() <= 12
-        && d.keys().hasOnly(['name', 'day', 'sessionName', 'at', 'lastPost', 'avatarAt']);
+        && d.get('lastMusic', {}).size() <= 12
+        && d.keys().hasOnly(['name', 'day', 'sessionName', 'at', 'lastPost', 'lastMusic', 'avatarAt']);
     }
     // Publication « record » partagée avec les amis.
     function isPrPost(d) {

@@ -1162,3 +1162,25 @@ html[data-theme="dark"] .ambient__blob--c { background: radial-gradient(closest-
 .choices--4 .choice { min-height: 40px; padding: 8px; align-items: center; }
 .choices--4 .choice__label { font-size: 13px; }
 .link-edit .tag { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; flex-shrink: 0; }
+
+/* ═══ Widget amis : sons conseillés ═════════════════════════════ */
+.music-head { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.music-head .eyebrow { display: inline-flex; align-items: center; gap: 4px; }
+.music-head .link-btn { min-height: 28px; font-size: var(--fs-sm); }
+.music-list { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 6px -2px 0; padding: 2px; scroll-snap-type: x mandatory; }
+.music-list::-webkit-scrollbar { display: none; }
+.music-card {
+  --m: var(--bordeaux);
+  flex: 0 0 auto; width: min(220px, 70%); scroll-snap-align: start;
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 8px; border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--m) 11%, var(--card)); color: var(--ink); text-decoration: none;
+}
+.music-card:only-child { width: 100%; }
+.music-card:active { transform: scale(.97); }
+.music-card--spotify { --m: #1DB954; }
+.music-card--deezer { --m: #A238FF; }
+.music-card--apple { --m: #FA243C; }
+.music-card__play { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: var(--m); color: #fff; }
+.music-card__body { min-width: 0; display: flex; flex-direction: column; }
+.music-card__title { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-card__who { font-size: 11.5px; color: var(--stone); font-weight: 600; }

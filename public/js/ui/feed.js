@@ -31,6 +31,16 @@ export function recentPosts(days = 7, max = 5) {
     .slice(0, max);
 }
 
+/** Sons conseillés : la dernière musique partagée par chacun (amis + moi), récente d'abord. */
+export function recentMusic(days = 14, max = 3) {
+  const since = Date.now() - days * 86400000;
+  return Object.entries(state.friendActivity)
+    .map(([uid, a]) => (a?.lastMusic?.url ? { ...a.lastMusic, owner: uid, name: a.name, partial: true } : null))
+    .filter((p) => p && ms(p.at) > since)
+    .sort((a, b) => ms(b.at) - ms(a.at))
+    .slice(0, max);
+}
+
 function LikeButton(post, me) {
   // Aperçu (dernière publication recopiée) : les likes se gèrent dans Contact.
   if (post.partial) return h('a', { class: 'like like--static', href: '#/contact', 'aria-label': 'Voir et liker dans Contact' }, icon('heart', 18));

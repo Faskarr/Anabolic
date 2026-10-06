@@ -17,7 +17,10 @@ const e1rm = (w, r) => (r <= 1 ? w : w * (1 + r / 30));
  */
 function setLastPost(uid, ref, data) {
   const { likes, at, name, ...rest } = data;
-  return setDoc(doc(db, 'activity', uid), { lastPost: { id: ref.id || ref.path.split('/').pop(), ...rest, at: Date.now() } }, { merge: true }).catch(() => {});
+  const copy = { id: ref.id || ref.path.split('/').pop(), ...rest, at: Date.now() };
+  // La dernière musique est gardée à part : un record publié ensuite ne l'efface pas.
+  const patch = data.type === 'music' ? { lastPost: copy, lastMusic: copy } : { lastPost: copy };
+  return setDoc(doc(db, 'activity', uid), patch, { merge: true }).catch(() => {});
 }
 
 export function sharePR(me, { exercise, w, r }) {
