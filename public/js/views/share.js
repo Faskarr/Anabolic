@@ -16,8 +16,8 @@ import { applyImport } from '../data/importer.js';
 import { PageHeader, SectionTitle, IconButton } from '../ui/layout.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
-import { actionSheet, confirmSheet } from '../ui/sheet.js';
-import { isAccepted, friendOf, sendFriendShare, SHARE_LABEL } from '../data/friends.js';
+import { openSheet } from '../ui/sheet.js';
+import { isAccepted, friendOf, sendFriendShares, SHARE_LABEL } from '../data/friends.js';
 
 const CAT_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
 
@@ -88,33 +88,76 @@ function doDownload() {
 
 function rerender() { window.dispatchEvent(new Event('app:render')); }
 
-/** Envoie le profil choisi à un ami : il le reçoit dans votre discussion et l'accepte ou le refuse. */
+/**
+ * Envoi à un ami : on coche ce qu'on veut (un ou plusieurs programmes, diets,
+ * protocoles — ou tout), on choisit l'ami, et tout part en une fois dans votre
+ * discussion. L'ami accepte ou refuse chaque élément.
+ */
 function sendToFriend() {
   const me = state.me?.uid;
-  const pid = ui.pid || activeProfileId(ui.cat);
-  const prof = state.profiles[ui.cat].list.find((p) => p.id === pid);
-  if (!me || !prof) return toast('Aucun profil à envoyer.', { type: 'error' });
+  if (!me) return;
   const friends = state.friendships.filter(isAccepted)
     .map((f) => ({ f, name: f.names?.[friendOf(f, me)] || 'Ami' }));
   if (!friends.length) return toast('Ajoute d’abord un ami dans Contact (avec son code ami).', { type: 'error', duration: 5000 });
-  const label = SHARE_LABEL[ui.cat];
-  actionSheet({
-    title: `Envoyer ${label.toLowerCase()} « ${prof.name} »`,
-    subtitle: 'Ton ami le reçoit dans votre discussion et choisit de l’accepter ou non.',
-    actions: friends.map(({ f, name }) => ({
-      label: name, icon: 'send',
-      onClick: async () => {
-        if (!(await confirmSheet({ title: `Envoyer à ${name} ?`, message: `${label} « ${prof.name} »`, confirmLabel: 'Envoyer', danger: false }))) return;
-        try {
-          await sendFriendShare(me, f.id, { cat: ui.cat, title: prof.name, data: profileData(ui.cat, pid) });
-          toast(`Envoyé à ${name}`, { action: { label: 'Voir', onClick: () => { location.hash = `#/friends/${encodeURIComponent(f.id)}`; } } });
-        } catch (err) {
-          console.error('[share]', err);
-          toast(err.message?.startsWith('Trop') ? err.message : 'Envoi impossible. Vérifie ta connexion.', { type: 'error' });
-        }
-      },
-    })),
+
+  const items = ['workout', 'diet', 'protocol'].flatMap((cat) =>
+    state.profiles[cat].list.map((p) => ({ cat, pid: p.id, name: p.name, on: false })));
+  if (!items.length) return toast('Aucun programme, diet ou protocole à envoyer.', { type: 'error' });
+  let friend = friends.length === 1 ? friends[0] : null;
+
+  const sendBtn = h('button', { class: 'btn btn--primary btn--block', type: 'button' }, icon('send', 18), 'Envoyer');
+  const allCb = h('input', { type: 'checkbox' });
+  const boxes = items.map((it) => {
+    const cb = h('input', { type: 'checkbox' });
+    cb.addEventListener('change', () => { it.on = cb.checked; sync(); });
+    return { it, cb };
   });
+  const friendBtns = friends.map((x) => {
+    const b = h('button', { class: `chip${friend === x ? ' chip--on' : ''}`, type: 'button' }, x.name);
+    b.addEventListener('click', () => { friend = x; friendBtns.forEach((o) => o.classList.toggle('chip--on', o === b)); sync(); });
+    return b;
+  });
+  function sync() {
+    const n = items.filter((x) => x.on).length;
+    allCb.checked = n === items.length;
+    sendBtn.disabled = !n || !friend;
+    sendBtn.lastChild.textContent = n ? `Envoyer ${n} élément${n > 1 ? 's' : ''}${friend ? ` à ${friend.name}` : ''}` : 'Coche au moins un élément';
+  }
+  allCb.addEventListener('change', () => { boxes.forEach(({ it, cb }) => { it.on = allCb.checked; cb.checked = allCb.checked; }); sync(); });
+
+  const groups = ['workout', 'diet', 'protocol'].map((cat) => {
+    const list = boxes.filter((b) => b.it.cat === cat);
+    if (!list.length) return null;
+    return h('div', { class: 'send-group' },
+      h('p', { class: 'eyebrow' }, { workout: 'Programmes', diet: 'Diets', protocol: 'Protocoles' }[cat]),
+      list.map(({ it, cb }) => h('label', { class: 'checkbox' }, cb, h('span', {}, it.name))));
+  });
+
+  const sheet = openSheet({
+    title: 'Envoyer à un ami',
+    subtitle: 'Coche ce que tu veux envoyer. Ton ami accepte ou refuse chaque élément dans votre discussion.',
+    body: h('div', { class: 'form' },
+      friends.length > 1 ? h('div', {}, h('p', { class: 'eyebrow' }, 'À qui ?'), h('div', { class: 'chips chips--wrap' }, friendBtns)) : null,
+      h('label', { class: 'checkbox checkbox--all' }, allCb, h('span', {}, 'Tout envoyer')),
+      groups,
+      h('div', { class: 'form__actions' }, sendBtn)),
+  });
+
+  sendBtn.addEventListener('click', async () => {
+    const picked = items.filter((x) => x.on);
+    if (!picked.length || !friend || sendBtn.dataset.busy) return;
+    sendBtn.dataset.busy = '1';
+    try {
+      await sendFriendShares(me, friend.f.id, picked.map((x) => ({ cat: x.cat, title: x.name, data: profileData(x.cat, x.pid) })));
+      sheet.close();
+      const pid = friend.f.id;
+      toast(`${picked.length > 1 ? `${picked.length} éléments envoyés` : 'Envoyé'} à ${friend.name}`, { action: { label: 'Voir', onClick: () => { location.hash = `#/friends/${encodeURIComponent(pid)}`; } } });
+    } catch (err) {
+      console.error('[share]', err);
+      toast(err.message?.includes('volumineux') ? err.message : 'Envoi impossible. Vérifie ta connexion.', { type: 'error', duration: 6000 });
+    } finally { delete sendBtn.dataset.busy; }
+  });
+  sync();
 }
 
 function ExportCard() {
@@ -149,9 +192,6 @@ function ExportCard() {
     h('p', { class: 'eyebrow' }, 'Exporter'),
     modeTabs,
     picker,
-    ui.mode === 'profile' ? h('button', {
-      class: 'btn btn--primary btn--block', type: 'button', style: { marginTop: '12px' }, onclick: sendToFriend,
-    }, icon('send', 18), 'Envoyer à un ami') : null,
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn btn--ink', type: 'button', onclick: doShare }, icon('share', 18), 'Partager'),
       h('button', { class: 'btn btn--ghost', type: 'button', onclick: doCopy }, icon('copy', 18), 'Copier'),
@@ -261,6 +301,10 @@ export function ShareView() {
       eyebrow: 'Import / Export', title: 'Mes imports',
       trailing: IconButton('back', 'Retour', () => { location.hash = '#/me'; }, 'icon-btn--soft'),
     }),
+    h('section', { class: 'card' },
+      h('p', { class: 'eyebrow' }, 'Envoyer à un ami'),
+      h('p', { class: 'muted' }, 'Programme, diet, protocole : un, plusieurs ou tout, en une fois. Ton ami le reçoit dans votre discussion.'),
+      h('button', { class: 'btn btn--primary btn--block', type: 'button', style: { marginTop: '12px' }, onclick: sendToFriend }, icon('send', 18), 'Choisir et envoyer')),
     ExportCard(),
     ImportCard(),
     SectionTitle('Compatibilité'),

@@ -143,20 +143,25 @@ export const SHARE_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Prot
 export const SHARE_MAX = 300000;   // caractères (le document Firestore reste < 1 Mo)
 
 /**
- * Message spécial dans la discussion : { kind:'share', cat, title, payload (JSON), status:'pending' }.
- * L'ami l'accepte (ajouté comme nouveau profil chez lui) ou le refuse.
+ * Envoi groupé (un message par profil, en une seule écriture atomique).
+ * Message spécial : { kind:'share', cat, title, payload (JSON), status:'pending' } ;
+ * l'ami accepte chacun (ajouté comme nouveau profil chez lui) ou le refuse.
  */
-export function sendFriendShare(uid, pid, { cat, title, data }) {
-  const payload = JSON.stringify(data ?? {});
-  if (payload.length > SHARE_MAX) throw new Error('Trop volumineux pour être envoyé (exporte-le en fichier).');
-  const name = String(title || SHARE_LABEL[cat]).trim().slice(0, 80) || SHARE_LABEL[cat];
-  const text = `${SHARE_LABEL[cat]} « ${name} »`.slice(0, 200);
+export function sendFriendShares(uid, pid, items) {
   const batch = writeBatch(db);
-  batch.set(doc(collection(db, 'friendships', pid, 'messages')), {
-    from: uid, text, at: serverTimestamp(), kind: 'share', cat, title: name, payload, status: 'pending',
-  });
+  let last = '';
+  for (const { cat, title, data } of items) {
+    const payload = JSON.stringify(data ?? {});
+    const name = String(title || SHARE_LABEL[cat]).trim().slice(0, 80) || SHARE_LABEL[cat];
+    if (payload.length > SHARE_MAX) throw new Error(`« ${name} » est trop volumineux pour être envoyé (exporte-le en fichier).`);
+    last = `${SHARE_LABEL[cat]} « ${name} »`.slice(0, 200);
+    batch.set(doc(collection(db, 'friendships', pid, 'messages')), {
+      from: uid, text: last, at: serverTimestamp(), kind: 'share', cat, title: name, payload, status: 'pending',
+    });
+  }
+  const preview = items.length > 1 ? `📦 ${items.length} envois (programme, diet…)` : `📦 ${last}`;
   batch.update(doc(db, 'friendships', pid), {
-    lastText: `📦 ${text}`.slice(0, 140), lastFrom: uid, lastAt: serverTimestamp(), [`readAt.${uid}`]: serverTimestamp(),
+    lastText: preview.slice(0, 140), lastFrom: uid, lastAt: serverTimestamp(), [`readAt.${uid}`]: serverTimestamp(),
   });
   return batch.commit();
 }

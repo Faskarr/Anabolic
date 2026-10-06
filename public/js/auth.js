@@ -143,6 +143,20 @@ async function checkAdmin(uid) {
   }
 }
 
+function retryAdmin(user, verified, callback, delays = [1500, 4000, 10000]) {
+  if (!delays.length) return;
+  setTimeout(async () => {
+    if (auth.currentUser?.uid !== user.uid) return;
+    const { isAdmin, adminError } = await checkAdmin(user.uid);
+    if (adminError) { retryAdmin(user, verified, callback, delays.slice(1)); return; }
+    if (isAdmin !== verified.isAdmin) {
+      const next = { ...verified, isAdmin, adminError: null };
+      writeCachedSession(user.uid, next);
+      callback(next);
+    }
+  }, delays[0]);
+}
+
 /**
  * Démarrage rapide : la dernière session vérifiée est gardée sur l'appareil.
  * À l'ouverture, l'app s'affiche tout de suite avec elle, pendant que le profil
@@ -215,6 +229,7 @@ export function onSession(callback) {
         user, profile, isAdmin: admin, adminError, created,
       };
       writeCachedSession(user.uid, verified);
+      if (adminError && cached) retryAdmin(user, verified, callback);
       // Déjà affiché depuis le cache et rien n'a changé : pas de nouveau rendu,
       // mais le profil affiché reçoit les champs à jour (code ami…).
       if (cached && verified.state === 'active' && cached.isAdmin === admin) {
@@ -222,6 +237,9 @@ export function onSession(callback) {
         return;
       }
       callback(verified);
+      // Rôle admin non vérifiable (ex. juste après la connexion, avant que Firestore
+      // ait reçu le jeton) : nouvelles tentatives, puis mise à jour de l'écran.
+      if (adminError) retryAdmin(user, verified, callback);
     } catch (error) {
       console.error('[auth] session', error);
       if (!cached) callback({ state: 'error', user, error });   // hors ligne : on garde la session en cache

@@ -7,7 +7,7 @@
 import { db, fs } from '../firebase.js';
 import { toast } from '../ui/toast.js';
 
-const { doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, serverTimestamp } = fs;
+const { doc, collection, query, orderBy, limit, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, serverTimestamp } = fs;
 
 const e1rm = (w, r) => (r <= 1 ? w : w * (1 + r / 30));
 
@@ -118,6 +118,52 @@ export function toggleLike(meUid, post) {
     .catch((err) => { console.error(err); toast('Action impossible.', { type: 'error' }); });
 }
 
-export function deletePost(meUid, post) {
-  return deleteDoc(doc(db, 'activity', meUid, 'posts', post.id)).catch(() => {});
+/** Supprime MA publication, et sa copie dans mon activité (accueil des amis). */
+export async function deletePost(meUid, post) {
+  await deleteDoc(doc(db, 'activity', meUid, 'posts', post.id));
+  const act = await getDoc(doc(db, 'activity', meUid)).catch(() => null);
+  const a = act?.exists() ? act.data() : {};
+  const patch = {};
+  if (a.lastPost?.id === post.id) patch.lastPost = {};
+  if (a.lastMusic?.id === post.id) patch.lastMusic = {};
+  // updateDoc (et non merge) : remplace vraiment la copie par une valeur vide.
+  if (Object.keys(patch).length) await updateDoc(doc(db, 'activity', meUid), patch);
+}
+
+/** Likes actuels d'une publication (lecture unique, pour l'aperçu de l'accueil). */
+export async function fetchLikes(owner, id) {
+  const snap = await getDoc(doc(db, 'activity', owner, 'posts', id));
+  return snap.exists() ? (snap.data().likes || []) : [];
+}
+
+/**
+ * Titre d'un son, retrouvé depuis son lien (pour pré-remplir le partage).
+ *  • Spotify : oEmbed officiel (titre) ;  • YouTube Music : oEmbed YouTube ;
+ *  • Apple Music : API iTunes (artiste – titre).
+ * Deezer n'autorise pas ces requêtes depuis un site : titre à saisir.
+ * 4 s maximum ; renvoie '' si rien trouvé (jamais d'erreur).
+ */
+export async function fetchMusicTitle(url, service) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000);
+  const get = async (u) => (await fetch(u, { signal: ctrl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' })).json();
+  const clean = (t) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  try {
+    if (service === 'spotify' && /open\.spotify\.com$/.test(new URL(url).hostname)) {
+      return clean((await get(`https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`)).title);
+    }
+    if (service === 'youtube') {
+      const d = await get(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`);
+      return clean(d.title);
+    }
+    if (service === 'apple') {
+      const u = new URL(url);
+      const id = u.searchParams.get('i') || (u.pathname.match(/\/(\d+)(?:\/)?$/) || [])[1];
+      const country = (u.pathname.split('/')[1] || 'fr').slice(0, 2);
+      if (!id) return '';
+      const r = (await get(`https://itunes.apple.com/lookup?id=${id}&country=${country}`)).results?.[0];
+      return r ? clean(`${r.artistName} – ${r.trackName || r.collectionName}`) : '';
+    }
+  } catch { /* hors ligne, lien court, refus : saisie manuelle */ } finally { clearTimeout(timer); }
+  return '';
 }

@@ -5,12 +5,12 @@
 import { h } from '../lib/dom.js';
 import { frNum } from '../lib/dates.js';
 import { state, ensureExlogs } from '../store.js';
-import { toggleLike, sharePR, shareMusic, detectMusic, musicTargets, MUSIC_SERVICES } from '../data/posts.js';
+import { toggleLike, sharePR, shareMusic, detectMusic, musicTargets, MUSIC_SERVICES, fetchLikes, deletePost, fetchMusicTitle } from '../data/posts.js';
 import { ms } from '../data/messages.js';
 import { shortWhen } from './chat.js';
 import { Avatar } from './avatar.js';
 import { icon } from './icons.js';
-import { formSheet, openSheet, actionSheet } from './sheet.js';
+import { formSheet, openSheet, actionSheet, confirmSheet } from './sheet.js';
 import { toast } from './toast.js';
 
 /**
@@ -45,19 +45,55 @@ export function recentMusic(days = 14, max = 3) {
     .slice(0, max);
 }
 
-function LikeButton(post, me) {
-  // Aperçu (dernière publication recopiée) : les likes se gèrent dans Contact.
-  if (post.partial) return h('a', { class: 'like like--static', href: '#/contact', 'aria-label': 'Voir et liker dans Contact' }, icon('heart', 18));
+const rerender = () => window.dispatchEvent(new Event('app:render'));
+
+/**
+ * Likes des aperçus de l'accueil (copie sans les likes) : lus UNE fois par
+ * session et par publication, puis tenus à jour localement à chaque tap.
+ */
+const likeCache = new Map();   // 'owner/id' → [uid…] | null (en cours)
+function likesOf(post) {
+  if (!post.partial) return post.likes || [];
+  const key = `${post.owner}/${post.id}`;
+  if (!likeCache.has(key)) {
+    likeCache.set(key, null);
+    fetchLikes(post.owner, post.id)
+      .then((l) => { likeCache.set(key, l); rerender(); })
+      .catch(() => likeCache.set(key, []));
+  }
+  return likeCache.get(key) || [];
+}
+
+export function LikeButton(post, me) {
+  const likes = likesOf(post);
   const mine = post.owner === me;
-  const liked = (post.likes || []).includes(me);
-  const n = (post.likes || []).length;
-  return mine
-    ? h('span', { class: `like like--static${n ? ' like--on' : ''}`, 'aria-label': `${n} like${n > 1 ? 's' : ''}` }, icon('heart', 18), n ? String(n) : '')
-    : h('button', {
-      class: `like${liked ? ' like--on' : ''}`, type: 'button', 'aria-pressed': String(liked),
-      'aria-label': liked ? 'Retirer mon like' : 'Liker',
-      onclick: (e) => { e.currentTarget.classList.toggle('like--on'); e.currentTarget.classList.add('like--pop'); toggleLike(me, post); },
-    }, icon('heart', 18), n ? String(n) : '');
+  const liked = likes.includes(me);
+  const n = likes.length;
+  if (mine) {
+    return h('span', { class: `like like--static${n ? ' like--on' : ''}`, 'aria-label': `${n} like${n > 1 ? 's' : ''}` }, icon('heart', 18), n ? String(n) : '');
+  }
+  return h('button', {
+    class: `like${liked ? ' like--on' : ''}`, type: 'button', 'aria-pressed': String(liked),
+    'aria-label': liked ? 'Retirer mon like' : 'Liker',
+    onclick: (e) => {
+      e.stopPropagation();
+      e.currentTarget.classList.add('like--pop');
+      const next = liked ? likes.filter((u) => u !== me) : [...likes, me];
+      if (post.partial) likeCache.set(`${post.owner}/${post.id}`, next);
+      else post.likes = next;
+      toggleLike(me, { ...post, likes });
+      rerender();
+    },
+  }, icon('heart', 18), n ? String(n) : '');
+}
+
+/** Supprimer une de MES publications (son ou record). */
+async function removeMine(post) {
+  const what = post.type === 'music' ? 'ce son' : 'ce record';
+  if (!(await confirmSheet({ title: `Supprimer ${what} ?`, message: 'Il disparaît pour tes amis.', confirmLabel: 'Supprimer' }))) return;
+  try { await deletePost(post.owner, post); toast(post.type === 'music' ? 'Son supprimé' : 'Record supprimé'); } catch (err) {
+    console.error('[posts]', err); toast('Suppression impossible.', { type: 'error' });
+  }
 }
 
 /**
@@ -80,7 +116,11 @@ export function openMusic(m) {
     title: m.title || 'Écouter le son',
     subtitle: `Conseillé par ${who}. Ouvrir avec :`,
     body: h('div', { class: 'action-list' }, rows,
-      m.title ? null : h('p', { class: 'hint' }, 'Sans titre, seul le lien d’origine est disponible.')),
+      m.title ? null : h('p', { class: 'hint' }, 'Sans titre, seul le lien d’origine est disponible.'),
+      m.owner === state.me?.uid ? h('button', {
+        class: 'action action--danger', type: 'button',
+        onclick: () => { sheet.close(); setTimeout(() => removeMine({ ...m, type: 'music' }), 230); },
+      }, icon('trash', 20), h('span', {}, 'Supprimer ce son')) : null),
   });
 }
 
@@ -103,19 +143,27 @@ export function PostRow(post, me) {
       LikeButton(post, me));
   }
 
+  const what = [head,
+    h('span', { class: 'record__what' }, '🏆 ', post.exercise, ' · ', h('strong', {}, `${frNum(post.w, post.w % 1 ? 1 : 0)} kg × ${post.r}`))];
   return h('li', { class: 'record' },
     Avatar({ uid: post.owner, name: post.name, size: 'sm' }),
-    h('span', { class: 'record__body' },
-      head,
-      h('span', { class: 'record__what' }, '🏆 ', post.exercise, ' · ', h('strong', {}, `${frNum(post.w, post.w % 1 ? 1 : 0)} kg × ${post.r}`))),
+    post.owner === me
+      ? h('button', {
+        class: 'record__body record__link', type: 'button', 'aria-label': 'Options de mon record',
+        onclick: () => actionSheet({ title: post.exercise, actions: [{ label: 'Supprimer ce record', icon: 'trash', danger: true, onClick: () => removeMine({ ...post, type: 'pr' }) }] }),
+      }, what)
+      : h('span', { class: 'record__body' }, what),
     LikeButton(post, me));
 }
 
-/** Partage d'un son : lien collé depuis Spotify / Deezer / Apple Music (bouton Partager › Copier le lien). */
+/**
+ * Partage d'un son : lien collé depuis Spotify / Deezer / YouTube Music / Apple Music
+ * (Partager › Copier le lien). Le titre se remplit tout seul quand c'est possible.
+ */
 export async function shareMusicFlow() {
-  const r = await formSheet({
+  const pending = formSheet({
     title: 'Partager un son',
-    subtitle: 'Dans Spotify, Deezer, YouTube Music ou Apple Music : Partager › Copier le lien, puis colle-le ici.',
+    subtitle: 'Dans ton app de musique : Partager › Copier le lien, puis colle-le ici. Le titre se remplit tout seul (sauf Deezer).',
     fields: [
       { name: 'url', type: 'url', label: 'Lien du titre / de la playlist', required: true, maxlength: 400, placeholder: 'https://open.spotify.com/track/…', inputmode: 'url' },
       // Titre obligatoire : il permet à tes amis d'ouvrir le son sur LEUR app (recherche).
@@ -123,6 +171,24 @@ export async function shareMusicFlow() {
     ],
     submitLabel: 'Partager à mes amis',
   });
+  // Remplissage automatique du titre dès qu'un lien valide est collé.
+  const urlIn = document.getElementById('f_url');
+  const titleIn = document.getElementById('f_title');
+  let lastUrl = '';
+  let touched = false;
+  titleIn?.addEventListener('input', () => { touched = Boolean(titleIn.value.trim()); });
+  urlIn?.addEventListener('input', async () => {
+    const m = detectMusic(urlIn.value);
+    if (!m || m.url === lastUrl) return;
+    lastUrl = m.url;
+    if (touched) return;
+    titleIn.placeholder = 'Recherche du titre…';
+    const t = await fetchMusicTitle(m.url, m.service);
+    titleIn.placeholder = 'Ex. Kanye West – Power';
+    if (t && !touched && lastUrl === m.url) { titleIn.value = t; titleIn.dispatchEvent(new Event('input')); touched = false; }
+  });
+
+  const r = await pending;
   if (!r?.values) return;
   const m = detectMusic(r.values.url);
   if (!m) { toast('Lien non reconnu : Spotify, Deezer, YouTube Music ou Apple Music uniquement.', { type: 'error', duration: 5000 }); return; }

@@ -1348,3 +1348,15 @@ html[data-theme="dark"] .music-tag--youtube { color: #f87171; }
 .share-msg__status--accepted { color: #1e8e4e; }
 .share-msg__status--refused { color: var(--danger); }
 .share-msg__hint { margin: 6px 0 0; font-size: 12px; color: var(--stone); }
+
+/* Carte son : zone d'écoute + like */
+.music-card { padding-right: 4px; }
+.music-card__main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.music-card .like { flex: 0 0 auto; }
+.send-group { margin-top: 10px; }
+.send-group .eyebrow { margin-bottom: 2px; }
+.checkbox--all { font-weight: 700; background: var(--bordeaux-tint); }
+.send-group .checkbox + .checkbox { margin-top: 6px; }

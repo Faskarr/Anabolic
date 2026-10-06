@@ -19,7 +19,7 @@ import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
 import { friendOf, unreadFriend, isAccepted, isIncoming } from '../data/friends.js';
 import { trainedToday } from './messages-hub.js';
 import { Avatar } from '../ui/avatar.js';
-import { PostRow, recentPosts, recentMusic, shareMusicFlow, openMusic, sharePRFlow } from '../ui/feed.js';
+import { PostRow, recentPosts, recentMusic, shareMusicFlow, openMusic, sharePRFlow, LikeButton } from '../ui/feed.js';
 import { MUSIC_SERVICES } from '../data/posts.js';
 
 const MUSIC_LABEL = Object.fromEntries(Object.entries(MUSIC_SERVICES).map(([k, v]) => [k, v.label]));
@@ -130,14 +130,16 @@ function FriendsWidget(session) {
         h('span', { class: 'eyebrow' }, icon('music', 13), ' Sons conseillés'),
         h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('plus', 15), 'Partager')),
       music.length
-        ? h('div', { class: 'music-list' }, music.map((m) => h('button', {
-          class: `music-card music-card--${m.service}`, type: 'button', onclick: () => openMusic(m),
-          'aria-label': `Écouter ${m.title || 'le son'} conseillé par ${m.owner === me ? 'toi' : m.name}`,
-        },
-        h('span', { class: 'music-card__play' }, icon('play', 14)),
-        h('span', { class: 'music-card__body' },
-          h('span', { class: 'music-card__title' }, m.title || 'Écouter le son'),
-          h('span', { class: 'music-card__who' }, `${m.owner === me ? 'Toi' : String(m.name || 'Ami').split(' ')[0]} · ${MUSIC_LABEL[m.service] || 'Musique'}`)))))
+        ? h('div', { class: 'music-list' }, music.map((m) => h('div', { class: `music-card music-card--${m.service}` },
+          h('button', {
+            class: 'music-card__main', type: 'button', onclick: () => openMusic(m),
+            'aria-label': `Écouter ${m.title || 'le son'} conseillé par ${m.owner === me ? 'toi' : m.name}`,
+          },
+          h('span', { class: 'music-card__play' }, icon('play', 14)),
+          h('span', { class: 'music-card__body' },
+            h('span', { class: 'music-card__title' }, m.title || 'Écouter le son'),
+            h('span', { class: 'music-card__who' }, `${m.owner === me ? 'Toi' : String(m.name || 'Ami').split(' ')[0]} · ${MUSIC_LABEL[m.service] || 'Musique'}`))),
+          LikeButton(m, me))))
         : h('p', { class: 'muted small' }, 'Aucun son partagé. Lance la playlist de ta séance !'),
     ],
   });
