@@ -261,6 +261,17 @@ service cloud.firestore {
       }
     }
 
+    // Liens utiles (Moi) : publics pour les connectés, privés pour l'admin.
+    match /config/links {
+      allow read: if signedIn();
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
+        && request.resource.data.items.size() <= 30;
+    }
+    match /config/linksPrivate {
+      allow read, write: if isAdmin();
+    }
+
     // Bibliothèque de programmes types : réservée à l'admin.
     match /library/{itemId} {
       allow read, write: if isAdmin();

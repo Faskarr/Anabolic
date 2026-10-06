@@ -14,7 +14,7 @@ import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
 import { toast } from '../ui/toast.js';
 import { cropAvatar } from '../ui/cropper.js';
 import { getThemePref, setThemePref } from '../ui/theme.js';
-import { cracksEnabled, setCracks } from '../ui/cracks.js';
+import { ambientEnabled, setAmbient } from '../ui/ambient.js';
 import { linksOf } from '../data/links.js';
 
 export const APP_VERSION = '0.9.1';
@@ -82,16 +82,16 @@ function ThemePicker() {
       }, l))));
 }
 
-/** Fond « écran fissuré » : activé par défaut, désactivable. */
+/** Fond animé (halos en mouvement) : activé par défaut, désactivable. */
 function FxToggle() {
   const input = h('input', {
     type: 'checkbox', class: 'switch__input', id: 'fx-cracks',
-    onchange: () => setCracks(input.checked),
+    onchange: () => setAmbient(input.checked),
   });
-  input.checked = cracksEnabled();
+  input.checked = ambientEnabled();
   return h('label', { class: 'theme-row', for: 'fx-cracks', style: { position: 'relative' } },
     h('span', { class: 'menu-row__icon' }, icon('flame', 20)),
-    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Écran fissuré, très discret')),
+    h('span', { class: 'menu-row__label' }, 'Fond animé', h('span', { class: 'menu-row__sub' }, 'Halos de couleur en mouvement')),
     input, h('span', { class: 'switch', 'aria-hidden': 'true' }));
 }
 
