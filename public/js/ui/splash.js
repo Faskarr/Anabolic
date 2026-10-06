@@ -6,7 +6,7 @@
  *  • Retour dans l'app après 1 min d'absence : l'animation est rejouée,
  *    l'app revient sur l'accueil et les widgets se remettent en place.
  */
-const MIN_MS = 1500;
+const MIN_MS = 900;   // durée minimale du logo (l'app est souvent prête avant)
 const OUT_MS = 500;
 const AWAY_MS = 60 * 1000; // revenir dans l'app après 1 min = « réouverture »
 
