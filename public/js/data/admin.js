@@ -117,7 +117,7 @@ export async function deleteUserAccount(uid, { block = false } = {}) {
     getDoc(doc(db, 'users', uid)),
   ]);
   refs.push(...weeks, ...inbox, ...convMsgs, doc(db, 'conversations', uid),
-    ...posts, doc(db, 'activity', uid), doc(db, 'avatars', uid), ...codes);
+    ...posts, doc(db, 'activity', uid), doc(db, 'avatars', uid), doc(db, 'shared', uid), ...codes);
   for (const f of friendships.docs) {
     refs.push(...await all(collection(db, 'friendships', f.id, 'messages')), f.ref);
   }

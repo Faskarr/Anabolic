@@ -104,9 +104,9 @@ export function shareMusic(me, { url, service, title }) {
     .catch((err) => { console.error(err); toast('Partage impossible.', { type: 'error' }); });
 }
 
-/** 5 dernières publications d'un utilisateur. */
-export function watchPosts(uid, cb) {
-  const q = query(collection(db, 'activity', uid, 'posts'), orderBy('at', 'desc'), limit(5));
+/** Dernières publications d'un utilisateur (5 par défaut). */
+export function watchPosts(uid, cb, n = 5) {
+  const q = query(collection(db, 'activity', uid, 'posts'), orderBy('at', 'desc'), limit(n));
   return onSnapshot(q,
     (snap) => cb(snap.docs.map((d) => ({ id: d.id, owner: uid, ...d.data({ serverTimestamps: 'estimate' }) }))),
     () => cb([]));

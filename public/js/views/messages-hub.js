@@ -308,7 +308,7 @@ export function FriendChatView(session, pid) {
   const header = PageHeader({
     eyebrow: 'Ami', title: name,
     trailing: h('div', { class: 'row-gap' },
-      Avatar({ uid: other, name }),
+      h('a', { href: `#/u/${encodeURIComponent(other)}`, 'aria-label': `Voir le profil de ${name}` }, Avatar({ uid: other, name })),
       IconButton('more', 'Options', () => actionSheet({
         title: name,
         actions: [{ label: 'Retirer de mes amis', icon: 'trash', danger: true, onClick: async () => {

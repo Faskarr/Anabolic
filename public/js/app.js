@@ -21,6 +21,7 @@ import { toast } from './ui/toast.js';
 import { onSession } from './auth.js';
 import { state, startStore, stopStore, subscribe, startAdminFeeds, unreadCount, rollWeekIfNeeded } from './store.js';
 import { Skeleton } from './ui/layout.js';
+import { startSharedPublisher } from './data/shared.js';
 import { TabBar } from './ui/tabbar.js';
 import { showTimer, stopTimer } from './ui/timer.js';
 import { LoginView } from './views/login.js';
@@ -73,6 +74,7 @@ const LAZY = {
   calc:     once(() => import('./views/diet-calc.js')),
   share:    once(() => import('./views/share.js')),
   check:    once(() => import('./views/foundation.js')),
+  profile:  once(() => import('./views/profile.js')),
 };
 /** Vue d'un module chargé à la demande (écran de chargement en attendant). */
 function lazyView(key, name) {
@@ -107,6 +109,7 @@ const ROUTES = {
   friends:          { view: FriendChatView, param: true, leave: leaveFriendChat, chat: true },
   'admin/messages': { view: lazyView('adminMsg', 'AdminInboxView'), admin: true },
   'me/check':     { view: lazyView('check', 'FoundationView') },
+  u:              { view: lazyView('profile', 'ProfileView'), param: true, leave: lazyLeave('profile', 'leaveProfile') },
   admin:          { view: lazyView('admin', 'AdminHomeView'), admin: true },
   'admin/library': { view: lazyView('library', 'AdminLibraryView'), admin: true },
   'admin/links':   { view: lazyView('links', 'AdminLinksView'), admin: true },
@@ -280,6 +283,7 @@ onSession((s) => {
   if (!wasActive) {
     enter = { pending: true, at: 0 };
     startStore(s.user.uid, s.user);
+    startSharedPublisher(s.user.uid);   // profil visible par les amis (selon ses choix)
     adminFeeds = false;
   }
   if (s.isAdmin && !adminFeeds) { adminFeeds = true; startAdminFeeds(); }

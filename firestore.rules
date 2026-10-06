@@ -142,6 +142,19 @@ service cloud.firestore {
         && isPostCopy(d.get('lastPost', {}))
         && isPostCopy(d.get('lastMusic', {}));
     }
+    // Profil visible par les amis : seules les sections que l'utilisateur partage
+    // sont écrites. (Tests « is type » suivis de && : contrainte du compilateur.)
+    function isSharedProfile(d) {
+      return d.get('share', {}) is map
+        && d.get('sessions', 0) is int
+        && d.get('weight', {}) is map
+        && d.get('workout', {}) is map
+        && d.get('diet', {}) is map
+        && d.get('protocol', {}) is map
+        && d.get('updatedAt', request.time) is timestamp
+        && d.keys().hasOnly(['name', 'share', 'sessions', 'weight', 'workout', 'diet', 'protocol', 'updatedAt'])
+        && isShortString(d.get('name', ''), 120);
+    }
     // Conversation avec le coach, écrite par l'utilisateur.
     function isUserConv(d) {
       return d.lastFrom == 'user'
@@ -350,6 +363,14 @@ service cloud.firestore {
           || isAdmin();
         allow delete: if isOwner(uid) || isAdmin();
       }
+    }
+
+    // Profil partagé avec les amis (page profil) : contenu choisi par son auteur.
+    match /shared/{uid} {
+      allow read: if isOwner(uid) || isFriend(uid) || isAdmin();
+      allow write: if (isOwner(uid) && isSharedProfile(request.resource.data) && isActive(uid))
+        || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();
     }
 
     // Photo de profil (JPEG compressé), visible par les amis et l'admin.

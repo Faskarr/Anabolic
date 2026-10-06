@@ -115,7 +115,7 @@ function FriendsWidget(session) {
       h('div', { class: 'fstrip' }, friends.slice(0, 7).map((x) => {
         const done = trainedToday(x.act);
         return h('a', {
-          class: `fstrip__item${done ? ' fstrip__item--done' : ''}`, href: `#/friends/${encodeURIComponent(x.f.id)}`,
+          class: `fstrip__item${done ? ' fstrip__item--done' : ''}`, href: `#/u/${encodeURIComponent(x.uid)}`,
           'aria-label': `${x.name} : ${done ? `entraîné (${x.act.sessionName || 'séance faite'})` : 'pas encore entraîné'}`,
         },
         h('span', { class: 'fstrip__ava' }, Avatar({ uid: x.uid, name: x.name, size: 'sm' }), done ? h('span', { class: 'fstrip__ok' }, icon('check', 10)) : null),

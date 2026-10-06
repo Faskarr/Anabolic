@@ -97,6 +97,20 @@ function FxToggle() {
     input, h('span', { class: 'switch', 'aria-hidden': 'true' }));
 }
 
+/** Ce que voient mes amis sur mon profil (rien n'est publié sans être coché). */
+async function editSharing() {
+  const { SHARE_ITEMS, sharePrefs, setSharePrefs } = await import('../data/shared.js');
+  const cur = sharePrefs();
+  const r = await formSheet({
+    title: 'Ce que voient mes amis',
+    subtitle: 'Sur ta page profil. Tes records et sons partagés y apparaissent toujours. Ce qui n’est pas coché n’est jamais envoyé.',
+    fields: SHARE_ITEMS.map(([key, label, hint]) => ({ name: key, type: 'toggle', label, hint, value: cur[key] })),
+    submitLabel: 'Enregistrer',
+  });
+  if (!r?.values) return;
+  try { await setSharePrefs(r.values); toast('Partage mis à jour'); } catch { toast('Enregistrement impossible.', { type: 'error' }); }
+}
+
 /** Changer d'identité : pseudo affiché à la place du nom Google. */
 async function editPseudo(session) {
   const { user } = session;
@@ -136,6 +150,8 @@ export function MeView(session) {
       InstallRow(openSheet),
       Row({ href: '#/me/weight', iconName: 'scale', label: 'Poids', value: s ? `${frNum(s.last.kg)} kg` : null }),
       Row({ href: '#/me/share', iconName: 'share', label: 'Import / Export' }),
+      Row({ href: `#/u/${encodeURIComponent(user.uid)}`, iconName: 'user', label: 'Mon profil' }),
+      Row({ iconName: 'eye', label: 'Ce que voient mes amis', onclick: editSharing }),
       Row({ href: '#/me/check', iconName: 'shield', label: 'Diagnostic' }),
       Row({
         iconName: 'book', label: 'Découvrir l’app',
