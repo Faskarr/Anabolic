@@ -1145,3 +1145,16 @@ html[data-theme="dark"] .cracks { animation-name: cracks-breathe-dark; }
 /* Logo dans le titre de la carte d'installation */
 .install__title .brand { font-size: inherit; letter-spacing: inherit; }
 .theme-row + .theme-row { border-top: .5px solid var(--line); }
+
+/* ═══ Admin : liens utiles ══════════════════════════════════════ */
+.link-edit { display: flex; align-items: center; gap: 4px; padding-right: 6px; }
+.link-edit + .link-edit { border-top: .5px solid var(--line); }
+.link-edit__main { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--s3); min-height: 60px; padding: 8px 0 8px var(--s4); text-align: left; color: var(--ink); }
+.link-edit__main .menu-row__label { flex: 1; min-width: 0; }
+.link-edit__main .menu-row__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-edit__moves { display: flex; }
+.is-hidden { visibility: hidden; }
+.choices--4 { grid-template-columns: repeat(4, 1fr); }
+.choices--4 .choice { min-height: 40px; padding: 8px; align-items: center; }
+.choices--4 .choice__label { font-size: 13px; }
+.link-edit .tag { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; flex-shrink: 0; }

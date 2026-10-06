@@ -38,6 +38,7 @@ import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat, leaveHub } from './views/messages-hub.js';
 import { GoalsView } from './views/goals.js';
 import { AdminLibraryView } from './views/admin-library.js';
+import { AdminLinksView } from './views/admin-links.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
 export const ASSET_VERSION = '0.9.1';
@@ -86,6 +87,7 @@ const ROUTES = {
   'me/check':     { view: FoundationView },
   admin:          { view: AdminHomeView, admin: true },
   'admin/library': { view: AdminLibraryView, admin: true },
+  'admin/links':   { view: AdminLinksView, admin: true },
   'admin/user':   { view: AdminUserView, admin: true, param: true, leave: leaveAdminUser },
   'admin/conv':   { view: AdminConversationView, admin: true, param: true, leave: leaveAdminConversation, chat: true },
 };

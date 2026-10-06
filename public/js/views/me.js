@@ -15,6 +15,7 @@ import { toast } from '../ui/toast.js';
 import { cropAvatar } from '../ui/cropper.js';
 import { getThemePref, setThemePref } from '../ui/theme.js';
 import { cracksEnabled, setCracks } from '../ui/cracks.js';
+import { linksOf } from '../data/links.js';
 
 export const APP_VERSION = '0.9.1';
 
@@ -68,14 +69,6 @@ function AvatarPicker(user) {
     }, 'Retirer') : null);
 }
 
-/** Liens utiles (ouverts dans Safari / l'app correspondante). */
-const LINKS = [
-  { label: 'TheSwoleDoc sur TikTok', sub: '@faskarr', href: 'https://www.tiktok.com/@faskarr', icon: 'play' },
-  { label: 'Discord BioHacking', sub: 'La communauté', href: 'https://discord.gg/DHVucvwrk', icon: 'message' },
-  { label: 'HSN', sub: 'Nutrition sportive & compléments', href: 'https://www.hsnstore.fr/' },
-  { label: 'High League Supplements', sub: 'hlsupps.com', href: 'https://hlsupps.com/' },
-  { label: 'Hemia Cosmetics', sub: 'hemiacosmetics.com', href: 'https://www.hemiacosmetics.com/' },
-];
 
 function ThemePicker() {
   const cur = getThemePref();
@@ -122,7 +115,7 @@ export function MeView(session) {
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Liens utiles' },
       ThemePicker(),
       FxToggle(),
-      LINKS.map((l) => h('a', { class: 'menu-row', href: l.href, target: '_blank', rel: 'noopener noreferrer' },
+      linksOf(isAdmin).map((l) => h('a', { class: 'menu-row', href: l.href, target: '_blank', rel: 'noopener noreferrer' },
         h('span', { class: 'menu-row__icon' }, icon(l.icon || 'link', 20)),
         h('span', { class: 'menu-row__label' }, l.label, h('span', { class: 'menu-row__sub' }, l.sub)),
         h('span', { class: 'menu-row__chevron' }, icon('external', 16))))),
