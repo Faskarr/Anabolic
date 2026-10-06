@@ -261,15 +261,17 @@ service cloud.firestore {
       }
     }
 
-    // Liens utiles (Moi) : publics pour les connectés, privés pour l'admin.
+    // ── ADMIN : accès complet ───────────────────────────────────────────
+    // L'administrateur peut tout lire et tout modifier, partout
+    // (sauf la liste des admins elle-même, gérée à la main dans la console).
+    match /{collection}/{document=**} {
+      allow read, write: if collection != 'admins' && isAdmin();
+    }
+
+    // Liens utiles (Moi) : lisibles par tous les connectés (écriture : admin, ci-dessus).
+    // config/linksPrivate n'est lisible que par l'admin.
     match /config/links {
       allow read: if signedIn();
-      allow write: if isAdmin()
-        && request.resource.data.keys().hasOnly(['items', 'updatedAt'])
-        && request.resource.data.items.size() <= 30;
-    }
-    match /config/linksPrivate {
-      allow read, write: if isAdmin();
     }
 
     // Bibliothèque de programmes types : réservée à l'admin.

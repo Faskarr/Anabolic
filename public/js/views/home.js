@@ -19,7 +19,10 @@ import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
 import { friendOf, unreadFriend, isAccepted, isIncoming } from '../data/friends.js';
 import { trainedToday } from './messages-hub.js';
 import { Avatar } from '../ui/avatar.js';
-import { PostRow, recentPosts, shareMusicFlow } from '../ui/feed.js';
+import { PostRow, recentPosts, recentMusic, shareMusicFlow } from '../ui/feed.js';
+import { MUSIC_SERVICES } from '../data/posts.js';
+
+const MUSIC_LABEL = Object.fromEntries(Object.entries(MUSIC_SERVICES).map(([k, v]) => [k, v.label]));
 import { InstallCard } from '../ui/install.js';
 import { GoalsCompact } from './goals.js';
 import { updateHome } from '../data/repo.js';
@@ -96,7 +99,9 @@ function FriendsWidget(session) {
   }
   friends.sort((a, b) => Number(trainedToday(b.act)) - Number(trainedToday(a.act)));
   const trainedN = friends.filter((x) => trainedToday(x.act)).length;
-  const last = recentPosts(7, 1)[0];
+  const music = recentMusic(14, 3);
+  // Dernier record (les musiques ont leur propre bloc).
+  const lastPr = recentPosts(7, 6).find((p) => p.type !== 'music');
   return Widget({
     eyebrow: 'Mes amis aujourd’hui',
     cls: 'widget--compact',
@@ -111,7 +116,20 @@ function FriendsWidget(session) {
         h('span', { class: 'fstrip__ava' }, Avatar({ uid: x.uid, name: x.name, size: 'sm' }), done ? h('span', { class: 'fstrip__ok' }, icon('check', 10)) : null),
         h('span', { class: 'fstrip__name' }, x.name.split(' ')[0]));
       })),
-      last ? h('ul', { class: 'records records--one' }, PostRow(last, me)) : null,
+      lastPr ? h('ul', { class: 'records records--one' }, PostRow(lastPr, me)) : null,
+      h('div', { class: 'music-head' },
+        h('span', { class: 'eyebrow' }, icon('music', 13), ' Sons conseillés'),
+        h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('plus', 15), 'Partager')),
+      music.length
+        ? h('div', { class: 'music-list' }, music.map((m) => h('a', {
+          class: `music-card music-card--${m.service}`, href: m.url, target: '_blank', rel: 'noopener noreferrer',
+          'aria-label': `Écouter ${m.title || 'le son'} conseillé par ${m.owner === me ? 'toi' : m.name}`,
+        },
+        h('span', { class: 'music-card__play' }, icon('play', 14)),
+        h('span', { class: 'music-card__body' },
+          h('span', { class: 'music-card__title' }, m.title || 'Écouter le son'),
+          h('span', { class: 'music-card__who' }, `${m.owner === me ? 'Toi' : String(m.name || 'Ami').split(' ')[0]} · ${MUSIC_LABEL[m.service] || 'Musique'}`)))))
+        : h('p', { class: 'muted small' }, 'Aucun son partagé. Lance la playlist de ta séance !'),
     ],
   });
 }
