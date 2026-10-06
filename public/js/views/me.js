@@ -6,7 +6,7 @@ import { frNum } from '../lib/dates.js';
 import { state } from '../store.js';
 import { signOut } from '../auth.js';
 import { PageHeader } from '../ui/layout.js';
-import { confirmSheet } from '../ui/sheet.js';
+import { confirmSheet, formSheet } from '../ui/sheet.js';
 import { icon } from '../ui/icons.js';
 import { weightStats } from './weight.js';
 import { Avatar } from '../ui/avatar.js';
@@ -97,6 +97,27 @@ function FxToggle() {
     input, h('span', { class: 'switch', 'aria-hidden': 'true' }));
 }
 
+/** Changer d'identité : pseudo affiché à la place du nom Google. */
+async function editPseudo(session) {
+  const { user } = session;
+  const r = await formSheet({
+    title: 'Mon pseudo',
+    subtitle: `Affiché à tes amis et à ton coach à la place de « ${user.googleName || user.email} ». Laisse vide pour reprendre ton nom Google.`,
+    fields: [{ name: 'pseudo', label: 'Pseudo', maxlength: 30, value: user.pseudo || '', placeholder: 'Ex. Faskarr' }],
+    submitLabel: 'Enregistrer',
+  });
+  if (!r?.values) return;
+  try {
+    const { savePseudo } = await import('../data/profile.js');
+    const name = await savePseudo(session, r.values.pseudo);
+    toast(`Tu t’appelles maintenant ${name}`);
+    setTimeout(() => location.reload(), 700);   // tout l'écran repart avec le nouveau nom
+  } catch (err) {
+    console.error('[pseudo]', err);
+    toast(err.message?.includes('caractères') ? err.message : 'Impossible d’enregistrer le pseudo.', { type: 'error' });
+  }
+}
+
 export function MeView(session) {
   const { user, isAdmin } = session;
   const s = weightStats();
@@ -106,7 +127,9 @@ export function MeView(session) {
     h('section', { class: 'card profile-card' },
       AvatarPicker(user),
       h('div', { style: { minWidth: 0 } },
-        h('p', { class: 'profile-card__name' }, user.displayName || 'Athlète', isAdmin ? h('span', { class: 'badge badge--inline' }, 'Admin') : null),
+        h('button', { class: 'profile-card__name profile-card__edit', type: 'button', 'aria-label': 'Changer mon pseudo', onclick: () => editPseudo(session) },
+          user.displayName || 'Athlète', icon('edit', 15), isAdmin ? h('span', { class: 'badge badge--inline' }, 'Admin') : null),
+        user.pseudo ? h('p', { class: 'muted small' }, `Nom Google : ${user.googleName}`) : null,
         h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
         h('p', { class: 'muted small' }, 'Photo visible par tes amis et ton coach.'))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },

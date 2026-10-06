@@ -165,6 +165,27 @@ function retryAdmin(user, verified, callback, delays = [1500, 4000, 10000]) {
  * La sécurité ne dépend pas de ce cache : les règles Firestore décident.
  */
 const SESSION_KEY = (uid) => `session:${uid}`;
+
+/** Pseudo valide : 2 à 30 caractères, sans caractères de contrôle. '' = nom Google. */
+export function cleanPseudo(v) {
+  return String(v || '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
+}
+
+/**
+ * Utilisateur vu par l'app : le PSEUDO (s'il y en a un) remplace le nom Google
+ * partout (accueil, amis, publications, messages).
+ */
+function asUser(u, pseudo) {
+  const p = cleanPseudo(pseudo);
+  return {
+    uid: u.uid,
+    displayName: p || u.googleName || u.displayName || '',
+    googleName: u.googleName || u.displayName || '',
+    pseudo: p,
+    email: u.email || '',
+    photoURL: u.photoURL || '',
+  };
+}
 function readCachedSession(uid) {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY(uid))); } catch { return null; }
 }
@@ -173,13 +194,14 @@ function writeCachedSession(uid, s) {
     localStorage.setItem('lastUid', uid);
     localStorage.setItem(SESSION_KEY(uid), JSON.stringify({
       at: Date.now(),
-      user: { uid, displayName: s.user?.displayName || '', email: s.user?.email || '', photoURL: s.user?.photoURL || '' },
+      user: { uid, displayName: s.user?.displayName || '', googleName: s.user?.googleName || '', pseudo: s.user?.pseudo || '', email: s.user?.email || '', photoURL: s.user?.photoURL || '' },
       isAdmin: Boolean(s.isAdmin),
       profile: {
         status: s.profile?.status || 'active',
         displayName: s.profile?.displayName || '',
         photoURL: s.profile?.photoURL || '',
         friendCode: s.profile?.friendCode || null,
+        pseudo: s.profile?.pseudo || '',
       },
     }));
   } catch { /* stockage indisponible */ }
@@ -210,12 +232,12 @@ export function onSession(callback) {
     }
     const cached = readCachedSession(user.uid);
     if (cached?.profile?.status === 'active') {
-      callback({ state: 'active', user, profile: cached.profile, isAdmin: cached.isAdmin, cached: true });
+      callback({ state: 'active', user: asUser(user, cached.profile.pseudo), profile: cached.profile, isAdmin: cached.isAdmin, cached: true });
     } else {
       // Juste après la connexion Google : l'app s'ouvre tout de suite, sans attendre
       // les 2 lectures Firestore (profil + rôle). Si le compte est désactivé, l'écran
       // change dès la réponse ; les données restent protégées par les règles.
-      callback({ state: 'active', user, profile: { status: 'active', displayName: user.displayName || '', photoURL: user.photoURL || '' }, isAdmin: false, provisional: true });
+      callback({ state: 'active', user: asUser(user, ''), profile: { status: 'active', displayName: user.displayName || '', photoURL: user.photoURL || '' }, isAdmin: false, provisional: true });
     }
     try {
       const [{ profile, created }, { isAdmin, adminError }] = await Promise.all([
@@ -226,13 +248,13 @@ export function onSession(callback) {
       const admin = adminError ? Boolean(cached?.isAdmin) : isAdmin;
       const verified = {
         state: profile.status === 'disabled' ? 'disabled' : 'active',
-        user, profile, isAdmin: admin, adminError, created,
+        user: asUser(user, profile.pseudo), profile, isAdmin: admin, adminError, created,
       };
       writeCachedSession(user.uid, verified);
       if (adminError && cached) retryAdmin(user, verified, callback);
       // Déjà affiché depuis le cache et rien n'a changé : pas de nouveau rendu,
       // mais le profil affiché reçoit les champs à jour (code ami…).
-      if (cached && verified.state === 'active' && cached.isAdmin === admin) {
+      if (cached && verified.state === 'active' && cached.isAdmin === admin && cleanPseudo(cached.profile.pseudo) === cleanPseudo(profile.pseudo)) {
         Object.assign(cached.profile, { friendCode: profile.friendCode || null, displayName: profile.displayName || '' });
         return;
       }
@@ -242,7 +264,7 @@ export function onSession(callback) {
       if (adminError) retryAdmin(user, verified, callback);
     } catch (error) {
       console.error('[auth] session', error);
-      if (!cached) callback({ state: 'error', user, error });   // hors ligne : on garde la session en cache
+      if (!cached) callback({ state: 'error', user: asUser(user, ''), error });   // hors ligne : on garde la session en cache
     }
   });
 }

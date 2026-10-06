@@ -104,7 +104,7 @@ function FriendsWidget(session) {
   }
   friends.sort((a, b) => Number(trainedToday(b.act)) - Number(trainedToday(a.act)));
   const trainedN = friends.filter((x) => trainedToday(x.act)).length;
-  const music = recentMusic(14, 3);
+  const music = recentMusic(10);   // un son par personne, défilement horizontal
   // Dernier record (les musiques ont leur propre bloc).
   const lastPr = recentPosts(7, 6).find((p) => p.type !== 'music');
   return Widget({

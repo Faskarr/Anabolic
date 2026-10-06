@@ -173,8 +173,9 @@ service cloud.firestore {
       // L'utilisateur ne peut jamais toucher à son statut. L'admin peut tout.
       allow update: if (isOwner(uid)
              && resource.data.status == 'active'
-             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt', 'friendCode', 'avatarAt'])
-             && isProfileOk(request.resource.data))
+             && onlyChanges(['displayName', 'photoURL', 'lastActiveAt', 'lastWeight', 'lastWeightAt', 'friendCode', 'avatarAt', 'pseudo'])
+             && isProfileOk(request.resource.data)
+             && isShortString(request.resource.data.get('pseudo', ''), 30))
         || isAdmin();
 
       allow delete: if isAdmin();
@@ -287,6 +288,10 @@ service cloud.firestore {
                 || (request.resource.data.lastFrom == request.auth.uid
                     && request.resource.data.lastAt == request.time
                     && isShortString(request.resource.data.lastText, 140))))
+          // (c) changement de pseudo : chacun ne modifie que SON nom affiché
+          || (onlyChanges(['names'])
+            && request.resource.data.names.diff(resource.data.names).affectedKeys().hasOnly([request.auth.uid])
+            && isShortString(request.resource.data.names[request.auth.uid], 120))
         )
         && isActive(request.auth.uid))
         || isAdmin();

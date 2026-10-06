@@ -31,7 +31,11 @@ const fail = (label) => (err) => {
 export function watchUsers(cb) {
   const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500));
   return onSnapshot(q,
-    (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }))),
+    (snap) => cb(snap.docs.map((d) => {
+      const u = d.data({ serverTimestamps: 'estimate' });
+      // Pseudo affiché en priorité (le nom Google reste visible dans googleName).
+      return { id: d.id, ...u, googleName: u.displayName, displayName: u.pseudo || u.displayName };
+    })),
     (err) => { console.error('[admin] users', err); cb([]); });
 }
 

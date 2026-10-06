@@ -31,8 +31,12 @@ export function recentPosts(days = 7, max = 5) {
     .slice(0, max);
 }
 
-/** Sons conseillés : la dernière musique partagée par chacun (amis + moi), récente d'abord. */
-export function recentMusic(days = 14, max = 3) {
+/**
+ * Sons conseillés : la dernière musique partagée par chacun (amis + moi), récente d'abord.
+ * Un son reste affiché 5 jours, sauf si son auteur en partage un nouveau
+ * (qui le remplace) ou le supprime avant.
+ */
+export function recentMusic(max = 10, days = 5) {
   const since = Date.now() - days * 86400000;
   return Object.entries(state.friendActivity)
     .map(([uid, a]) => {
