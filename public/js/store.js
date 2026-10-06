@@ -17,7 +17,7 @@ import { weekKey } from './lib/dates.js';
 import { watchConversation, watchAllConversations, unreadForUser, unreadForAdmin } from './data/messages.js';
 import { watchPendingInbox } from './data/inbox.js';
 import { watchUsers } from './data/admin.js';
-import { watchFriendships, watchActivity, unreadFriend, friendOf } from './data/friends.js';
+import { watchFriendships, watchActivity, unreadFriend, friendOf, isAccepted, isIncoming } from './data/friends.js';
 import { watchPosts } from './data/posts.js';
 
 const { doc, onSnapshot } = fs;
@@ -131,7 +131,7 @@ const activityUnsubs = new Map();
  * records) quand la liste d'amis change.
  */
 function syncFriendActivity() {
-  const friends = new Set(state.friendships.map((f) => friendOf(f, state.uid)));
+  const friends = new Set(state.friendships.filter(isAccepted).map((f) => friendOf(f, state.uid)));
   const wanted = new Set([...friends, state.uid]);
   for (const [uid, unsub] of activityUnsubs) {
     if (!wanted.has(uid)) {
@@ -176,7 +176,8 @@ export function unreadCount() {
   const mine = unreadForUser(state.conversation) ? 1 : 0;
   const admin = (state.adminConversations || []).filter(unreadForAdmin).length;
   const friends = state.friendships.filter((f) => unreadFriend(f, state.uid)).length;
-  return mine + admin + friends;
+  const requests = state.friendships.filter((f) => isIncoming(f, state.uid)).length;
+  return mine + admin + friends + requests;
 }
 
 /** Pastille sur l'icône de l'app (iOS 16.4+, app installée sur l'écran d'accueil). */

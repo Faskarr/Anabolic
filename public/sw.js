@@ -11,7 +11,7 @@
  *
  * Incrémente VERSION pour forcer la purge des anciens caches.
  */
-const VERSION = 'v10';
+const VERSION = 'v11';
 const APP_CACHE = `app-${VERSION}`;
 const CDN_CACHE = `cdn-${VERSION}`;
 

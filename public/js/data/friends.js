@@ -26,8 +26,14 @@ const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const CODE_RE = /^[A-Z2-9]{6}$/;
 
 export const pairOf = (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+/** Amitié acceptée (les anciennes, sans statut, comptent comme acceptées). */
+export const isAccepted = (f) => (f.status ?? 'accepted') === 'accepted';
+/** Demande reçue (à accepter ou refuser). */
+export const isIncoming = (f, me) => f.status === 'pending' && f.requestedBy !== me;
+/** Demande envoyée, en attente de réponse. */
+export const isOutgoing = (f, me) => f.status === 'pending' && f.requestedBy === me;
 export const friendOf = (f, me) => f.members.find((m) => m !== me);
-export const unreadFriend = (f, me) => Boolean(f.lastFrom && f.lastFrom !== me && ms(f.lastAt) > ms(f.readAt?.[me]));
+export const unreadFriend = (f, me) => Boolean(isAccepted(f) && f.lastFrom && f.lastFrom !== me && ms(f.lastAt) > ms(f.readAt?.[me]));
 
 const read = (snap) => ({ id: snap.id, ...snap.data({ serverTimestamps: 'estimate' }) });
 
@@ -71,8 +77,8 @@ export function watchFriendships(uid, cb) {
 }
 
 /**
- * Ajoute un ami avec son code.
- * @returns {Promise<string>} nom de l'ami
+ * Envoie une demande d'ami avec son code (il devra l'accepter).
+ * @returns {Promise<string>} nom de la personne
  */
 export async function addFriendByCode(user, rawCode, existing = []) {
   const code = cleanCode(rawCode);
@@ -82,15 +88,28 @@ export async function addFriendByCode(user, rawCode, existing = []) {
   const other = snap.data();
   if (other.uid === user.uid) throw new Error("C'est ton propre code 🙂");
   const pid = pairOf(user.uid, other.uid);
-  if (existing.some((f) => f.id === pid)) throw new Error(`${other.name} est déjà dans tes amis.`);
+  const already = existing.find((f) => f.id === pid);
+  if (already) {
+    if (isAccepted(already)) throw new Error(`${other.name} est déjà dans tes amis.`);
+    if (isIncoming(already, user.uid)) throw new Error(`${other.name} t’a déjà envoyé une demande : accepte-la ci-dessous.`);
+    throw new Error(`Demande déjà envoyée à ${other.name}.`);
+  }
   const members = [user.uid, other.uid].sort();
   await setDoc(doc(db, 'friendships', pid), {
     members,
     names: { [user.uid]: (user.displayName || user.email || 'Moi').slice(0, 120), [other.uid]: other.name },
     code,
+    status: 'pending',
+    requestedBy: user.uid,
     createdAt: serverTimestamp(),
   });
   return other.name;
+}
+
+/** Accepte une demande reçue. */
+export function acceptFriend(pid) {
+  return updateDoc(doc(db, 'friendships', pid), { status: 'accepted', acceptedAt: serverTimestamp() })
+    .catch((err) => { console.error(err); toast('Impossible d’accepter la demande.', { type: 'error' }); throw err; });
 }
 
 export function removeFriend(pid) {

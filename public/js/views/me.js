@@ -13,7 +13,7 @@ import { Avatar } from '../ui/avatar.js';
 import { avatarOf, uploadMyAvatar, removeMyAvatar } from '../data/avatars.js';
 import { toast } from '../ui/toast.js';
 
-export const APP_VERSION = '0.7.0';
+export const APP_VERSION = '0.8.0';
 
 function Row({ href, onclick, iconName, label, value, badge, danger }) {
   const inner = [

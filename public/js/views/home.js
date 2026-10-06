@@ -16,7 +16,7 @@ import { dietTotals, SupplementList } from './diet.js';
 import { weightStats, WeightInput } from './weight.js';
 import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import { acceptItem, dismissItem, TYPE_LABEL } from '../data/inbox.js';
-import { friendOf, unreadFriend } from '../data/friends.js';
+import { friendOf, unreadFriend, isAccepted, isIncoming } from '../data/friends.js';
 import { trainedToday } from './messages-hub.js';
 import { toggleLike } from '../data/posts.js';
 import { ms } from '../data/messages.js';
@@ -65,6 +65,12 @@ function MessagesWidget(session) {
   } else if (unreadForUser(state.conversation)) {
     unread = true; href = '#/contact/coach'; title = 'Nouveau message du coach'; text = state.conversation.lastText || '';
   }
+  const requests = state.friendships.filter((f) => isIncoming(f, me));
+  if (!unread && requests.length) {
+    unread = true; href = '#/contact';
+    title = requests.length > 1 ? `${requests.length} demandes d’ami` : 'Demande d’ami';
+    text = requests.length > 1 ? 'À accepter ou refuser' : `${requests[0].names?.[friendOf(requests[0], me)] || 'Quelqu’un'} veut t’ajouter`;
+  }
   if (!unread && friendUnread.length) {
     const f = friendUnread[0];
     unread = true;
@@ -102,16 +108,18 @@ function RecordRow(post, me) {
 
 function FriendsWidget(session) {
   const me = session.user.uid;
-  const friends = state.friendships.map((f) => {
+  const friends = state.friendships.filter(isAccepted).map((f) => {
     const uid = friendOf(f, me);
     return { f, uid, name: f.names?.[uid] || 'Ami', act: state.friendActivity[uid] };
   });
   if (!friends.length) {
-    return Widget({ eyebrow: 'Amis', children: [
-      h('p', { class: 'muted' }, 'Ajoute tes partenaires d’entraînement avec leur code ami.'),
+    return Widget({ eyebrow: 'Séances de mes amis', children: [
+      h('p', { class: 'muted' }, 'Ajoute tes partenaires d’entraînement avec leur code ami pour voir qui s’est entraîné chaque jour.'),
       h('a', { class: 'btn btn--ghost btn--block', href: '#/contact' }, icon('plus', 18), 'Ajouter un ami')] });
   }
-  const trained = friends.filter((x) => trainedToday(x.act));
+  // Ceux qui se sont entraînés d'abord.
+  friends.sort((a, b) => Number(trainedToday(b.act)) - Number(trainedToday(a.act)));
+  const trainedN = friends.filter((x) => trainedToday(x.act)).length;
   const weekAgo = Date.now() - 7 * 86400000;
   const records = Object.values(state.posts).flat()
     .filter((p) => ms(p.at) > weekAgo)
@@ -119,16 +127,19 @@ function FriendsWidget(session) {
     .slice(0, 4);
 
   return Widget({
-    eyebrow: 'Amis aujourd’hui',
-    action: link(`${trained.length}/${friends.length}`, '#/contact'),
+    eyebrow: 'Séances de mes amis aujourd’hui',
+    action: link(`${trainedN}/${friends.length} entraîné${trainedN > 1 ? 's' : ''}`, '#/contact'),
     children: [
-      trained.length
-        ? h('ul', { class: 'friends-today' }, trained.map((x) => h('li', {},
+      h('ul', { class: 'friends-today' }, friends.map((x) => {
+        const done = trainedToday(x.act);
+        return h('li', {},
           h('a', { href: `#/friends/${encodeURIComponent(x.f.id)}` },
             Avatar({ uid: x.uid, name: x.name, size: 'sm' }),
             h('span', { class: 'friends-today__name' }, x.name),
-            h('span', { class: 'tag tag--ok' }, icon('dumbbell', 14), x.act.sessionName || 'Séance faite')))))
-        : h('p', { class: 'muted' }, 'Aucun de tes amis ne s’est encore entraîné aujourd’hui. Montre l’exemple 💪'),
+            done
+              ? h('span', { class: 'tag tag--ok' }, icon('check', 14), `Entraîné · ${x.act.sessionName || 'séance faite'}`)
+              : h('span', { class: 'tag' }, 'Pas encore')));
+      })),
       records.length ? [
         h('p', { class: 'eyebrow', style: { marginTop: '18px' } }, 'Records de la semaine'),
         h('ul', { class: 'records' }, records.map((p) => RecordRow(p, me))),

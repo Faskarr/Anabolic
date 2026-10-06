@@ -10,6 +10,7 @@ import { unreadForUser, unreadForAdmin } from '../data/messages.js';
 import {
   ensureMyCode, addFriendByCode, removeFriend, friendOf, unreadFriend,
   watchFriendMessages, sendFriendMessage, markFriendRead,
+  acceptFriend, isAccepted, isIncoming, isOutgoing,
 } from '../data/friends.js';
 import { PageHeader, SectionTitle, IconButton, Skeleton } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
@@ -46,15 +47,15 @@ async function shareCode() {
 
 async function addFriendFlow(session) {
   const r = await formSheet({
-    title: 'Ajouter un ami',
-    subtitle: 'Demande-lui son code ami (onglet Contact).',
+    title: 'Envoyer une demande d’ami',
+    subtitle: 'Saisis son code ami : il recevra une demande à accepter.',
     fields: [{ name: 'code', label: 'Code ami', required: true, maxlength: 8, placeholder: 'ABC234', inputmode: 'text' }],
-    submitLabel: 'Ajouter',
+    submitLabel: 'Envoyer la demande',
   });
   if (!r?.values) return;
   try {
     const name = await addFriendByCode(session.user, r.values.code, state.friendships);
-    toast(`${name} ajouté à tes amis`);
+    toast(`Demande envoyée à ${name}. Il doit l’accepter.`);
   } catch (err) {
     toast(err.code === 'permission-denied' ? 'Code invalide ou ami déjà ajouté.' : err.message, { type: 'error' });
   }
@@ -106,17 +107,57 @@ function FriendRow(f, me) {
 
 // ── Vue : hub ───────────────────────────────────────────────────────────
 
+/** Demande reçue : Accepter / Refuser. */
+function RequestRow(f, me) {
+  const other = friendOf(f, me);
+  const name = f.names?.[other] || 'Quelqu’un';
+  return h('div', { class: 'request' },
+    h('span', { class: 'avatar' }, initial(name)),
+    h('span', { class: 'request__body' },
+      h('span', { class: 'request__name' }, name),
+      h('span', { class: 'muted small' }, 'veut t’ajouter en ami')),
+    h('div', { class: 'request__actions' },
+      h('button', {
+        class: 'btn btn--primary btn--sm', type: 'button',
+        onclick: async (e) => { e.currentTarget.disabled = true; await acceptFriend(f.id).catch(() => {}); toast(`${name} est maintenant ton ami`); },
+      }, 'Accepter'),
+      h('button', {
+        class: 'btn btn--ghost btn--sm', type: 'button',
+        onclick: async () => { if (await confirmSheet({ title: `Refuser la demande de ${name} ?`, confirmLabel: 'Refuser' })) removeFriend(f.id); },
+      }, 'Refuser')));
+}
+
+/** Demande envoyée : en attente, annulable. */
+function PendingRow(f, me) {
+  const other = friendOf(f, me);
+  const name = f.names?.[other] || 'Ami';
+  return h('div', { class: 'request request--pending' },
+    h('span', { class: 'avatar' }, initial(name)),
+    h('span', { class: 'request__body' },
+      h('span', { class: 'request__name' }, name),
+      h('span', { class: 'muted small' }, 'Demande envoyée · en attente')),
+    h('button', { class: 'link-btn link-btn--danger', type: 'button', onclick: () => removeFriend(f.id) }, 'Annuler'));
+}
+
 export function MessagesHubView(session) {
   loadMyCode(session);
   const me = session.user.uid;
+  const friends = state.friendships.filter(isAccepted);
+  const incoming = state.friendships.filter((f) => isIncoming(f, me));
+  const outgoing = state.friendships.filter((f) => isOutgoing(f, me));
 
   return [
     PageHeader({ eyebrow: 'Messagerie', title: 'Contact' }),
     h('nav', { class: 'card card--flush', 'aria-label': 'Coach' }, CoachRow(session)),
+    incoming.length ? [
+      SectionTitle(`Demandes d’ami (${incoming.length})`),
+      h('section', { class: 'card card--flush requests requests--in' }, incoming.map((f) => RequestRow(f, me))),
+    ] : null,
     SectionTitle('Amis', h('button', { class: 'link-btn', type: 'button', onclick: () => addFriendFlow(session) }, icon('plus', 16), 'Ajouter')),
-    state.friendships.length
-      ? h('nav', { class: 'card card--flush', 'aria-label': 'Amis' }, state.friendships.map((f) => FriendRow(f, me)))
-      : h('p', { class: 'hint' }, 'Ajoute tes partenaires d’entraînement avec leur code : vous pourrez discuter et voir qui s’est entraîné aujourd’hui.'),
+    friends.length
+      ? h('nav', { class: 'card card--flush', 'aria-label': 'Amis' }, friends.map((f) => FriendRow(f, me)))
+      : h('p', { class: 'hint' }, 'Ajoute tes partenaires d’entraînement avec leur code : une fois la demande acceptée, vous pourrez discuter et voir qui s’est entraîné.'),
+    outgoing.length ? h('section', { class: 'card card--flush requests' }, outgoing.map((f) => PendingRow(f, me))) : null,
     h('section', { class: 'card friend-code' },
       h('p', { class: 'eyebrow' }, 'Mon code ami'),
       myCode
@@ -159,6 +200,10 @@ export function FriendChatView(session, pid) {
   if (!f) {
     return [PageHeader({ eyebrow: 'Ami', title: '…', trailing: back }),
       state.friendships.length ? h('p', { class: 'muted' }, 'Cette amitié n’existe plus.') : Skeleton(2)];
+  }
+  if (!isAccepted(f)) {
+    return [PageHeader({ eyebrow: 'Ami', title: f.names?.[friendOf(f, me)] || 'Ami', trailing: back }),
+      h('p', { class: 'muted' }, isIncoming(f, me) ? 'Accepte sa demande dans Contact pour discuter.' : 'En attente de son acceptation.')];
   }
   ensureFeed(pid);
   if (unreadFriend(f, me)) markFriendRead(me, pid);

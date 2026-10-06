@@ -33,7 +33,7 @@ import { AdminHomeView, AdminUserView, leaveAdminUser } from './views/admin.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat } from './views/messages-hub.js';
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
-export const ASSET_VERSION = '0.7.0';
+export const ASSET_VERSION = '0.8.0';
 
 /**
  * Garde-fou : si un ancien index.html (mis en cache par iOS) est servi avec le
