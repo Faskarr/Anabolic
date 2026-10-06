@@ -251,6 +251,10 @@ onSession((s) => {
   }
   const wasActive = session?.state === 'active';
   const sameSession = wasActive && s.state === 'active';
+  // Connexion depuis l'écran de connexion : on arrive toujours sur l'accueil.
+  if (session && session.state !== 'active' && s.state === 'active' && location.hash && location.hash !== '#/home') {
+    history.replaceState(null, '', '#/home');
+  }
   session = s;
 
   // Dès que l'état de session est connu, l'animation d'ouverture s'efface.

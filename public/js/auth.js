@@ -7,16 +7,34 @@
  */
 import { auth, db, googleProvider, authSdk, fs } from './firebase.js';
 
-const { signInWithPopup, signOut: fbSignOut, onAuthStateChanged, browserPopupRedirectResolver } = authSdk;
+const { signInWithPopup, getRedirectResult, signOut: fbSignOut, onAuthStateChanged, browserPopupRedirectResolver } = authSdk;
 const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = fs;
 
 /** Messages d'erreur Firebase traduits pour l'utilisateur. */
 const AUTH_ERRORS = {
-  'auth/popup-blocked': 'La fenêtre de connexion a été bloquée. Autorise les pop-ups pour ce site dans Réglages › Safari.',
+  'auth/popup-blocked': 'La fenêtre de connexion a été bloquée. Touche à nouveau « Continuer avec Google ».',
   'auth/network-request-failed': 'Pas de connexion internet. Réessaie dans un instant.',
   'auth/unauthorized-domain': "Ce domaine n'est pas autorisé dans Firebase Authentication.",
   'auth/too-many-requests': 'Trop de tentatives. Patiente quelques minutes.',
 };
+
+/**
+ * À appeler dès l'affichage de l'écran de connexion : charge à l'avance le
+ * module Google (iframe). Sur iPhone, la fenêtre de connexion DOIT s'ouvrir
+ * immédiatement au toucher ; si ce module se charge pendant le clic, Safari
+ * bloque la fenêtre en silence → « il ne se passe rien ».
+ * getRedirectResult() initialise ce module sans rien ouvrir (aucun effet sinon).
+ */
+let warm = null;
+let ready = false;
+export function warmUpSignIn() {
+  warm ||= getRedirectResult(auth, browserPopupRedirectResolver)
+    .catch(() => null)
+    .finally(() => { ready = true; });
+  return warm;
+}
+/** Module Google prêt : un seul toucher suffit pour ouvrir la fenêtre. */
+export const signInReady = () => ready;
 
 export async function signIn() {
   try {
@@ -31,6 +49,8 @@ export async function signIn() {
 
 export function signOut() {
   clearLocalSession();
+  // La prochaine connexion s'ouvre sur l'accueil (et non sur l'écran Moi).
+  try { history.replaceState(null, '', '/'); } catch { /* ignoré */ }
   return fbSignOut(auth);
 }
 
@@ -133,6 +153,7 @@ export function onSession(callback) {
     callback({ state: 'active', user: provisional.user, profile: provisional.profile, isAdmin: provisional.isAdmin, provisional: true });
   } else {
     callback({ state: 'loading' });
+    warmUpSignIn();   // pas de session sur l'appareil : on prépare Google tout de suite
   }
 
   // 2. Confirmation par Firebase Auth, puis revérification du profil.
@@ -145,6 +166,11 @@ export function onSession(callback) {
     const cached = readCachedSession(user.uid);
     if (cached?.profile?.status === 'active') {
       callback({ state: 'active', user, profile: cached.profile, isAdmin: cached.isAdmin, cached: true });
+    } else {
+      // Juste après la connexion Google : l'app s'ouvre tout de suite, sans attendre
+      // les 2 lectures Firestore (profil + rôle). Si le compte est désactivé, l'écran
+      // change dès la réponse ; les données restent protégées par les règles.
+      callback({ state: 'active', user, profile: { status: 'active', displayName: user.displayName || '', photoURL: user.photoURL || '' }, isAdmin: false, provisional: true });
     }
     try {
       const [{ profile, created }, { isAdmin, adminError }] = await Promise.all([

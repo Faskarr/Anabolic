@@ -18,7 +18,7 @@ export const LINK_ICONS = ['link', 'play', 'message', 'music', 'leaf', 'pill', '
 
 /** Liens par défaut tant que l'admin n'a rien enregistré. */
 const DEFAULTS = [
-  { label: 'TheSwoleDoc sur TikTok', sub: '@faskarr', href: 'https://www.tiktok.com/@faskarr', icon: 'play' },
+  { label: 'Faskarr sur TikTok', sub: '@faskarr', href: 'https://www.tiktok.com/@faskarr', icon: 'play' },
   { label: 'Discord BioHacking', sub: 'La communauté', href: 'https://discord.gg/DHVucvwrk', icon: 'message' },
   { label: 'HSN', sub: 'Nutrition sportive & compléments', href: 'https://www.hsnstore.fr/', icon: 'link' },
   { label: 'High League Supplements', sub: 'hlsupps.com', href: 'https://hlsupps.com/', icon: 'link' },
@@ -43,6 +43,11 @@ export function cleanLink(l) {
 
 const clean = (items) => (Array.isArray(items) ? items : []).map(cleanLink).filter(Boolean).slice(0, 30);
 
+const LS = 'links:v1';
+/** Dernière liste PUBLIQUE reçue du serveur, gardée sur l'appareil. */
+function stored() {
+  try { const v = JSON.parse(localStorage.getItem(LS)); return Array.isArray(v) ? clean(v).map((l) => ({ ...l, private: false })) : null; } catch { return null; }
+}
 let cache = null;      // { items, admin, ok }
 let loading = null;
 
@@ -52,7 +57,7 @@ const rerender = () => window.dispatchEvent(new Event('app:render'));
 export function linksOf(isAdmin) {
   const admin = Boolean(isAdmin);
   if (!loading && (!cache || cache.admin !== admin || (!cache.ok && Date.now() - cache.at > 30_000))) load(admin);
-  return cache?.items || DEFAULTS;
+  return cache?.items || stored() || DEFAULTS;
 }
 
 async function load(isAdmin) {
@@ -60,6 +65,7 @@ async function load(isAdmin) {
     try {
       const pub = await getDoc(doc(db, 'config', 'links'));
       let items = pub.exists() ? clean(pub.data().items).map((l) => ({ ...l, private: false })) : DEFAULTS;
+      if (pub.exists()) { try { localStorage.setItem(LS, JSON.stringify(items)); } catch { /* ignoré */ } }
       if (isAdmin) {
         const priv = await getDoc(doc(db, 'config', 'linksPrivate'));
         if (priv.exists()) {
@@ -70,8 +76,9 @@ async function load(isAdmin) {
         }
       }
       cache = { items, admin: isAdmin, ok: true, at: Date.now() };
-    } catch {
-      cache = { items: cache?.items || DEFAULTS, admin: isAdmin, ok: false, at: Date.now() };
+    } catch (err) {
+      console.warn('[links] lecture refusée ou hors ligne', err?.code || err);
+      cache = { items: cache?.items || stored() || DEFAULTS, admin: isAdmin, ok: false, at: Date.now() };
     } finally {
       loading = null;
       rerender();
@@ -95,6 +102,7 @@ export async function saveLinks(items) {
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
+  try { localStorage.setItem(LS, JSON.stringify(all.filter((l) => !l.private))); } catch { /* ignoré */ }
   cache = { items: all, admin: true, ok: true, at: Date.now() };
   rerender();
 }

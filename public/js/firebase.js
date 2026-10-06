@@ -21,7 +21,14 @@ export * as fs from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firesto
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBje3KcOzf7aeFzL-kvca5D2lv7WDgtIlM',
-  authDomain: 'anabolic-adc6a.firebaseapp.com',
+  // Domaine de connexion = domaine de l'app (web.app) : la page Google et son iframe
+  // sont alors sur le MÊME site que l'app. Safari (iPhone) bloque les échanges entre
+  // sites différents → 2 touchers nécessaires et connexion lente avec firebaseapp.com.
+  // Prérequis (une fois) : https://anabolic-adc6a.web.app/__/auth/handler ajouté aux
+  // « URI de redirection autorisés » du client OAuth dans Google Cloud Console.
+  authDomain: /^anabolic-adc6a\.(web\.app|firebaseapp\.com)$/.test(location.hostname)
+    ? location.hostname
+    : 'anabolic-adc6a.firebaseapp.com',
   projectId: 'anabolic-adc6a',
   storageBucket: 'anabolic-adc6a.firebasestorage.app',
   messagingSenderId: '297929048136',

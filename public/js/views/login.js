@@ -1,5 +1,5 @@
 import { h } from '../lib/dom.js';
-import { signIn } from '../auth.js';
+import { signIn, warmUpSignIn, signInReady } from '../auth.js';
 import { toast } from '../ui/toast.js';
 import { LiveLogo } from '../ui/logo.js';
 import { InstallCard } from '../ui/install.js';
@@ -27,20 +27,36 @@ const GOOGLE_ICON = () => {
 };
 
 export function LoginView() {
+  const label = h('span', {}, 'Continuer avec Google');
+  let forced = false;
   const button = h('button', {
     class: 'btn btn--ghost btn--block',
     type: 'button',
     onclick: async () => {
+      if (!signInReady() && !forced) return;  // sécurité : jamais de toucher « dans le vide »
       button.disabled = true;
+      // Fenêtre fermée sans réponse (iOS) : le bouton redevient utilisable.
+      const unlock = setTimeout(() => { button.disabled = false; }, 4000);
       try {
         await signIn();
       } catch (err) {
         toast(err.message, { type: 'error', duration: 6000 });
       } finally {
+        clearTimeout(unlock);
         button.disabled = false;
       }
     },
-  }, GOOGLE_ICON(), 'Continuer avec Google');
+  }, GOOGLE_ICON(), label);
+
+  // Sur iPhone, la fenêtre Google ne s'ouvre que si son module est déjà chargé
+  // au moment du toucher : le bouton attend qu'il soit prêt (quelques centaines de ms).
+  if (!signInReady()) {
+    button.disabled = true;
+    label.textContent = 'Préparation…';
+    const enable = () => { button.disabled = false; label.textContent = 'Continuer avec Google'; };
+    warmUpSignIn().then(enable);
+    setTimeout(() => { forced = true; enable(); }, 8000);   // réseau très lent : on laisse essayer
+  }
 
   return h('main', { class: 'screen' },
     h('div', { class: 'center-stack' },
