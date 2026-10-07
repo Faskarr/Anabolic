@@ -66,6 +66,7 @@ document.documentElement.classList.toggle('in-browser', !standalone);
  * iOS 17+), d'où Spotify, YouTube… prennent le relais si l'app est installée.
  * Si Safari ne s'ouvre pas (ancien iOS), on ouvre le lien normalement.
  */
+const APP_HOSTS = /(^|\.)(spotify\.com|spotify\.link|deezer\.com|deezer\.page\.link|youtube\.com|youtu\.be|music\.apple\.com)$/i;
 const IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 if (standalone && IOS) {
   document.addEventListener('click', (e) => {
@@ -74,6 +75,8 @@ if (standalone && IOS) {
     let u;
     try { u = new URL(a.href, location.href); } catch { return; }
     if (!/^https?:$/.test(u.protocol) || u.origin === location.origin) return;
+    // Musique et vidéos : comportement normal, qui ouvre directement l'app (Spotify, Deezer, YouTube…).
+    if (APP_HOSTS.test(u.hostname)) return;
     e.preventDefault();
     const fallback = setTimeout(() => { location.href = u.href; }, 1500);
     document.addEventListener('visibilitychange', () => clearTimeout(fallback), { once: true });

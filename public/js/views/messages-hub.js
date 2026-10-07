@@ -214,15 +214,23 @@ export function MessagesHubView(session) {
   const unreadChats = chats.filter((f) => unreadFriend(f, me)).length + (unreadForUser(state.conversation) ? 1 : 0);
 
   const tabs = h('div', { class: 'segmented segmented--fill hub-tabs', role: 'tablist' },
-    [['chats', 'Discussions', unreadChats], ['friends', 'Amis', incoming.length]].map(([key, label, n]) => h('button', {
+    [['chats', 'Social', unreadChats], ['friends', 'Amis', incoming.length]].map(([key, label, n]) => h('button', {
       class: `segment${hubTab === key ? ' segment--on' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(hubTab === key),
       onclick: () => { hubTab = key; rerender(); },
     }, label, n ? h('span', { class: 'count-badge' }, String(n)) : null)));
 
   if (hubTab === 'chats') {
+    const posts = friends.length ? recentPosts(14, 8) : [];
     return [
       PageHeader({ eyebrow: 'Messagerie', title: 'Mes messages' }),
       tabs,
+      friends.length ? [
+        SectionTitle('Records & sons', h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('music', 16), 'Partager un son')),
+        posts.length
+          ? h('section', { class: 'card' }, h('ul', { class: 'records' }, posts.map((p) => PostRow(p, me))))
+          : h('p', { class: 'hint' }, 'Partage ta musique du moment (Spotify, Deezer, YouTube Music) : tes amis l’ouvrent directement dans leur app.'),
+      ] : null,
+      SectionTitle('Discussions'),
       h('nav', { class: 'card card--flush', 'aria-label': 'Discussions' },
         CoachRow(session),
         chats.map((f) => ChatRow(f, me, session))),
@@ -244,15 +252,6 @@ export function MessagesHubView(session) {
       ? h('nav', { class: 'card card--flush', 'aria-label': 'Amis' }, friends.map((f) => FriendRow(f, me)))
       : h('p', { class: 'hint' }, 'Ajoute tes partenaires d’entraînement avec leur code : une fois la demande acceptée, vous pourrez discuter et voir qui s’est entraîné.'),
     outgoing.length ? h('section', { class: 'card card--flush requests' }, outgoing.map((f) => PendingRow(f, me, session.isAdmin))) : null,
-    friends.length ? [
-      SectionTitle('Records & sons', h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('music', 16), 'Partager un son')),
-      (() => {
-        const posts = recentPosts(14, 8);
-        return posts.length
-          ? h('section', { class: 'card' }, h('ul', { class: 'records' }, posts.map((p) => PostRow(p, me))))
-          : h('p', { class: 'hint' }, 'Partage ta musique du moment (Spotify, Deezer, Apple Music) : tes amis l’ouvrent directement dans leur app.');
-      })(),
-    ] : null,
     h('section', { class: 'card friend-code' },
       h('p', { class: 'eyebrow' }, 'Mon code ami'),
       myCode
