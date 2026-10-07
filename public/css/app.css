@@ -557,6 +557,7 @@ input[type="search"].input { -webkit-appearance: none; }
 /* ═══ Admin ════════════════════════════════════════════════════ */
 .admin-link { display: flex; align-items: center; gap: var(--s3); min-height: 56px; padding: 0 var(--s4); color: var(--ink); text-decoration: none; }
 .admin-link .menu-row__label { font-weight: 600; }
+button.admin-link { width: 100%; border: 0; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .conv--disabled { opacity: .55; }
 .tag--danger { background: var(--danger-tint); color: var(--danger); }
 .tag--ok { background: var(--ok-tint); color: var(--ok); }

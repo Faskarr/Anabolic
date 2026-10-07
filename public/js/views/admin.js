@@ -22,7 +22,7 @@ import { GoalsBoard, editGoal } from './goals.js';
 import { periodKey } from '../data/goals.js';
 import { librarySources } from './admin-library.js';
 import { PageHeader, IconButton, Skeleton, Empty, SectionTitle } from '../ui/layout.js';
-import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
+import { openSheet, formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { Avatar as AvatarUI } from '../ui/avatar.js';
@@ -115,6 +115,11 @@ export function AdminHomeView() {
       h('span', { class: 'menu-row__label' }, 'Bibliothèque de programmes'),
       h('span', { class: 'muted' }, 'modèles à envoyer'),
       h('span', { class: 'menu-row__chevron' }, icon('chevron', 18))),
+    h('button', { class: 'card admin-link', type: 'button', onclick: backupFlow },
+      h('span', { class: 'menu-row__icon' }, icon('download', 20)),
+      h('span', { class: 'menu-row__label' }, 'Sauvegarder la base'),
+      h('span', { class: 'muted' }, backupAge()),
+      h('span', { class: 'menu-row__chevron' }, icon('chevron', 18))),
     search,
     h('div', { class: 'chips' }, FILTERS.map(([key, label]) => h('button', {
       class: `chip${list.filter === key ? ' chip--on' : ''}`, type: 'button',
@@ -135,6 +140,63 @@ export function AdminHomeView() {
       u.status === 'disabled' ? h('span', { class: 'tag tag--danger' }, 'Désactivé') : null)))
       : Empty({ iconName: 'user', title: 'Aucun utilisateur', text: users.length ? 'Change le filtre ou la recherche.' : 'Les comptes apparaîtront ici après leur première connexion.' }),
   ];
+}
+
+// ═══ Sauvegarde de la base ═════════════════════════════════════════════
+// Module chargé à la demande (hors du graphe de démarrage).
+const loadBackup = () => import('../data/backup.js');
+let lastBackupCache = null;
+
+/** « jamais », « aujourd'hui », « il y a 3 j » — rappel discret dans la liste. */
+function backupAge() {
+  if (lastBackupCache === null) {
+    loadBackup().then((m) => { lastBackupCache = m.lastBackupAt(); rerender(); }).catch(() => {});
+    return '';
+  }
+  if (!lastBackupCache) return 'jamais';
+  const days = Math.floor((Date.now() - lastBackupCache) / DAY);
+  return days === 0 ? "aujourd'hui" : `il y a ${days} j`;
+}
+
+/**
+ * 1) export (quelques secondes, progression affichée) ;
+ * 2) bouton « Enregistrer » : la feuille de partage iOS exige un tap RÉCENT,
+ *    on ne peut donc pas l'ouvrir automatiquement à la fin de l'export.
+ */
+function backupFlow() {
+  const status = h('p', { class: 'muted' }, 'Préparation…');
+  const actions = h('div', { class: 'form__actions' });
+  const sheet = openSheet({
+    title: 'Sauvegarde de la base',
+    subtitle: 'Toutes les données de tous les comptes, dans un fichier à garder dans Fichiers.',
+    body: h('div', {}, status, actions),
+  });
+
+  loadBackup()
+    .then((m) => m.exportDatabase((step) => { status.textContent = `Lecture : ${step}…`; })
+      .then((res) => ({ m, res })))
+    .then(({ m, res }) => {
+      status.textContent = `${res.count} documents · ${res.sizeKb} Ko — prêt.`;
+      actions.replaceChildren(
+        h('button', {
+          class: 'btn btn--primary btn--block', type: 'button',
+          onclick: async () => {
+            if (await m.saveBackupFile(res.file)) {
+              lastBackupCache = m.lastBackupAt();
+              sheet.close();
+              toast('Sauvegarde enregistrée');
+              rerender();
+            }
+          },
+        }, icon('download', 18), ' Enregistrer dans Fichiers'),
+        h('p', { class: 'muted' }, 'Dans la feuille de partage : « Enregistrer dans Fichiers ».'));
+    })
+    .catch((err) => {
+      console.error('[admin] sauvegarde', err);
+      status.textContent = err?.code === 'permission-denied'
+        ? 'Accès refusé : déploie les règles Firestore (firebase deploy --only firestore:rules).'
+        : `Échec : ${err?.code || err?.message || err}`;
+    });
 }
 
 // ═══ Fiche utilisateur ═════════════════════════════════════════════════

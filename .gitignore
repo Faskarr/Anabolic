@@ -8,6 +8,9 @@ node_modules/
 .env.*
 *service-account*.json
 
+# Sauvegardes de la base (données personnelles des utilisateurs)
+backup/sauvegardes/
+
 # Système
 .DS_Store
 Thumbs.db

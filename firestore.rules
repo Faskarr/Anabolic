@@ -165,6 +165,25 @@ service cloud.firestore {
         && isShortString(d.lastText, 140);
     }
 
+    // ── Sauvegarde admin (bouton « Sauvegarder la base ») ─────────────────
+    // Lecture seule des sous-collections via collectionGroup. Les règles
+    // s'additionnent : rien n'est ouvert à un non-admin.
+    match /{path=**}/data/{docId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/weeks/{docId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/inbox/{docId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/messages/{docId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/posts/{docId} {
+      allow read: if isAdmin();
+    }
+
     // ── Admins (lecture de son propre statut uniquement) ────────────────
     match /admins/{uid} {
       allow read: if isOwner(uid);
