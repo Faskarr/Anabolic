@@ -123,12 +123,26 @@ function normalizeProfiles(raw) {
   return out;
 }
 
+/**
+ * Pesées lisibles quel que soit leur format d'origine (anciennes versions :
+ * { d, w }, poids en texte « 82,5 », date avec heure) ; une par date, triées.
+ */
+function cleanWeights(raw) {
+  const byDate = new Map();
+  for (const e of Array.isArray(raw) ? raw : []) {
+    const date = String(e?.date ?? e?.d ?? '').slice(0, 10);
+    const kg = Number(String(e?.kg ?? e?.w ?? e?.weight ?? '').replace(',', '.'));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date) && kg >= 20 && kg <= 400) byDate.set(date, { date, kg: Math.round(kg * 10) / 10 });
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 const DOC_HANDLERS = {
   workouts: (d) => { state.workouts = d || {}; },
   diet:     (d) => { state.diet = d || {}; },
   protocol: (d) => { state.protocol = d || {}; },
   profiles: (d) => { state.profiles = normalizeProfiles(d); },
-  weights:  (d) => { state.weights = Array.isArray(d?.log) ? d.log : []; },
+  weights:  (d) => { state.weights = cleanWeights(d?.log); },
   exlogs:   (d) => { state.exlogs = d?.logs || {}; },
   counter:  (d) => { state.counterBase = Number(d?.base) || 0; },
   goals:    (d) => { state.goals = normalizeGoals(d); },

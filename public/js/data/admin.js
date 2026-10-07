@@ -143,6 +143,34 @@ export async function deleteUserAccount(uid, { block = false } = {}) {
 }
 
 /**
+ * Renomme un utilisateur (pseudo imposé par l'admin ; '' = retour au nom Google).
+ * Le nom est recopié partout où il est lu : activité, amitiés, code ami,
+ * conversation avec le coach, profil partagé.
+ */
+export async function renameUser(uid, rawPseudo) {
+  const pseudo = String(rawPseudo || '').replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
+  const userSnap = await getDoc(doc(db, 'users', uid));
+  const u = userSnap.exists() ? userSnap.data() : {};
+  const name = (pseudo || u.displayName || u.email || 'Utilisateur').slice(0, 120);
+  const [friendships, codes, conv, shared, act] = await Promise.all([
+    getDocs(query(collection(db, 'friendships'), where('members', 'array-contains', uid))),
+    getDocs(query(collection(db, 'friendCodes'), where('uid', '==', uid))),
+    getDoc(doc(db, 'conversations', uid)),
+    getDoc(doc(db, 'shared', uid)),
+    getDoc(doc(db, 'activity', uid)),
+  ]);
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'users', uid), { pseudo: pseudo || deleteField() });
+  friendships.docs.forEach((f) => batch.update(f.ref, { [`names.${uid}`]: name }));
+  codes.docs.forEach((c) => batch.update(c.ref, { name }));
+  if (conv.exists()) batch.update(conv.ref, { userName: name });
+  if (shared.exists()) batch.update(shared.ref, { name });
+  if (act.exists()) batch.update(act.ref, { name });
+  await batch.commit();
+  return name;
+}
+
+/**
  * Propose un programme / diet / protocole : l'utilisateur l'accepte ou l'ignore
  * depuis son accueil (il garde la main sur ses données).
  */

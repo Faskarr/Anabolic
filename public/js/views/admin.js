@@ -16,7 +16,7 @@ import { state, profileData, ensureAdminUsers } from '../store.js';
 import { ms, unreadForAdmin } from '../data/messages.js';
 import {
   watchUserData, watchUserInbox, setUserStatus, proposeToUser, cancelProposal,
-  installProfileForUser, renameUserProfile, setUserActiveProfile, deleteUserProfile, setUserGoals, deleteUserAccount,
+  installProfileForUser, renameUserProfile, setUserActiveProfile, deleteUserProfile, setUserGoals, deleteUserAccount, renameUser,
 } from '../data/admin.js';
 import { GoalsBoard, editGoal } from './goals.js';
 import { periodKey } from '../data/goals.js';
@@ -418,6 +418,25 @@ function GoalsTab(user) {
 
 const TABS = [['overview', 'Aperçu'], ['weight', 'Poids'], ['workout', 'Séances'], ['diet', 'Diet'], ['protocol', 'Protocole'], ['goals', 'Objectifs']];
 
+/** Renommer un utilisateur (son pseudo, visible partout dans l'app). */
+async function renameFlow(uid, user) {
+  const google = user.googleName || user.email || '';
+  const r = await formSheet({
+    title: 'Renommer',
+    subtitle: `Nom Google : ${google}. Le nouveau nom s’affiche partout (amis, profil, messages). Laisse vide pour revenir au nom Google.`,
+    fields: [{ name: 'pseudo', label: 'Nom affiché', maxlength: 30, value: user.pseudo || '', placeholder: google }],
+    submitLabel: 'Enregistrer',
+  });
+  if (!r?.values) return;
+  try {
+    const name = await renameUser(uid, r.values.pseudo);
+    toast(`Renommé : ${name}`);
+  } catch (err) {
+    console.error('[admin] renommer', err);
+    toast(`Renommage impossible : ${err.code || err.message}`, { type: 'error' });
+  }
+}
+
 /** Suppression d'un compte : choix (réinscription possible ou bloquée), confirmation, puis suppression. */
 function deleteAccountFlow(uid, user) {
   const who = user.displayName || user.email || 'cet utilisateur';
@@ -495,6 +514,7 @@ export function AdminUserView(session, uid) {
           if (ok) { await setUserStatus(uid, disabled ? 'active' : 'disabled'); toast(disabled ? 'Compte réactivé' : 'Compte désactivé'); }
         },
       }, icon(disabled ? 'check' : 'x', 22), h('span', {}, disabled ? 'Réactiver' : 'Désactiver'))),
+    h('button', { class: 'btn btn--ghost btn--block', type: 'button', onclick: () => renameFlow(uid, user) }, icon('edit', 18), 'Renommer'),
     isMe ? null : h('button', {
       class: 'btn btn--danger-quiet btn--block', type: 'button',
       onclick: () => deleteAccountFlow(uid, user),
