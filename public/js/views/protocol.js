@@ -218,6 +218,22 @@ function saveEntry({ id, pid, time, weekdays }) {
   });
 }
 
+/**
+ * Une ou plusieurs heures, mêmes jours, en une seule écriture : la 1re heure
+ * met à jour la prise modifiée (si `id`), les suivantes créent de nouvelles prises.
+ */
+function saveEntries({ id, pid, times, weekdays }) {
+  return updateProfileData(CAT, (d) => {
+    const p = (d.products || []).find((x) => x.id === pid);
+    if (!p) return;
+    times.forEach((time, i) => {
+      const cur = i === 0 && id ? findEntry(d, id) : null;
+      const entry = { id: cur?.it.id || uid('inj'), pid, name: p.name, type: p.dose || '', time };
+      placeEntry(d, entry, weekdays);
+    });
+  });
+}
+
 /** Retire un jour d'une prise (la prise disparaît s'il ne reste aucun jour). */
 function removeDay(entryId, wd) {
   return updateProfileData(CAT, (d) => {
@@ -280,9 +296,10 @@ async function editEntry({ pid, entry = null, day = null, presetDays = null }) {
     title: entry ? `${p.name} · modifier la prise` : `Quand prendre ${p.name} ?`,
     subtitle: p.dose || null,
     fields: [
-      { name: 'time', type: 'time', label: 'Heure', value: t != null ? formatMinutes(t) : '08:00', required: true },
+      { name: 'times', type: 'times', label: entry ? 'Heure (+ autres prises)' : 'Heures de prise', value: [t != null ? formatMinutes(t) : '08:00'],
+        hint: 'Plusieurs prises par jour ? « Ajouter une heure » (ex. 08:00 et 20:00).' },
       { name: 'weekdays', type: 'weekdays', label: 'Jours', value: presetDays || (day ? effectiveWeekdays(day) : ALL_DAYS),
-        hint: 'Tous cochés = tous les jours. Une autre heure ? Ajoute une 2ᵉ prise ensuite.' },
+        hint: 'Tous cochés = tous les jours.' },
     ],
     submitLabel: entry ? 'Enregistrer' : 'Ajouter au planning',
     deleteLabel: entry ? 'Supprimer cette prise' : null,
@@ -297,7 +314,10 @@ async function editEntry({ pid, entry = null, day = null, presetDays = null }) {
     return;
   }
   if (!r.values.weekdays.length) { toast('Choisis au moins un jour.', { type: 'error' }); return; }
-  saveEntry({ id: entry?.id, pid, time: r.values.time, weekdays: r.values.weekdays });
+  const times = r.values.times || [];
+  if (!times.length) { toast('Indique au moins une heure.', { type: 'error' }); return; }
+  saveEntries({ id: entry?.id, pid, times, weekdays: r.values.weekdays });
+  if (times.length > 1) toast(`${times.length} prises par jour : ${times.join(' · ')}`);
 }
 
 /** Tap sur une case du tableau (produit × jour). */

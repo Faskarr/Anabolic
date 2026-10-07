@@ -6,12 +6,12 @@
 import { h } from '../lib/dom.js';
 import { localISODate } from '../lib/dates.js';
 import { state, startPostsFeed, stopPostsFeed } from '../store.js';
-import { unreadForUser, unreadForAdmin, ms } from '../data/messages.js';
+import { unreadForUser, unreadForAdmin, ms, clearCoachChat } from '../data/messages.js';
 import {
   ensureMyCode, addFriendByCode, removeFriend, friendOf, unreadFriend,
   watchFriendMessages, sendFriendMessage, markFriendRead,
   acceptFriend, isAccepted, isIncoming, isOutgoing,
-  answerFriendShare, SHARE_LABEL,
+  answerFriendShare, SHARE_LABEL, clearFriendChat, hasChat,
 } from '../data/friends.js';
 import { normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schema.js';
 import { applyImport } from '../data/importer.js';
@@ -69,15 +69,42 @@ async function addFriendFlow(session) {
 
 // ── Lignes ──────────────────────────────────────────────────────────────
 
-function Row({ href, title, preview, when, unread, avatar, tag }) {
-  return h('a', { class: `conv${unread ? ' conv--unread' : ''}`, href },
+function Row({ href, title, preview, when, unread, avatar, tag, onMore }) {
+  const link = h('a', { class: `conv${unread ? ' conv--unread' : ''}`, href },
     avatar,
     h('span', { class: 'conv__body' },
       h('span', { class: 'conv__top' }, h('span', { class: 'conv__name' }, title), h('span', { class: 'conv__when' }, when || '')),
       h('span', { class: 'conv__preview' }, preview)),
     tag || null,
     unread ? h('span', { class: 'dot', 'aria-label': 'Non lu' }) : null);
+  if (!onMore) return link;
+  return h('div', { class: 'conv-wrap' }, link, IconButton('more', `Options : ${title}`, onMore, 'icon-btn--ghost conv__more'));
 }
+
+/** Supprimer une discussion (de mon côté seulement). */
+async function deleteChat(kind, session, f = null, name = '') {
+  const who = kind === 'coach' ? 'avec ton coach' : `avec ${name}`;
+  const ok = await confirmSheet({
+    title: `Supprimer la discussion ${who} ?`,
+    message: kind === 'coach'
+      ? 'Les messages disparaissent de ton côté. Ton coach garde l’historique.'
+      : `Les messages disparaissent de ton côté. ${name} reste dans tes amis et garde la discussion.`,
+    confirmLabel: 'Supprimer',
+  });
+  if (!ok) return false;
+  try {
+    if (kind === 'coach') await clearCoachChat(session.user.uid);
+    else await clearFriendChat(session.user.uid, f.id);
+    toast('Discussion supprimée');
+    return true;
+  } catch (err) {
+    console.error('[chat]', err);
+    toast('Suppression impossible.', { type: 'error' });
+    return false;
+  }
+}
+
+const coachHasChat = (c) => Boolean(c?.lastAt && ms(c.lastAt) > ms(c.userClearedAt));
 
 function CoachRow(session) {
   if (session.isAdmin) {
@@ -89,26 +116,46 @@ function CoachRow(session) {
     });
   }
   const c = state.conversation;
+  const live = coachHasChat(c);
   return Row({
     href: '#/contact/coach', title: 'Ton coach',
-    preview: c?.lastText ? `${c.lastFrom === 'user' ? 'Toi : ' : ''}${c.lastText}` : 'Pose-lui une question',
-    when: shortWhen(c?.lastAt), unread: unreadForUser(c),
+    preview: live && c?.lastText ? `${c.lastFrom === 'user' ? 'Toi : ' : ''}${c.lastText}` : 'Pose-lui une question',
+    when: live ? shortWhen(c?.lastAt) : '', unread: unreadForUser(c),
     avatar: h('span', { class: 'avatar avatar--brand' }, icon('message', 20)),
+    onMore: live ? () => actionSheet({ title: 'Ton coach', actions: [{ label: 'Supprimer la discussion', icon: 'trash', danger: true, onClick: () => deleteChat('coach', session) }] }) : null,
   });
 }
 
+/** Ligne de discussion avec un ami (onglet Discussions). */
+function ChatRow(f, me, session) {
+  const other = friendOf(f, me);
+  const name = f.names?.[other] || 'Ami';
+  return Row({
+    href: `#/friends/${encodeURIComponent(f.id)}`,
+    title: name,
+    preview: f.lastText ? `${f.lastFrom === me ? 'Toi : ' : ''}${f.lastText}` : '',
+    when: shortWhen(f.lastAt), unread: unreadFriend(f, me),
+    avatar: Avatar({ uid: other, name }),
+    onMore: () => actionSheet({ title: name, actions: [
+      { label: 'Voir son profil', icon: 'user', onClick: () => { location.hash = `#/u/${encodeURIComponent(other)}`; } },
+      { label: 'Supprimer la discussion', icon: 'trash', danger: true, onClick: () => deleteChat('friend', session, f, name) },
+    ] }),
+  });
+}
+
+/** Ligne d'ami (onglet Amis) : profil au toucher, bouton message. */
 function FriendRow(f, me) {
   const other = friendOf(f, me);
   const name = f.names?.[other] || 'Ami';
   const act = state.friendActivity[other];
-  return Row({
-    href: `#/friends/${encodeURIComponent(f.id)}`,
-    title: name,
-    preview: f.lastText ? `${f.lastFrom === me ? 'Toi : ' : ''}${f.lastText}` : 'Dis bonjour 👋',
-    when: shortWhen(f.lastAt), unread: unreadFriend(f, me),
-    avatar: Avatar({ uid: other, name }),
-    tag: trainedToday(act) ? h('span', { class: 'tag tag--ok', title: act.sessionName || '' }, icon('dumbbell', 14), 'Auj.') : null,
-  });
+  return h('div', { class: 'conv-wrap' },
+    h('a', { class: 'conv', href: `#/u/${encodeURIComponent(other)}` },
+      Avatar({ uid: other, name }),
+      h('span', { class: 'conv__body' },
+        h('span', { class: 'conv__top' }, h('span', { class: 'conv__name' }, name)),
+        h('span', { class: 'conv__preview' }, trainedToday(act) ? `Entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}` : 'Voir son profil')),
+      trainedToday(act) ? h('span', { class: 'tag tag--ok' }, icon('dumbbell', 14), 'Auj.') : null),
+    h('a', { class: 'icon-btn icon-btn--soft conv__more', href: `#/friends/${encodeURIComponent(f.id)}`, 'aria-label': `Écrire à ${name}` }, icon('message', 18)));
 }
 
 // ── Vue : hub ───────────────────────────────────────────────────────────
@@ -153,6 +200,8 @@ function PendingRow(f, me, isAdmin) {
 /** Quitter Contact : on arrête le fil complet (économie de lectures). */
 export function leaveHub() { stopPostsFeed(); }
 
+let hubTab = 'chats';   // onglet ouvert (gardé entre deux visites)
+
 export function MessagesHubView(session) {
   startPostsFeed();
   loadMyCode(session);
@@ -160,10 +209,32 @@ export function MessagesHubView(session) {
   const friends = state.friendships.filter(isAccepted);
   const incoming = state.friendships.filter((f) => isIncoming(f, me));
   const outgoing = state.friendships.filter((f) => isOutgoing(f, me));
+  const chats = friends.filter((f) => hasChat(f, me))
+    .sort((a, b) => ms(b.lastAt) - ms(a.lastAt));
+  const unreadChats = chats.filter((f) => unreadFriend(f, me)).length + (unreadForUser(state.conversation) ? 1 : 0);
+
+  const tabs = h('div', { class: 'segmented segmented--fill hub-tabs', role: 'tablist' },
+    [['chats', 'Discussions', unreadChats], ['friends', 'Amis', incoming.length]].map(([key, label, n]) => h('button', {
+      class: `segment${hubTab === key ? ' segment--on' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(hubTab === key),
+      onclick: () => { hubTab = key; rerender(); },
+    }, label, n ? h('span', { class: 'count-badge' }, String(n)) : null)));
+
+  if (hubTab === 'chats') {
+    return [
+      PageHeader({ eyebrow: 'Messagerie', title: 'Mes messages' }),
+      tabs,
+      h('nav', { class: 'card card--flush', 'aria-label': 'Discussions' },
+        CoachRow(session),
+        chats.map((f) => ChatRow(f, me, session))),
+      chats.length ? null : h('p', { class: 'hint' }, friends.length
+        ? 'Pas encore de discussion avec tes amis. Ouvre l’onglet Amis et touche l’icône message pour écrire.'
+        : 'Ajoute des amis dans l’onglet Amis pour discuter avec eux.'),
+    ];
+  }
 
   return [
     PageHeader({ eyebrow: 'Messagerie', title: 'Mes messages' }),
-    h('nav', { class: 'card card--flush', 'aria-label': 'Coach' }, CoachRow(session)),
+    tabs,
     incoming.length ? [
       SectionTitle(`Demandes d’ami (${incoming.length})`),
       h('section', { class: 'card card--flush requests requests--in' }, incoming.map((f) => RequestRow(f, me, session.isAdmin))),
@@ -311,7 +382,10 @@ export function FriendChatView(session, pid) {
       h('a', { href: `#/u/${encodeURIComponent(other)}`, 'aria-label': `Voir le profil de ${name}` }, Avatar({ uid: other, name })),
       IconButton('more', 'Options', () => actionSheet({
         title: name,
-        actions: [{ label: 'Retirer de mes amis', icon: 'trash', danger: true, onClick: async () => {
+        actions: [
+          { label: 'Voir son profil', icon: 'user', onClick: () => { location.hash = `#/u/${encodeURIComponent(other)}`; } },
+          { label: 'Supprimer la discussion', icon: 'trash', danger: true, onClick: async () => { if (await deleteChat('friend', session, f, name)) location.hash = '#/contact'; } },
+          { label: 'Retirer de mes amis', icon: 'x', danger: true, onClick: async () => {
           const ok = await confirmSheet({ title: `Retirer ${name} ?`, message: 'Votre discussion ne sera plus accessible.', confirmLabel: 'Retirer' });
           if (ok) { await removeFriend(pid); location.hash = '#/contact'; }
         } }],
@@ -320,7 +394,10 @@ export function FriendChatView(session, pid) {
   });
 
   if (messages === null) return [header, Skeleton(2)];
-  if (messages.length !== lastCount) { scrollToEnd(lastCount > 0); lastCount = messages.length; }
+  // Discussion supprimée de mon côté : seuls les messages postérieurs s'affichent.
+  const cleared = ms(f.clearedAt?.[me]);
+  const shown = cleared ? messages.filter((m) => ms(m.at) > cleared) : messages;
+  if (shown.length !== lastCount) { scrollToEnd(lastCount > 0); lastCount = shown.length; }
   drafts[pid] = drafts[pid] || { text: '' };
 
   return [
@@ -328,8 +405,8 @@ export function FriendChatView(session, pid) {
     trainedToday(act)
       ? h('p', { class: 'friend-status' }, icon('dumbbell', 16), `S’est entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}`)
       : null,
-    messages.length
-      ? Thread(messages, me, { special: (m, mine, time) => (m.kind === 'share' ? ShareBubble(pid, m, mine, time) : null) })
+    shown.length
+      ? Thread(shown, me, { special: (m, mine, time) => (m.kind === 'share' ? ShareBubble(pid, m, mine, time) : null) })
       : h('p', { class: 'muted center' }, `Commence la discussion avec ${name}.`),
     h('div', { class: 'composer-spacer' }),
     Composer({ id: `friend-input-${pid}`, draft: drafts[pid], placeholder: 'Message…', onSend: (t) => sendFriendMessage(me, pid, t) }),

@@ -61,6 +61,27 @@ const standalone = window.navigator.standalone === true || window.matchMedia('(d
 document.documentElement.classList.toggle('in-browser', !standalone);
 
 /**
+ * Liens externes depuis l'app installée sur iPhone : iOS les ouvre sinon dans un
+ * navigateur intégré à l'app. On les confie à Safari (schéma x-safari-https,
+ * iOS 17+), d'où Spotify, YouTube… prennent le relais si l'app est installée.
+ * Si Safari ne s'ouvre pas (ancien iOS), on ouvre le lien normalement.
+ */
+const IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+if (standalone && IOS) {
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest?.('a[href]');
+    if (!a || e.defaultPrevented) return;
+    let u;
+    try { u = new URL(a.href, location.href); } catch { return; }
+    if (!/^https?:$/.test(u.protocol) || u.origin === location.origin) return;
+    e.preventDefault();
+    const fallback = setTimeout(() => { location.href = u.href; }, 1500);
+    document.addEventListener('visibilitychange', () => clearTimeout(fallback), { once: true });
+    location.href = `x-safari-${u.href}`;   // « x-safari-https://… »
+  });
+}
+
+/**
  * Écrans rarement ouverts (admin, calculateur, import/export, diagnostic) :
  * chargés À LA DEMANDE. Le démarrage n'a pas à télécharger ni analyser leur code.
  */

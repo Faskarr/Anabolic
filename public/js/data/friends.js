@@ -34,7 +34,7 @@ export const isIncoming = (f, me) => f.status === 'pending' && f.requestedBy !==
 /** Demande envoyée, en attente de réponse. */
 export const isOutgoing = (f, me) => f.status === 'pending' && f.requestedBy === me;
 export const friendOf = (f, me) => f.members.find((m) => m !== me);
-export const unreadFriend = (f, me) => Boolean(isAccepted(f) && f.lastFrom && f.lastFrom !== me && ms(f.lastAt) > ms(f.readAt?.[me]));
+export const unreadFriend = (f, me) => Boolean(isAccepted(f) && f.lastFrom && f.lastFrom !== me && ms(f.lastAt) > ms(f.readAt?.[me]) && ms(f.lastAt) > ms(f.clearedAt?.[me]));
 
 const read = (snap) => ({ id: snap.id, ...snap.data({ serverTimestamps: 'estimate' }) });
 
@@ -170,6 +170,19 @@ export function sendFriendShares(uid, pid, items) {
 export function answerFriendShare(pid, mid, status) {
   return updateDoc(doc(db, 'friendships', pid, 'messages', mid), { status });
 }
+
+/**
+ * Supprime la discussion POUR MOI (comme WhatsApp) : les messages antérieurs ne
+ * s'affichent plus chez moi ; l'ami et l'amitié sont conservés. La discussion
+ * réapparaît au prochain message.
+ */
+export function clearFriendChat(uid, pid) {
+  return updateDoc(doc(db, 'friendships', pid), {
+    [`clearedAt.${uid}`]: serverTimestamp(), [`readAt.${uid}`]: serverTimestamp(),
+  });
+}
+/** Discussion visible dans « Discussions » : un message après ma suppression éventuelle. */
+export const hasChat = (f, me) => Boolean(f.lastAt && ms(f.lastAt) > ms(f.clearedAt?.[me]));
 
 export function markFriendRead(uid, pid) {
   updateDoc(doc(db, 'friendships', pid), { [`readAt.${uid}`]: serverTimestamp() }).catch(() => {});

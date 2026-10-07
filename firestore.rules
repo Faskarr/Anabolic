@@ -230,8 +230,10 @@ service cloud.firestore {
         || isAdmin();
 
       allow update: if (isOwner(uid)
-             && onlyChanges(['userReadAt'])
-             && request.resource.data.userReadAt == request.time)
+             && onlyChanges(['userReadAt', 'userClearedAt'])
+             && request.resource.data.userReadAt == request.time
+             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userClearedAt'])
+                 || request.resource.data.userClearedAt == request.time))
         || (isOwner(uid)
              && onlyChanges(['userName', 'lastText', 'lastFrom', 'lastAt', 'userReadAt', 'status'])
              && isUserConv(request.resource.data)
@@ -296,8 +298,9 @@ service cloud.firestore {
           //     chacun ne modifie que SA date de lecture, et l'aperçu n'est
           //     réécrit que par l'auteur du message, à l'instant de l'envoi.
           || (resource.data.get('status', 'accepted') == 'accepted'
-            && onlyChanges(['lastText', 'lastFrom', 'lastAt', 'readAt'])
+            && onlyChanges(['lastText', 'lastFrom', 'lastAt', 'readAt', 'clearedAt'])
             && request.resource.data.get('readAt', {}).diff(resource.data.get('readAt', {})).affectedKeys().hasOnly([request.auth.uid])
+            && request.resource.data.get('clearedAt', {}).diff(resource.data.get('clearedAt', {})).affectedKeys().hasOnly([request.auth.uid])
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastText', 'lastFrom', 'lastAt'])
                 || (request.resource.data.lastFrom == request.auth.uid
                     && request.resource.data.lastAt == request.time

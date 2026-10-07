@@ -100,6 +100,11 @@ export function markReadByUser(uid) {
     .catch((err) => console.warn('[messages] lu (user)', err));
 }
 
+/** UTILISATEUR — supprime la discussion avec le coach de MON côté (l'historique reste chez le coach). */
+export function clearCoachChat(uid) {
+  return updateDoc(convRef(uid), { userClearedAt: serverTimestamp(), userReadAt: serverTimestamp() });
+}
+
 /** ADMIN — répond à (ou écrit en premier à) un utilisateur. */
 export function sendAdminMessage(uid, text, userName) {
   const body = clean(text);

@@ -105,6 +105,39 @@ export function openSheet({ title, subtitle, body, footer, onClose, label }) {
 const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const WEEKDAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
+/**
+ * Plusieurs heures (ex. prise matin + soir) : une ligne par heure,
+ * « + Ajouter une heure », ✕ pour retirer. read() → ['08:00', '20:00'] (triées, sans doublon).
+ */
+function timesField(field) {
+  const list = h('div', { class: 'times' });
+  const addBtn = h('button', { class: 'link-btn', type: 'button' }, icon('plus', 15), 'Ajouter une heure');
+  const rows = [];
+  const add = (v) => {
+    const input = h('input', { class: 'input times__input', type: 'time', 'aria-label': 'Heure de prise' });
+    input.value = v || '';
+    const row = h('div', { class: 'times__row' }, input,
+      h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': 'Retirer cette heure',
+        onclick: () => { if (rows.length > 1) { rows.splice(rows.indexOf(input), 1); row.remove(); } } }, icon('x', 16)));
+    rows.push(input);
+    list.appendChild(row);
+    return input;
+  };
+  (field.value?.length ? field.value : ['08:00']).forEach(add);
+  addBtn.addEventListener('click', () => {
+    // Heure proposée : 12 h après la dernière (matin → soir).
+    const last = rows.at(-1)?.value || '08:00';
+    const [hh, mm] = last.split(':').map(Number);
+    add(`${String((hh + 12) % 24).padStart(2, '0')}:${String(mm || 0).padStart(2, '0')}`).focus();
+  });
+  return {
+    el: h('div', { class: 'field' }, h('span', { class: 'field__label' }, field.label), list, addBtn,
+      field.hint ? h('span', { class: 'field__hint' }, field.hint) : null),
+    input: rows[0],
+    read: () => [...new Set(rows.map((x) => x.value).filter((v) => /^\d{2}:\d{2}$/.test(v)))].sort(),
+  };
+}
+
 function weekdaysField(field) {
   const selected = new Set(field.value || []);
   const buttons = WEEKDAY_LABELS.map((l, i) => {
@@ -222,6 +255,7 @@ export function formSheet({ title, subtitle, fields, submitLabel = 'Enregistrer'
     const build = (f) => {
       if (f.type === 'row') return h('div', { class: 'field-row' }, f.fields.map(build));
       const c = f.type === 'weekdays' ? weekdaysField(f)
+        : f.type === 'times' ? timesField(f)
         : f.type === 'toggle' ? toggleField(f)
           : f.type === 'choice' ? choiceField(f)
             : inputField(f);

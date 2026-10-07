@@ -1482,3 +1482,27 @@ html[data-theme="dark"] .music-tag--youtube { color: #f87171; }
 /* Note du profil : centrée sous la photo */
 .phero .pnote { text-align: center; display: flex; flex-direction: column; align-items: center; }
 .phero .pnote__edit { margin-left: auto; margin-right: auto; }
+
+/* Plusieurs heures de prise */
+.times { display: flex; flex-direction: column; gap: 6px; }
+.times__row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+.times__input { min-height: 46px; }
+
+/* Messagerie : onglets Discussions / Amis, options par ligne */
+.hub-tabs { margin-bottom: var(--s3); }
+.hub-tabs .count-badge { margin-left: 6px; }
+.conv-wrap { display: flex; align-items: center; }
+.conv-wrap > .conv { flex: 1; min-width: 0; }
+.conv-wrap + .conv-wrap, .conv + .conv-wrap, .conv-wrap + .conv { border-top: .5px solid var(--line); }
+.conv__more { flex-shrink: 0; margin-right: 8px; }
+
+/* Raccourci HSN (accueil, entre le prénom et Messages) */
+.home-hello__actions { display: flex; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.hsn-btn {
+  flex-shrink: 0; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  min-width: 64px; padding: 8px 10px 6px; border-radius: var(--r-md);
+  background: var(--card); box-shadow: var(--shadow-card); text-decoration: none; color: var(--bordeaux);
+}
+.hsn-btn:active { transform: scale(.95); }
+.hsn-btn__logo { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1; letter-spacing: .02em; }
+.hsn-btn__label { font-size: 10.5px; font-weight: 700; color: var(--bordeaux); }

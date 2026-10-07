@@ -347,6 +347,14 @@ function customize() {
   openSheet({ title: 'Personnaliser l’accueil', subtitle: 'Déplace, masque ou ajoute des widgets. Synchronisé sur tous tes appareils.', body: list });
 }
 
+/** Raccourci partenaire HSN (lien affilié), ouvert dans Safari. */
+const HSN_URL = 'https://www.hsnstore.fr/affiliate/click/index?linkid=Y2F0ZWdvcnl8fDN8fEpGQVNLQXx8aHR0cHM6Ly93d3cuaHNuc3RvcmUuZnIvbnV0cml0aW9uLXNwb3J0aXZl';
+function HsnButton() {
+  return h('a', { class: 'hsn-btn', href: HSN_URL, target: '_blank', rel: 'noopener noreferrer sponsored', 'aria-label': 'HSN, nutrition sportive' },
+    h('span', { class: 'hsn-btn__logo' }, 'HSN'),
+    h('span', { class: 'hsn-btn__label' }, 'Nutrition'));
+}
+
 export function HomeView(session) {
   const first = (session.user.displayName || '').split(' ')[0];
   const head = h('header', { class: 'home-head' },
@@ -360,7 +368,9 @@ export function HomeView(session) {
       h('div', { style: { minWidth: 0 } },
         h('p', { class: 'eyebrow' }, `${greeting()} · ${formatShortDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`),
         h('h1', { class: 'page-title' }, first || 'Athlète')),
-      state.ready ? MessagesButton(session) : null));
+      h('div', { class: 'home-hello__actions' },
+        HsnButton(),
+        state.ready ? MessagesButton(session) : null)));
 
   if (!state.ready) return [head, Skeleton(5)];
   const { visible } = layout();

@@ -51,24 +51,27 @@ export function ContactView(session) {
   });
 
   if (messages === null) return [header, Skeleton(2)];
+  // Discussion supprimée de mon côté : seuls les messages postérieurs s'affichent.
+  const cleared = ms(c?.userClearedAt);
+  const shown = cleared ? messages.filter((m) => ms(m.at) > cleared) : messages;
 
   // Défilement en bas à l'ouverture et à chaque nouveau message.
-  if (messages.length !== lastCount) { scrollToEnd(lastCount > 0); lastCount = messages.length; }
+  if (shown.length !== lastCount) { scrollToEnd(lastCount > 0); lastCount = shown.length; }
 
-  const intro = messages.length ? null : h('section', { class: 'card contact-intro' },
+  const intro = shown.length ? null : h('section', { class: 'card contact-intro' },
     h('div', { class: 'empty__icon' }, icon('message', 26)),
     h('p', { class: 'card__title' }, 'Écris à ton coach'),
     h('p', { class: 'card__text' },
       'Une question sur ton programme, ta diet ou ton protocole ? La réponse arrivera ici, et un badge te préviendra.'));
 
-  const status = state.conversation?.status === 'done' && messages.length
+  const status = state.conversation?.status === 'done' && shown.length
     ? h('p', { class: 'thread__day' }, 'Conversation marquée comme traitée — écris pour la rouvrir')
     : null;
 
   return [
     header,
     intro,
-    Thread(messages, 'user'),
+    Thread(shown, 'user'),
     status,
     h('div', { class: 'composer-spacer' }),
     Composer({
