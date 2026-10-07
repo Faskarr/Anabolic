@@ -5,19 +5,19 @@
  */
 import { h } from '../lib/dom.js';
 import { localISODate } from '../lib/dates.js';
-import { state, startPostsFeed, stopPostsFeed } from '../store.js';
+import { state, startPostsFeed, stopPostsFeed, ensureAdminUsers } from '../store.js';
 import { unreadForUser, unreadForAdmin, ms, clearCoachChat } from '../data/messages.js';
 import {
   ensureMyCode, addFriendByCode, removeFriend, friendOf, unreadFriend,
   watchFriendMessages, sendFriendMessage, markFriendRead,
   acceptFriend, isAccepted, isIncoming, isOutgoing,
-  answerFriendShare, SHARE_LABEL, clearFriendChat, hasChat,
+  answerFriendShare, SHARE_LABEL, clearFriendChat, hasChat, addFriendDirect,
 } from '../data/friends.js';
 import { normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schema.js';
 import { applyImport } from '../data/importer.js';
 import { PageHeader, SectionTitle, IconButton, Skeleton } from '../ui/layout.js';
 import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
-import { formSheet, confirmSheet, actionSheet } from '../ui/sheet.js';
+import { formSheet, confirmSheet, actionSheet, openSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { Avatar } from '../ui/avatar.js';
@@ -49,6 +49,41 @@ async function shareCode() {
     if (navigator.share) await navigator.share({ title: 'AnabolicOS', text });
     else { await navigator.clipboard?.writeText(myCode); toast('Code copié'); }
   } catch (err) { if (err?.name !== 'AbortError') toast('Partage impossible.', { type: 'error' }); }
+}
+
+/**
+ * ADMIN : ajoute quelqu'un en ami directement (amitié acceptée d'office, sans
+ * demande). Liste de tous les inscrits, avec recherche.
+ */
+function adminAddFriendFlow(session) {
+  const me = session.user.uid;
+  ensureAdminUsers();
+  const known = new Set(state.friendships.map((f) => friendOf(f, me)));
+  const search = h('input', { class: 'input', type: 'search', placeholder: 'Rechercher un nom ou un e-mail…', 'aria-label': 'Rechercher un utilisateur', autocomplete: 'off' });
+  const list = h('div', { class: 'action-list admin-pick' });
+  let sheet = null;
+  const draw = () => {
+    const users = state.adminUsers;
+    if (!users) { list.replaceChildren(h('div', { class: 'spinner', style: { margin: '16px auto' } })); setTimeout(draw, 400); return; }
+    const q = search.value.trim().toLowerCase();
+    const shown = users.filter((u) => u.id !== me && !known.has(u.id) && u.status !== 'disabled'
+      && (!q || `${u.displayName || ''} ${u.email || ''}`.toLowerCase().includes(q))).slice(0, 40);
+    list.replaceChildren(...(shown.length ? shown.map((u) => h('button', {
+      class: 'action', type: 'button',
+      onclick: async () => {
+        const name = u.displayName || u.email || 'Utilisateur';
+        if (!(await confirmSheet({ title: `Ajouter ${name} en ami ?`, message: 'Sans demande : vous serez amis tout de suite et il te verra dans sa liste.', confirmLabel: 'Ajouter', danger: false }))) return;
+        try { await addFriendDirect(session.user, { uid: u.id, name }); known.add(u.id); toast(`${name} ajouté à tes amis`); draw(); } catch (err) {
+          console.error('[admin] ami', err); toast('Ajout impossible.', { type: 'error' });
+        }
+      },
+    }, Avatar({ uid: u.id, name: u.displayName || u.email, size: 'sm' }), h('span', {}, u.displayName || u.email, h('span', { class: 'muted small' }, ` · ${u.email || ''}`))))
+      : [h('p', { class: 'muted center' }, q ? 'Aucun résultat.' : 'Tout le monde est déjà dans tes amis.')]));
+  };
+  search.addEventListener('input', draw);
+  sheet = openSheet({ title: 'Ajouter un ami (admin)', subtitle: 'Sans demande ni code.', body: h('div', {}, search, list) });
+  draw();
+  return sheet;
 }
 
 async function addFriendFlow(session) {
@@ -220,14 +255,16 @@ export function MessagesHubView(session) {
     }, label, n ? h('span', { class: 'count-badge' }, String(n)) : null)));
 
   if (hubTab === 'chats') {
-    const posts = friends.length ? recentPosts(14, 8) : [];
+    const posts = friends.length ? recentPosts(30, 40) : [];
     return [
       PageHeader({ eyebrow: 'Messagerie', title: 'Mes messages' }),
       tabs,
       friends.length ? [
         SectionTitle('Records & sons', h('button', { class: 'link-btn', type: 'button', onclick: shareMusicFlow }, icon('music', 16), 'Partager un son')),
         posts.length
-          ? h('section', { class: 'card' }, h('ul', { class: 'records' }, posts.map((p) => PostRow(p, me))))
+          // ~5 publications visibles, la suite en faisant défiler DANS le bloc.
+          ? h('section', { class: 'card records-box' }, h('ul', { class: 'records records--scroll' }, posts.map((p) => PostRow(p, me))),
+            posts.length > 5 ? h('p', { class: 'records-box__more' }, `${posts.length} publications · fais défiler`) : null)
           : h('p', { class: 'hint' }, 'Partage ta musique du moment (Spotify, Deezer, YouTube Music) : tes amis l’ouvrent directement dans leur app.'),
       ] : null,
       SectionTitle('Discussions'),
@@ -247,7 +284,9 @@ export function MessagesHubView(session) {
       SectionTitle(`Demandes d’ami (${incoming.length})`),
       h('section', { class: 'card card--flush requests requests--in' }, incoming.map((f) => RequestRow(f, me, session.isAdmin))),
     ] : null,
-    SectionTitle('Amis', h('button', { class: 'link-btn', type: 'button', onclick: () => addFriendFlow(session) }, icon('plus', 16), 'Ajouter')),
+    SectionTitle('Amis', h('div', { class: 'row-gap' },
+      session.isAdmin ? h('button', { class: 'link-btn', type: 'button', onclick: () => adminAddFriendFlow(session) }, icon('shield', 16), 'Direct') : null,
+      h('button', { class: 'link-btn', type: 'button', onclick: () => addFriendFlow(session) }, icon('plus', 16), 'Ajouter'))),
     friends.length
       ? h('nav', { class: 'card card--flush', 'aria-label': 'Amis' }, friends.map((f) => FriendRow(f, me)))
       : h('p', { class: 'hint' }, 'Ajoute tes partenaires d’entraînement avec leur code : une fois la demande acceptée, vous pourrez discuter et voir qui s’est entraîné.'),

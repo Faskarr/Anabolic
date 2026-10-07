@@ -107,6 +107,20 @@ export async function addFriendByCode(user, rawCode, existing = []) {
   return other.name;
 }
 
+/** ADMIN : amitié créée directement « acceptée » (sans demande ni code). */
+export function addFriendDirect(admin, other) {
+  const members = [admin.uid, other.uid].sort();
+  return setDoc(doc(db, 'friendships', pairOf(admin.uid, other.uid)), {
+    members,
+    names: { [admin.uid]: (admin.displayName || admin.email || 'Coach').slice(0, 120), [other.uid]: String(other.name || 'Ami').slice(0, 120) },
+    code: 'ADMIN',
+    status: 'accepted',
+    requestedBy: admin.uid,
+    createdAt: serverTimestamp(),
+    acceptedAt: serverTimestamp(),
+  });
+}
+
 /** Accepte une demande reçue. */
 export function acceptFriend(pid) {
   return updateDoc(doc(db, 'friendships', pid), { status: 'accepted', acceptedAt: serverTimestamp() })

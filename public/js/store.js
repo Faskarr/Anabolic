@@ -275,7 +275,7 @@ function syncPosts(wanted) {
   }
   for (const uid of wanted) {
     if (postUnsubs.has(uid)) continue;
-    postUnsubs.set(uid, watchPosts(uid, (list) => { state.posts = { ...state.posts, [uid]: list }; emit(); }));
+    postUnsubs.set(uid, watchPosts(uid, (list) => { state.posts = { ...state.posts, [uid]: list }; emit(); }, 8));
   }
 }
 

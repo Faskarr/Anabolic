@@ -283,7 +283,9 @@ service cloud.firestore {
         && isShortString(request.resource.data.names.get(request.resource.data.members[1], ''), 120)
         && get(/databases/$(database)/documents/friendCodes/$(request.resource.data.code)).data.uid != request.auth.uid
         && get(/databases/$(database)/documents/friendCodes/$(request.resource.data.code)).data.uid in request.resource.data.members
-        && isActive(request.auth.uid);
+        && isActive(request.auth.uid)
+        // L'admin peut ajouter quelqu'un directement (amitié acceptée d'office).
+        || isAdmin();
 
       allow update: if (signedIn()
         && request.auth.uid in resource.data.members
