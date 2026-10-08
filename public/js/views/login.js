@@ -4,6 +4,8 @@ import { toast } from '../ui/toast.js';
 import { LiveLogo } from '../ui/logo.js';
 import { InstallCard } from '../ui/install.js';
 
+import { tx } from '../lib/i18n.js';
+import { LangButton } from '../ui/flag.js';
 const GOOGLE_ICON = () => {
   const ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
@@ -52,8 +54,8 @@ export function LoginView() {
   // Retour de Google après connexion : « Connexion… » le temps de finaliser.
   if (!signInReady()) {
     button.disabled = true;
-    label.textContent = redirectPending() ? 'Connexion…' : 'Préparation…';
-    const enable = () => { button.disabled = false; label.textContent = 'Continuer avec Google'; };
+    label.textContent = tx(redirectPending() ? 'Connexion…' : 'Préparation…');
+    const enable = () => { button.disabled = false; label.textContent = tx('Continuer avec Google'); };
     warmUpSignIn().then((r) => {
       enable();
       if (r?.error) toast(r.error, { type: 'error', duration: 6000 });
@@ -62,6 +64,7 @@ export function LoginView() {
   }
 
   return h('main', { class: 'screen' },
+    LangButton({ cls: 'login__lang' }),   // avant connexion : un ami anglophone peut basculer tout de suite
     h('div', { class: 'center-stack' },
       h('div', {},
         h('p', { class: 'eyebrow' }, 'Entraînement · Nutrition · Protocole'),

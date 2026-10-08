@@ -13,6 +13,7 @@ import { uid as newId } from '../lib/ids.js';
 import { toast } from '../ui/toast.js';
 import { normalizeGoals, emptyGoals } from './goals.js';
 
+import { T } from '../lib/i18n.js';
 const {
   doc, collection, query, orderBy, limit, onSnapshot, setDoc, updateDoc, deleteField, serverTimestamp, writeBatch, getDoc, FieldPath,
   getDocs, where,
@@ -23,7 +24,7 @@ const DOCS = ['profiles', 'workouts', 'diet', 'protocol', 'weights', 'exlogs', '
 
 const fail = (label) => (err) => {
   console.error(`[admin] ${label}`, err);
-  toast(`Action impossible (${label}) : ${err.code || err.message}`, { type: 'error' });
+  toast(T`Action impossible (${label}) : ${err.code || err.message}`, { type: 'error' });
   throw err;
 };
 

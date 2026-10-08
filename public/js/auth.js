@@ -7,6 +7,7 @@
  */
 import { auth, db, googleProvider, authSdk, fs } from './firebase.js';
 
+import { T } from './lib/i18n.js';
 const { signInWithPopup, signInWithRedirect, getRedirectResult, signOut: fbSignOut, onAuthStateChanged, browserPopupRedirectResolver } = authSdk;
 const { doc, getDoc, setDoc, updateDoc, serverTimestamp } = fs;
 
@@ -60,7 +61,7 @@ export const signInReady = () => ready;
 function translate(err) {
   if (!err || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request'
     || err.code === 'auth/redirect-cancelled-by-user') return null;
-  return AUTH_ERRORS[err.code] || `Connexion impossible (${err.code || err.message}).`;
+  return AUTH_ERRORS[err.code] || T`Connexion impossible (${err.code || err.message}).`;
 }
 
 export async function signIn() {

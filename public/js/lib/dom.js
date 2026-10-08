@@ -9,7 +9,11 @@
  *   h('button', { class: 'btn btn--primary', onclick: save }, 'Enregistrer')
  */
 
+import { tx } from './i18n.js';
+
 const BOOLEAN_PROPS = new Set(['disabled', 'checked', 'hidden', 'required', 'readonly']);
+// Attributs lus par l'utilisateur (ou VoiceOver) : traduits comme les textes.
+const TEXT_ATTRS = new Set(['aria-label', 'placeholder', 'title', 'alt']);
 
 export function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
@@ -31,18 +35,19 @@ export function h(tag, props = {}, ...children) {
       // Bloque les URL javascript: / data: injectées (images base64 autorisées en src uniquement).
       el.setAttribute(key, safeUrl(value, key === 'src' && tag === 'img'));
     } else {
-      el.setAttribute(key, String(value));
+      el.setAttribute(key, TEXT_ATTRS.has(key) ? tx(String(value)) : String(value));
     }
   }
 
-  append(el, children);
+  // translate: 'no' → contenu saisi par un utilisateur (message, note…) : jamais traduit.
+  append(el, children, props?.translate !== 'no');
   return el;
 }
 
-function append(parent, children) {
+function append(parent, children, translate = true) {
   for (const child of children.flat(Infinity)) {
     if (child == null || child === false) continue;
-    parent.appendChild(child instanceof Node ? child : document.createTextNode(String(child)));
+    parent.appendChild(child instanceof Node ? child : document.createTextNode(translate ? tx(String(child)) : String(child)));
   }
 }
 

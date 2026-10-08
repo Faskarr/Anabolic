@@ -32,6 +32,7 @@ import { weightStats } from './weight.js';
 import { effectiveWeekdays, itemKey } from './protocol.js';
 import { est1RM } from './training.js';
 
+import { T, tx, locale } from '../lib/i18n.js';
 const rerender = () => window.dispatchEvent(new Event('app:render'));
 const DAY = 86400000;
 const CAT_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
@@ -45,8 +46,8 @@ function ago(v) {
   const days = Math.floor((Date.now() - t) / DAY);
   if (days <= 0) return "aujourd'hui";
   if (days === 1) return 'hier';
-  if (days < 30) return `il y a ${days} j`;
-  return new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: days > 330 ? 'numeric' : undefined });
+  if (days < 30) return T`il y a ${days} j`;
+  return new Date(t).toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: days > 330 ? 'numeric' : undefined });
 }
 
 function Avatar(u, size = '') {
@@ -155,7 +156,7 @@ function backupAge() {
   }
   if (!lastBackupCache) return 'jamais';
   const days = Math.floor((Date.now() - lastBackupCache) / DAY);
-  return days === 0 ? "aujourd'hui" : `il y a ${days} j`;
+  return days === 0 ? "aujourd'hui" : T`il y a ${days} j`;
 }
 
 /**
@@ -173,10 +174,10 @@ function backupFlow() {
   });
 
   loadBackup()
-    .then((m) => m.exportDatabase((step) => { status.textContent = `Lecture : ${step}…`; })
+    .then((m) => m.exportDatabase((step) => { status.textContent = T`Lecture : ${step}…`; })
       .then((res) => ({ m, res })))
     .then(({ m, res }) => {
-      status.textContent = `${res.count} documents · ${res.sizeKb} Ko — prêt.`;
+      status.textContent = T`${res.count} documents · ${res.sizeKb} Ko — prêt.`;
       actions.replaceChildren(
         h('button', {
           class: 'btn btn--primary btn--block', type: 'button',
@@ -194,8 +195,8 @@ function backupFlow() {
     .catch((err) => {
       console.error('[admin] sauvegarde', err);
       status.textContent = err?.code === 'permission-denied'
-        ? 'Accès refusé : déploie les règles Firestore (firebase deploy --only firestore:rules).'
-        : `Échec : ${err?.code || err?.message || err}`;
+        ? tx('Accès refusé : déploie les règles Firestore (firebase deploy --only firestore:rules).')
+        : T`Échec : ${err?.code || err?.message || err}`;
     });
 }
 
@@ -244,10 +245,10 @@ async function sendFlow(user, cat) {
   const mine = state.profiles[cat]?.list || [];
   const source = await new Promise((resolve) => {
     actionSheet({
-      title: `Envoyer un ${CAT_LABEL[cat].toLowerCase()}`,
+      title: T`Envoyer un ${CAT_LABEL[cat].toLowerCase()}`,
       subtitle: `à ${user.displayName || user.email}`,
       actions: [
-        ...librarySources(cat).map((x) => ({ label: `Bibliothèque · ${x.name}`, icon: 'book', onClick: () => resolve({ name: x.name, payload: x.payload }) })),
+        ...librarySources(cat).map((x) => ({ label: T`Bibliothèque · ${x.name}`, icon: 'book', onClick: () => resolve({ name: x.name, payload: x.payload }) })),
         ...mine.map((p) => ({ label: p.name, icon: 'file', onClick: () => resolve({ name: p.name, payload: profileData(cat, p.id) }) })),
         { label: 'Coller un code AnabolicOS…', icon: 'copy', onClick: async () => {
           const r = await formSheet({
@@ -257,13 +258,13 @@ async function sendFlow(user, cat) {
           if (!r?.values) return resolve(null);
           try {
             const { bundle } = parseImport(r.values.code);
-            if (!bundle[cat]) throw new Error(`Ce code ne contient pas de ${CAT_LABEL[cat].toLowerCase()}.`);
+            if (!bundle[cat]) throw new Error(T`Ce code ne contient pas de ${CAT_LABEL[cat].toLowerCase()}.`);
             resolve({ name: bundle.name || CAT_LABEL[cat], payload: bundle[cat] });
           } catch (err) { toast(err.message, { type: 'error' }); resolve(null); }
         } },
       ],
     });
-    if (!mine.length && !librarySources(cat).length) toast(`Tu n'as aucun ${CAT_LABEL[cat].toLowerCase()} à toi : colle un code ou crée-en un dans ton propre onglet.`);
+    if (!mine.length && !librarySources(cat).length) toast(T`Tu n'as aucun ${CAT_LABEL[cat].toLowerCase()} à toi : colle un code ou crée-en un dans ton propre onglet.`);
   });
   if (!source) return;
 
@@ -290,7 +291,7 @@ async function sendFlow(user, cat) {
       } },
       { label: 'Installer et activer maintenant', icon: 'download', onClick: async () => {
         await installProfileForUser(user.id, data.profiles, cat, r.values.title, payload);
-        toast(`${CAT_LABEL[cat]} installé chez ${user.displayName || 'l’utilisateur'}`);
+        toast(T`${CAT_LABEL[cat]} installé chez ${user.displayName || 'l’utilisateur'}`);
       } },
     ],
   });
@@ -302,7 +303,7 @@ function manageProfile(user, cat, prof) {
   const isActive = activeOf(cat) === prof.id;
   actionSheet({
     title: prof.name,
-    subtitle: `${CAT_LABEL[cat]} de ${user.displayName || user.email}`,
+    subtitle: T`${CAT_LABEL[cat]} de ${user.displayName || user.email}`,
     actions: [
       !isActive && { label: 'Rendre actif', icon: 'check', onClick: () => setUserActiveProfile(user.id, data.profiles, cat, prof.id) },
       { label: 'Renommer', icon: 'edit', onClick: async () => {
@@ -310,7 +311,7 @@ function manageProfile(user, cat, prof) {
         if (r?.values) renameUserProfile(user.id, data.profiles, cat, prof.id, r.values.name);
       } },
       { label: 'Supprimer', icon: 'trash', danger: true, onClick: async () => {
-        const ok = await confirmSheet({ title: `Supprimer « ${prof.name} » ?`, message: 'Le profil sera supprimé chez l’utilisateur. Action irréversible.' });
+        const ok = await confirmSheet({ title: T`Supprimer « ${prof.name} » ?`, message: 'Le profil sera supprimé chez l’utilisateur. Action irréversible.' });
         if (ok) { await deleteUserProfile(user.id, data.profiles, cat, prof.id); toast('Profil supprimé'); }
       } },
     ],
@@ -330,9 +331,9 @@ function ProfileChips(user, cat) {
 
 const NoData = (cat, user) => Empty({
   iconName: { workout: 'dumbbell', diet: 'leaf', protocol: 'pill' }[cat],
-  title: `Aucun ${CAT_LABEL[cat].toLowerCase()}`,
+  title: T`Aucun ${CAT_LABEL[cat].toLowerCase()}`,
   text: 'Tu peux lui en envoyer un.',
-  actionLabel: `Envoyer un ${CAT_LABEL[cat].toLowerCase()}`,
+  actionLabel: T`Envoyer un ${CAT_LABEL[cat].toLowerCase()}`,
   onAction: () => sendFlow(user, cat),
 });
 
@@ -360,7 +361,7 @@ function OverviewTab(user) {
     SectionTitle('Envois récents'),
     inbox.length
       ? h('section', { class: 'card card--flush' }, inbox.map((it) => h('div', { class: 'list__row' },
-        h('span', { class: 'list__main' }, `${CAT_LABEL[it.type] || 'Envoi'} · ${it.title}`),
+        h('span', { class: 'list__main' }, T`${CAT_LABEL[it.type] || 'Envoi'} · ${it.title}`),
         h('span', { class: `tag${it.status === 'accepted' ? ' tag--ok' : it.status === 'dismissed' ? '' : ' tag--pending'}` },
           { pending: 'En attente', accepted: 'Accepté', dismissed: 'Ignoré' }[it.status] || it.status),
         it.status === 'pending' ? IconButton('x', 'Annuler cet envoi', () => cancelProposal(user.id, it.id), 'icon-btn--ghost') : null)))
@@ -373,7 +374,7 @@ function WeightTab() {
   if (!log.length) return [Empty({ iconName: 'scale', title: 'Aucune pesée', text: "L'utilisateur n'a pas encore saisi de poids." })];
   return [
     h('section', { class: 'card' },
-      h('p', { class: 'eyebrow' }, `Courbe · ${Math.min(60, log.length)} dernières pesées`),
+      h('p', { class: 'eyebrow' }, T`Courbe · ${Math.min(60, log.length)} dernières pesées`),
       h('div', { class: 'chart-wrap' }, lineChart(log.slice(-60).map((e) => ({ label: formatShortDate(e.date, { day: 'numeric', month: 'short' }), value: e.kg })), { unit: ' kg' }))),
     h('section', { class: 'card card--flush' }, [...log].reverse().slice(0, 60).map((e) => h('div', { class: 'list__row' },
       h('span', { class: 'list__meta list__meta--date' }, formatShortDate(e.date)),
@@ -392,15 +393,15 @@ function WorkoutTab(user) {
       return h('section', { class: 'card card--flush' },
         h('header', { class: 'meal__head' },
           h('div', {}, h('h3', { class: 'meal__name' }, s.name),
-            h('span', { class: 'meal__kcal' }, [formatWeekdays(s.weekdays), `${(s.exercises || []).length} exercices`].filter(Boolean).join(' · '))),
+            h('span', { class: 'meal__kcal' }, [formatWeekdays(s.weekdays), T`${(s.exercises || []).length} exercices`].filter(Boolean).join(' · '))),
           done ? h('span', { class: 'tag tag--ok' }, 'Faite cette semaine') : null),
         (s.exercises || []).map((e) => {
           const last = data.exlogs[e.id]?.at(-1);
           return h('div', { class: 'food' },
             h('span', { class: 'food__body' },
               h('span', { class: 'food__name' }, e.n),
-              h('span', { class: 'food__meta' }, [e.s, e.r !== '—' ? `repos ${e.r}` : null, e.no].filter(Boolean).join(' · '))),
-            last ? h('span', { class: 'food__kcal', title: `1RM estimé ${frNum(est1RM(last.w, last.r), 0)} kg` }, `${frNum(last.w, last.w % 1 ? 1 : 0)}×${last.r}`) : null);
+              h('span', { class: 'food__meta' }, [e.s, e.r !== '—' ? T`repos ${e.r}` : null, e.no].filter(Boolean).join(' · '))),
+            last ? h('span', { class: 'food__kcal', title: T`1RM estimé ${frNum(est1RM(last.w, last.r), 0)} kg` }, `${frNum(last.w, last.w % 1 ? 1 : 0)}×${last.r}`) : null);
         }));
     }) : h('p', { class: 'hint' }, 'Ce programme ne contient aucune séance.'),
   ];
@@ -413,7 +414,7 @@ function DietTab(user) {
   return [
     ProfileChips(user, 'diet'),
     h('section', { class: 'card' },
-      h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, String(t.cal)), h('span', { class: 'kcal__unit' }, d.objective ? ` / ${d.objective} kcal` : ' kcal')),
+      h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, String(t.cal)), h('span', { class: 'kcal__unit' }, d.objective ? T` / ${d.objective} kcal` : ' kcal')),
       h('div', { class: 'macros' },
         MacroBar('Protéines', t.p, d.macros?.p || 0, 'p'),
         MacroBar('Glucides', t.g, d.macros?.g || 0, 'g'),
@@ -485,17 +486,17 @@ async function renameFlow(uid, user) {
   const google = user.googleName || user.email || '';
   const r = await formSheet({
     title: 'Renommer',
-    subtitle: `Nom Google : ${google}. Le nouveau nom s’affiche partout (amis, profil, messages). Laisse vide pour revenir au nom Google.`,
+    subtitle: T`Nom Google : ${google}. Le nouveau nom s’affiche partout (amis, profil, messages). Laisse vide pour revenir au nom Google.`,
     fields: [{ name: 'pseudo', label: 'Nom affiché', maxlength: 30, value: user.pseudo || '', placeholder: google }],
     submitLabel: 'Enregistrer',
   });
   if (!r?.values) return;
   try {
     const name = await renameUser(uid, r.values.pseudo);
-    toast(`Renommé : ${name}`);
+    toast(T`Renommé : ${name}`);
   } catch (err) {
     console.error('[admin] renommer', err);
-    toast(`Renommage impossible : ${err.code || err.message}`, { type: 'error' });
+    toast(T`Renommage impossible : ${err.code || err.message}`, { type: 'error' });
   }
 }
 
@@ -504,19 +505,19 @@ function deleteAccountFlow(uid, user) {
   const who = user.displayName || user.email || 'cet utilisateur';
   const run = async (block) => {
     const ok = await confirmSheet({
-      title: `Supprimer ${who} ?`,
-      message: `Toutes ses données seront effacées définitivement (programmes, diet, protocole, poids, carnet, messages, amis, photo).${block ? ' Il ne pourra plus se réinscrire avec ce compte Google.' : ' S’il se reconnecte, il repartira de zéro.'} Action irréversible.`,
+      title: T`Supprimer ${who} ?`,
+      message: T`Toutes ses données seront effacées définitivement (programmes, diet, protocole, poids, carnet, messages, amis, photo).${block ? ' Il ne pourra plus se réinscrire avec ce compte Google.' : ' S’il se reconnecte, il repartira de zéro.'} Action irréversible.`,
       confirmLabel: 'Supprimer définitivement',
     });
     if (!ok) return;
     toast('Suppression en cours…');
     try {
       const n = await deleteUserAccount(uid, { block });
-      toast(`Compte supprimé (${n} éléments effacés)`);
+      toast(T`Compte supprimé (${n} éléments effacés)`);
       location.hash = '#/admin';
     } catch (err) {
       console.error('[admin] suppression', err);
-      toast(`Suppression incomplète : ${err.code || err.message}. Réessaie.`, { type: 'error', duration: 7000 });
+      toast(T`Suppression incomplète : ${err.code || err.message}. Réessaie.`, { type: 'error', duration: 7000 });
     }
   };
   actionSheet({
@@ -554,7 +555,7 @@ export function AdminUserView(session, uid) {
       Avatar(user, 'avatar--lg'),
       h('div', { style: { minWidth: 0 } },
         h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
-        h('p', { class: 'muted small' }, `Inscrit ${ago(user.createdAt)} · actif ${ago(user.lastActiveAt)}`),
+        h('p', { class: 'muted small' }, T`Inscrit ${ago(user.createdAt)} · actif ${ago(user.lastActiveAt)}`),
         disabled ? h('span', { class: 'tag tag--danger', style: { marginTop: '6px', display: 'inline-block' } }, 'Compte désactivé') : null)),
     h('div', { class: 'action-grid' },
       h('a', { class: 'action-tile', href: `#/admin/conv/${encodeURIComponent(uid)}` },

@@ -15,6 +15,7 @@ import { formSheet, confirmSheet } from '../ui/sheet.js';
 import { undoToast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 
+import { T, tx } from '../lib/i18n.js';
 const SUGGESTIONS = [
   { title: '10 000 pas', period: 'day' },
   { title: 'Boire 3 L d’eau', period: 'day' },
@@ -36,14 +37,14 @@ export async function editGoal(item, apply, defaultPeriod = 'day') {
     fields: [
       { name: 'title', label: 'Objectif / habitude', value: item?.title, required: true, maxlength: 100, placeholder: '10 000 pas, 3 L d’eau, 4 séances…' },
       { name: 'period', type: 'choice', label: 'À cocher', columns: 3, value: item?.period || defaultPeriod,
-        options: PERIOD_ORDER.map((p) => ({ value: p, label: PERIODS[p].label, sub: `chaque ${PERIODS[p].short}` })) },
+        options: PERIOD_ORDER.map((p) => ({ value: p, label: PERIODS[p].label, sub: T`chaque ${PERIODS[p].short}` })) },
     ],
     submitLabel: item ? 'Enregistrer' : 'Ajouter',
     deleteLabel: item ? 'Supprimer' : null,
   });
   if (!r) return null;
   if (r.action === 'delete') {
-    const ok = await confirmSheet({ title: `Supprimer « ${item.title} » ?`, message: 'L’historique de cet objectif sera perdu.' });
+    const ok = await confirmSheet({ title: T`Supprimer « ${item.title} » ?`, message: 'L’historique de cet objectif sera perdu.' });
     if (!ok) return null;
     return apply((g) => { g.items = g.items.filter((x) => x.id !== item.id); });
   }
@@ -65,7 +66,7 @@ function GoalRow(goals, item, { onToggle, onEdit, compact }) {
   return h('div', { class: `goal${on ? ' goal--on' : ''}` },
     h('button', {
       class: 'goal__check', type: 'button', 'aria-pressed': String(on),
-      'aria-label': `${on ? 'Décocher' : 'Cocher'} ${item.title}`, onclick: () => onToggle(item),
+      'aria-label': `${tx(on ? 'Décocher' : 'Cocher')} ${item.title}`, onclick: () => onToggle(item),
     }, icon('check', 18)),
     h('button', { class: 'goal__body', type: 'button', onclick: () => (onEdit ? onEdit(item) : onToggle(item)) },
       h('span', { class: 'goal__title' }, item.title),
@@ -91,9 +92,9 @@ export function GoalsBoard({ goals, onToggle, onEdit, onAdd }) {
     return h('section', { class: 'card card--flush goals' },
       h('header', { class: 'goals__head' },
         h('div', {},
-          h('p', { class: 'eyebrow' }, `${PERIODS[p].label} · ${PERIODS[p].title}`),
+          h('p', { class: 'eyebrow' }, T`${PERIODS[p].label} · ${PERIODS[p].title}`),
           h('p', { class: 'goals__count' }, `${pr.done}/${pr.total}`, pr.done === pr.total ? h('span', {}, ' ✓') : null)),
-        onAdd ? IconButton('plus', `Ajouter un objectif ${PERIODS[p].label.toLowerCase()}`, () => onAdd(p), 'icon-btn--soft') : null),
+        onAdd ? IconButton('plus', T`Ajouter un objectif ${PERIODS[p].label.toLowerCase()}`, () => onAdd(p), 'icon-btn--soft') : null),
       h('div', { class: 'bar goals__bar' }, h('div', { class: 'bar__fill', style: { width: `${pr.total ? Math.round((pr.done / pr.total) * 100) : 0}%` } })),
       list.map((x) => GoalRow(goals, x, { onToggle, onEdit })));
   });
@@ -127,8 +128,8 @@ export function GoalsView() {
     SectionTitle('Idées'),
     h('div', { class: 'chips chips--wrap' }, SUGGESTIONS.filter((sg) => !items.some((x) => x.title === sg.title)).map((sg) => h('button', {
       class: 'chip chip--outline', type: 'button',
-      onclick: () => { const undo = apply((g) => { g.items.push({ id: uid('goal'), ...sg }); }); undoToast(`« ${sg.title} » ajouté`, undo); },
-    }, icon('plus', 14), ` ${sg.title} · ${PERIODS[sg.period].short}`))),
+      onclick: () => { const undo = apply((g) => { g.items.push({ id: uid('goal'), ...sg }); }); undoToast(T`« ${sg.title} » ajouté`, undo); },
+    }, icon('plus', 14), T` ${sg.title} · ${PERIODS[sg.period].short}`))),
     h('p', { class: 'hint' }, 'Les cases se remettent à zéro automatiquement chaque jour, chaque lundi et chaque 1er du mois. Ton coach peut voir et ajuster tes objectifs.'),
   ];
 }

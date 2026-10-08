@@ -19,6 +19,7 @@ import { uid as newId } from '../lib/ids.js';
 import { toast } from '../ui/toast.js';
 import { periodKey, prune as pruneGoals } from './goals.js';
 
+import { T } from '../lib/i18n.js';
 const { doc, setDoc, updateDoc, deleteField, arrayUnion, arrayRemove, FieldPath } = fs;
 
 const DATA_KEY = { workout: 'workouts', diet: 'diet', protocol: 'protocol' };
@@ -36,7 +37,7 @@ function write(run, label) {
   try { p = run(); } catch (err) { p = Promise.reject(err); }
   p.catch((err) => {
     console.error(`[repo] ${label}`, err);
-    toast(`Échec de l'enregistrement (${label}). Vérifie ta connexion.`, { type: 'error' });
+    toast(T`Échec de l'enregistrement (${label}). Vérifie ta connexion.`, { type: 'error' });
   });
 }
 

@@ -12,7 +12,7 @@
  */
 import { h } from '../lib/dom.js';
 import { uid } from '../lib/ids.js';
-import { formatWeekdays, isoWeekday, localISODate } from '../lib/dates.js';
+import { formatWeekdays, isoWeekday, localISODate, dayLetters } from '../lib/dates.js';
 import { guessWeekdays } from '../lib/schema.js';
 import { state, activeProfileId, profileData, injectionWeekKey } from '../store.js';
 import { updateProfileData, setWeekItem, resetWeek } from '../data/repo.js';
@@ -22,6 +22,7 @@ import { formSheet, confirmSheet, actionSheet, openSheet } from '../ui/sheet.js'
 import { undoToast, toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 
+import { T, locale, tx } from '../lib/i18n.js';
 const CAT = 'protocol';
 
 /** Jours du protocole actif prévus aujourd'hui (pour l'accueil). */
@@ -73,8 +74,8 @@ async function calendarSheet(days, only = null, productId = null) {
   const ics = buildICS(list);
   const name = only ? `anabolicos-${only.name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').slice(0, 30)}.ics` : 'anabolicos-rappels.ics';
   openSheet({
-    title: only ? `Rappel · ${only.name}` : 'Rappels dans Calendrier',
-    subtitle: `${list.length} rappel${list.length > 1 ? 's' : ''} récurrent${list.length > 1 ? 's' : ''}, avec alerte à l’heure de prise.`,
+    title: only ? T`Rappel · ${only.name}` : 'Rappels dans Calendrier',
+    subtitle: T`${list.length} rappel${list.length > 1 ? 's' : ''} récurrent${list.length > 1 ? 's' : ''}, avec alerte à l’heure de prise.`,
     body: h('div', { class: 'cal-sheet' },
       h('ul', { class: 'cal-list' }, list.map((x) => h('li', {},
         h('span', { class: 'cal-list__time' }, formatMinutes(x.minutes)),
@@ -122,13 +123,13 @@ export function ItemRow(pid, day, item, onEdit, timeText) {
     h('span', { class: `pr-row__time${time.length > 5 ? ' pr-row__time--word' : ''}` }, time || '—'),
     h('button', {
       class: 'pr-row__body', type: 'button',
-      'aria-label': onEdit ? `Modifier ${item.name}` : `${on ? 'Décocher' : 'Cocher'} ${item.name}`,
+      'aria-label': onEdit ? T`Modifier ${item.name}` : `${tx(on ? 'Décocher' : 'Cocher')} ${item.name}`,
       onclick: onEdit || toggle,
     },
     h('span', { class: 'pr-row__name' }, item.name),
     item.type ? h('span', { class: 'pr-row__dose' }, item.type) : null),
     h('button', {
-      class: 'pr-check', type: 'button', 'aria-pressed': String(on), 'aria-label': `${on ? 'Décocher' : 'Cocher'} ${item.name}`,
+      class: 'pr-check', type: 'button', 'aria-pressed': String(on), 'aria-label': `${tx(on ? 'Décocher' : 'Cocher')} ${item.name}`,
       onclick: toggle,
     }, icon('check', 18)));
 }
@@ -143,12 +144,12 @@ function TodayCard(pid, days) {
     .sort(byTime);
   const done = items.filter(({ d, i }) => state.week[itemKey(pid, d, i)]?.done).length;
   const pct = items.length ? Math.round((done / items.length) * 100) : 0;
-  const dayName = new Date().toLocaleDateString('fr-FR', { weekday: 'long' });
+  const dayName = new Date().toLocaleDateString(locale(), { weekday: 'long' });
 
   return h('section', { class: 'card proto-today' },
     h('div', { class: 'card__row' },
       h('div', {},
-        h('p', { class: 'eyebrow' }, `Aujourd’hui · ${dayName}`),
+        h('p', { class: 'eyebrow' }, T`Aujourd’hui · ${dayName}`),
         h('p', { class: 'proto-today__count' }, items.length ? `${done}/${items.length}` : '—', h('span', {}, items.length ? ' pris' : ''))),
       items.length ? h('span', { class: `proto-today__pct${pct === 100 ? ' proto-today__pct--done' : ''}` }, pct === 100 ? 'Terminé ✓' : `${pct} %`) : null),
     items.length ? h('div', { class: 'bar' }, h('div', { class: 'bar__fill bar__fill--p', style: { width: `${pct}%` } })) : null,
@@ -162,7 +163,6 @@ function TodayCard(pid, days) {
 
 /** Couleurs des produits : lisibles en clair comme en sombre. */
 const PALETTE = ['#9B2C3F', '#2F6F96', '#4E8A3A', '#C0711F', '#7350B5', '#1E8C82', '#B8476A', '#5B6575'];
-const WD_SHORT = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const WD_LONG = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
 const colorOf = (p) => (/^#[0-9a-f]{6}$/i.test(p?.color || '') ? p.color : PALETTE[0]);
@@ -244,14 +244,14 @@ function removeDay(entryId, wd) {
 }
 
 async function deleteProduct(product) {
-  const ok = await confirmSheet({ title: `Supprimer « ${product.name} » ?`, message: 'Le produit et toutes ses prises du planning seront supprimés.' });
+  const ok = await confirmSheet({ title: T`Supprimer « ${product.name} » ?`, message: 'Le produit et toutes ses prises du planning seront supprimés.' });
   if (!ok) return;
   const undo = updateProfileData(CAT, (d) => {
     d.products = (d.products || []).filter((x) => x.id !== product.id);
     for (const x of d.days) x.injections = (x.injections || []).filter((i) => i.pid !== product.id);
     pruneAutoDays(d);
   });
-  undoToast(`« ${product.name} » supprimé`, undo);
+  undoToast(T`« ${product.name} » supprimé`, undo);
 }
 
 async function editProduct(product) {
@@ -293,7 +293,7 @@ async function editEntry({ pid, entry = null, day = null, presetDays = null }) {
   if (!p) return;
   const t = entry ? parseTimeOfDay(entry.time) ?? itemMinutes(entry, day) : null;
   const r = await formSheet({
-    title: entry ? `${p.name} · modifier la prise` : `Quand prendre ${p.name} ?`,
+    title: entry ? T`${p.name} · modifier la prise` : T`Quand prendre ${p.name} ?`,
     subtitle: p.dose || null,
     fields: [
       { name: 'times', type: 'times', label: entry ? 'Heure (+ autres prises)' : 'Heures de prise', value: [t != null ? formatMinutes(t) : '08:00'],
@@ -317,7 +317,7 @@ async function editEntry({ pid, entry = null, day = null, presetDays = null }) {
   const times = r.values.times || [];
   if (!times.length) { toast('Indique au moins une heure.', { type: 'error' }); return; }
   saveEntries({ id: entry?.id, pid, times, weekdays: r.values.weekdays });
-  if (times.length > 1) toast(`${times.length} prises par jour : ${times.join(' · ')}`);
+  if (times.length > 1) toast(T`${times.length} prises par jour : ${times.join(' · ')}`);
 }
 
 /** Tap sur une case du tableau (produit × jour). */
@@ -328,16 +328,16 @@ function onCell(p, wd, cellEntries, allEntries) {
     if (allEntries.length === 1) {
       const { day, it } = allEntries[0];
       saveEntry({ id: it.id, pid: p.id, time: it.time || formatMinutes(itemMinutes(it, day)), weekdays: [...effectiveWeekdays(day), wd] });
-      toast(`${p.name} ajouté le ${dayName}`);
+      toast(T`${p.name} ajouté le ${dayName}`);
       return;
     }
     if (!allEntries.length) { editEntry({ pid: p.id, presetDays: [wd] }); return; }
     actionSheet({
-      title: `${p.name} · ${dayName}`,
+      title: T`${p.name} · ${dayName}`,
       subtitle: 'À quelle prise ajouter ce jour ?',
       actions: [
         ...allEntries.map(({ day, it }) => ({
-          label: `Prise de ${formatMinutes(itemMinutes(it, day))} · ${daysLabel(effectiveWeekdays(day))}`, icon: 'clock',
+          label: T`Prise de ${formatMinutes(itemMinutes(it, day))} · ${daysLabel(effectiveWeekdays(day))}`, icon: 'clock',
           onClick: () => saveEntry({ id: it.id, pid: p.id, time: it.time || formatMinutes(itemMinutes(it, day)), weekdays: [...effectiveWeekdays(day), wd] }),
         })),
         { label: 'Nouvelle heure…', icon: 'plus', onClick: () => editEntry({ pid: p.id, presetDays: [wd] }) },
@@ -346,18 +346,18 @@ function onCell(p, wd, cellEntries, allEntries) {
     return;
   }
   actionSheet({
-    title: `${p.name} · ${dayName}`,
+    title: T`${p.name} · ${dayName}`,
     subtitle: p.dose || null,
     actions: [
       ...cellEntries.map(({ day, it }) => ({
-        label: `Retirer le ${dayName} (${formatMinutes(itemMinutes(it, day))})`, icon: 'x', danger: true,
+        label: T`Retirer le ${dayName} (${formatMinutes(itemMinutes(it, day))})`, icon: 'x', danger: true,
         onClick: () => removeDay(it.id, wd),
       })),
       ...cellEntries.map(({ day, it }) => ({
-        label: `Modifier la prise de ${formatMinutes(itemMinutes(it, day))}`, icon: 'edit',
+        label: T`Modifier la prise de ${formatMinutes(itemMinutes(it, day))}`, icon: 'edit',
         onClick: () => editEntry({ pid: p.id, entry: it, day }),
       })),
-      { label: `Ajouter une autre heure le ${dayName}`, icon: 'plus', onClick: () => editEntry({ pid: p.id, presetDays: [wd] }) },
+      { label: T`Ajouter une autre heure le ${dayName}`, icon: 'plus', onClick: () => editEntry({ pid: p.id, presetDays: [wd] }) },
     ],
   });
 }
@@ -371,7 +371,7 @@ function PlanningTable(products, days) {
   return h('section', { class: 'card card--flush plan', 'aria-label': 'Planning de la semaine' },
     h('div', { class: 'plan__row plan__row--head' },
       h('span', { class: 'plan__corner' }, 'Produit'),
-      WD_SHORT.map((l, i) => h('span', { class: `plan__wd${i + 1 === today ? ' plan__wd--today' : ''}`, 'aria-label': WD_LONG[i] }, l))),
+      dayLetters().map((l, i) => h('span', { class: `plan__wd${i + 1 === today ? ' plan__wd--today' : ''}`, 'aria-label': WD_LONG[i] }, l))),
     products.map((p) => {
       const mine = all.filter(({ it }) => it.pid === p.id);
       return h('div', { class: 'plan__row', style: tint(p) },
@@ -383,7 +383,7 @@ function PlanningTable(products, days) {
             .sort((a, b) => itemMinutes(a.it, a.day) - itemMinutes(b.it, b.day));
           return h('button', {
             class: `plan__cell${cell.length ? ' plan__cell--on' : ''}${wd === today ? ' plan__cell--today' : ''}`, type: 'button',
-            'aria-label': `${p.name}, ${WD_LONG[wd - 1]} : ${cell.length ? cell.map(({ it, day }) => formatMinutes(itemMinutes(it, day))).join(', ') : 'rien'}`,
+            'aria-label': T`${p.name}, ${WD_LONG[wd - 1]} : ${cell.length ? cell.map(({ it, day }) => formatMinutes(itemMinutes(it, day))).join(', ') : 'rien'}`,
             onclick: () => onCell(p, wd, cell, mine),
           }, cell.length
             ? cell.slice(0, 2).map(({ it, day }) => h('span', { class: 'plan__time' }, formatMinutes(itemMinutes(it, day))))
@@ -401,7 +401,7 @@ function productMenu(p, days) {
     actions: [
       { label: 'Ajouter une prise (heure + jours)', icon: 'plus', onClick: () => editEntry({ pid: p.id }) },
       ...mine.map(({ day, it }) => ({
-        label: `Modifier la prise de ${formatMinutes(itemMinutes(it, day))} · ${daysLabel(effectiveWeekdays(day))}`, icon: 'clock',
+        label: T`Modifier la prise de ${formatMinutes(itemMinutes(it, day))} · ${daysLabel(effectiveWeekdays(day))}`, icon: 'clock',
         onClick: () => editEntry({ pid: p.id, entry: it, day }),
       })),
       { label: 'Renommer / changer la dose', icon: 'edit', onClick: () => editProduct(p) },
@@ -424,7 +424,7 @@ function ProductCards(products, days) {
         p.dose ? h('span', { class: 'pcard__dose' }, p.dose) : null,
         h('span', { class: 'pcard__slots' }, mine.length
           ? mine.map(({ day, it }) => h('span', { class: 'pcard__slot' },
-            h('strong', {}, formatMinutes(itemMinutes(it, day))), ` · ${daysLabel(effectiveWeekdays(day))}`))
+            h('strong', {}, formatMinutes(itemMinutes(it, day))), T` · ${daysLabel(effectiveWeekdays(day))}`))
           : h('span', { class: 'pcard__slot pcard__slot--none' }, 'Pas encore planifié — touche pour ajouter'))),
       icon('chevron', 18));
   }));

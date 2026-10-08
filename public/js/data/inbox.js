@@ -7,6 +7,7 @@ import { normalizeWorkout, normalizeDiet, normalizeProtocol } from '../lib/schem
 import { applyImport } from './importer.js';
 import { toast } from '../ui/toast.js';
 
+import { T } from '../lib/i18n.js';
 const { doc, collection, query, where, onSnapshot, updateDoc, serverTimestamp } = fs;
 
 const NORMALIZE = { workout: normalizeWorkout, diet: normalizeDiet, protocol: normalizeProtocol };
@@ -30,7 +31,7 @@ export function acceptItem(uid, item) {
   const normalize = NORMALIZE[item.type];
   if (!normalize || !item.payload) { toast('Envoi vide ou invalide.', { type: 'error' }); return close(uid, item, 'dismissed'); }
   applyImport({ name: item.title || TYPE_LABEL[item.type], [item.type]: normalize(item.payload) }, { [item.type]: true });
-  toast(`${TYPE_LABEL[item.type]} « ${item.title} » ajouté et activé`);
+  toast(T`${TYPE_LABEL[item.type]} « ${item.title} » ajouté et activé`);
   return close(uid, item, 'accepted');
 }
 

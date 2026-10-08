@@ -12,6 +12,8 @@ import { h } from '../lib/dom.js';
 import { icon } from './icons.js';
 import { LiveLogo } from './logo.js';
 
+import { T } from '../lib/i18n.js';
+import { tx } from '../lib/i18n.js';
 const KEY = (uid) => `tour:v1:${uid}`;
 const standalone = () => window.navigator.standalone === true
   || window.matchMedia('(display-mode: standalone)').matches;
@@ -30,6 +32,7 @@ function slides() {
         'La séance du jour, à cocher une fois faite.',
         'Tes amis entraînés aujourd’hui et leurs sons conseillés.',
         'Tes prochaines prises et tes habitudes. Le bouton en haut à droite réorganise les widgets.',
+        'Le drapeau en haut à droite change la langue de l’app (français / anglais).',
       ],
     },
     {
@@ -91,7 +94,7 @@ function slides() {
 }
 
 function Slide(s, i, total) {
-  return h('section', { class: 'tour__slide', 'aria-roledescription': 'page', 'aria-label': `${i + 1} sur ${total}` },
+  return h('section', { class: 'tour__slide', 'aria-roledescription': 'page', 'aria-label': T`${i + 1} sur ${total}` },
     s.hero
       ? h('div', { class: 'tour__hero' }, LiveLogo({ size: 'hero' }))
       : h('div', { class: 'tour__icon', 'aria-hidden': 'true' }, icon(s.icon, 34)),
@@ -113,7 +116,7 @@ export function showTour(uid) {
 
   const track = h('div', { class: 'tour__track' }, list.map((s, i) => Slide(s, i, list.length)));
   const dots = list.map((_, i) => h('button', {
-    class: 'tour__dot', type: 'button', 'aria-label': `Aller à la page ${i + 1}`, onclick: () => go(i),
+    class: 'tour__dot', type: 'button', 'aria-label': T`Aller à la page ${i + 1}`, onclick: () => go(i),
   }));
   const next = h('button', { class: 'btn btn--primary tour__next', type: 'button', onclick: () => (index >= list.length - 1 ? close() : go(index + 1)) }, 'Suivant');
   const skip = h('button', { class: 'link-btn tour__skip', type: 'button', onclick: () => close() }, 'Passer');
@@ -131,7 +134,7 @@ export function showTour(uid) {
     index = i;
     dots.forEach((d, k) => d.classList.toggle('tour__dot--on', k === i));
     const last = i >= list.length - 1;
-    next.textContent = last ? 'C’est parti' : 'Suivant';
+    next.textContent = tx(last ? 'C’est parti' : 'Suivant');
     skip.style.visibility = last ? 'hidden' : '';
   }
   function go(i) {

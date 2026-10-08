@@ -21,6 +21,7 @@ import { undoToast, toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { weightStats } from './weight.js';
 
+import { T, isEn } from '../lib/i18n.js';
 /** Niveaux d'activité : coefficient + repères concrets (pas / séances). */
 export const ACTIVITY = [
   { id: 'xs', label: 'Très sédentaire', factor: 1.2,   steps: '< 3 000 pas / jour',     sessions: '0 séance',             desc: 'Travail assis, peu de déplacements.' },
@@ -108,7 +109,7 @@ export function computeDiet({ sex, age, weight, height, bf, activity }) {
     lbm = w * (1 - fat / 100);
     bmr = 370 + 21.6 * lbm;
     method = 'Katch-McArdle';
-    formula = `370 + 21,6 × ${frNum(lbm, 1)} kg de masse maigre`;
+    formula = T`370 + 21,6 × ${frNum(lbm, 1)} kg de masse maigre`;
   } else {
     const k = sex === 'f' ? -161 : 5;
     bmr = 10 * w + 6.25 * ht - 5 * a + k;
@@ -134,13 +135,13 @@ function apply(goalId, r) {
   const name = GOALS[goalId].label;
   if (!activeProfileId('diet')) {
     createProfile('diet', name, { objective: t.kcal, macros: { p: t.p, g: t.g, l: t.l }, meals: [] });
-    toast(`Diet « ${name} » créée avec ${t.kcal} kcal`);
+    toast(T`Diet « ${name} » créée avec ${t.kcal} kcal`);
   } else {
     const undo = updateProfileData('diet', (d) => {
       d.objective = t.kcal;
       d.macros = { p: t.p, g: t.g, l: t.l };
     });
-    undoToast(`Objectifs mis à jour : ${t.kcal} kcal`, undo);
+    undoToast(T`Objectifs mis à jour : ${t.kcal} kcal`, undo);
   }
   location.hash = '#/diet';
 }
@@ -193,7 +194,7 @@ function Results() {
   return [
     // 1. Le résultat, en grand
     h('section', { class: 'card widget--ink calc-hero' },
-      h('p', { class: 'eyebrow' }, `${goal.label} · ${goal.range}`),
+      h('p', { class: 'eyebrow' }, T`${goal.label} · ${goal.range}`),
       h('p', { class: 'calc-hero__kcal' }, frNum(t.kcal, 0), h('span', {}, ' kcal / jour')),
       h('div', { class: 'macro-grid macro-grid--3' },
         [['Protéines', t.p, t.p * 4], ['Glucides', t.g, t.g * 4], ['Lipides', t.l, t.l * 9]].map(([l, g, kcal]) => h('div', { class: 'macro-tile' },
@@ -213,17 +214,17 @@ function Results() {
       h('p', { class: 'eyebrow' }, 'Détail du calcul'),
       h('ol', { class: 'calc-steps' },
         h('li', {},
-          h('p', { class: 'calc-steps__title' }, `Métabolisme de base · ${r.method}`),
+          h('p', { class: 'calc-steps__title' }, T`Métabolisme de base · ${r.method}`),
           h('p', { class: 'calc-steps__formula' }, `${r.formula} = `, h('strong', {}, `${frNum(r.bmr, 0)} kcal`)),
           h('p', { class: 'muted small' }, r.lbm
-            ? `Masse grasse ${frNum(num(input.bf), 1)} % → masse maigre ${frNum(r.lbm, 1)} kg. Formule plus précise quand le % est fiable.`
+            ? T`Masse grasse ${frNum(num(input.bf), 1)} % → masse maigre ${frNum(r.lbm, 1)} kg. Formule plus précise quand le % est fiable.`
             : 'Énergie dépensée au repos complet. Ajoute ton % de masse grasse pour passer en Katch-McArdle.')),
         h('li', {},
-          h('p', { class: 'calc-steps__title' }, `Dépense du jour · ${r.act.label}`),
-          h('p', { class: 'calc-steps__formula' }, `${frNum(r.bmr, 0)} × ${String(r.factor).replace('.', ',')} = `, h('strong', {}, `${frNum(r.tdee, 0)} kcal`)),
-          h('p', { class: 'muted small' }, `${r.act.steps} · ${r.act.sessions} — c’est ton maintien théorique.`)),
+          h('p', { class: 'calc-steps__title' }, T`Dépense du jour · ${r.act.label}`),
+          h('p', { class: 'calc-steps__formula' }, `${frNum(r.bmr, 0)} × ${isEn() ? r.factor : String(r.factor).replace('.', ',')} = `, h('strong', {}, `${frNum(r.tdee, 0)} kcal`)),
+          h('p', { class: 'muted small' }, T`${r.act.steps} · ${r.act.sessions} — c’est ton maintien théorique.`)),
         h('li', {},
-          h('p', { class: 'calc-steps__title' }, `Objectif · ${goal.label}`),
+          h('p', { class: 'calc-steps__title' }, T`Objectif · ${goal.label}`),
           h('p', { class: 'calc-steps__formula' },
             `${frNum(r.tdee, 0)} × ${frNum(1 + goal.adjust, 2)} = `, h('strong', {}, `${frNum(t.kcal, 0)} kcal`)),
           h('p', { class: 'muted small' }, 'Arrondi à 10 kcal près.')),
@@ -231,14 +232,14 @@ function Results() {
           h('p', { class: 'calc-steps__title' }, 'Macros'),
           h('ul', { class: 'calc-lines' },
             Line('Protéines', r.lbm
-              ? `${frNum(goal.proteinLbm, 1)} g × ${frNum(r.lbm, 1)} kg maigre = ${t.p} g`
-              : `${frNum(goal.protein, 1)} g × ${frNum(r.w, 1)} kg = ${t.p} g`),
-            Line('Lipides', `${frNum(goal.fat, 1)} g × ${frNum(r.w, 1)} kg = ${t.l} g`),
+              ? T`${frNum(goal.proteinLbm, 1)} g × ${frNum(r.lbm, 1)} kg maigre = ${t.p} g`
+              : T`${frNum(goal.protein, 1)} g × ${frNum(r.w, 1)} kg = ${t.p} g`),
+            Line('Lipides', T`${frNum(goal.fat, 1)} g × ${frNum(r.w, 1)} kg = ${t.l} g`),
             Line('Glucides', `(${t.kcal} − ${t.p}×4 − ${t.l}×9) ÷ 4 = ${t.g} g`, true))))),
 
     // 4. Conseils
     h('section', { class: 'card' },
-      h('p', { class: 'eyebrow' }, `Conseils · ${goal.label}`),
+      h('p', { class: 'eyebrow' }, T`Conseils · ${goal.label}`),
       h('ul', { class: 'calc-tips' }, goal.tips.map((tip) => h('li', {}, icon('check', 16), h('span', {}, tip)))),
       h('p', { class: 'hint' }, 'Estimation de départ : ajuste après 2 à 3 semaines selon la courbe de poids (Moi › Poids).')),
   ];
@@ -275,8 +276,8 @@ export function DietCalcView() {
         },
         h('span', { class: 'activity__check' }, on ? icon('check', 16) : null),
         h('span', { class: 'activity__body' },
-          h('span', { class: 'activity__label' }, a.label, h('span', { class: 'activity__factor' }, `× ${String(a.factor).replace('.', ',')}`)),
-          h('span', { class: 'activity__meta' }, `${a.steps} · ${a.sessions}`),
+          h('span', { class: 'activity__label' }, a.label, h('span', { class: 'activity__factor' }, `× ${isEn() ? a.factor : String(a.factor).replace('.', ',')}`)),
+          h('span', { class: 'activity__meta' }, T`${a.steps} · ${a.sessions}`),
           h('span', { class: 'activity__desc' }, a.desc)));
       })),
     h('p', { class: 'eyebrow menu-title' }, 'Résultat'),

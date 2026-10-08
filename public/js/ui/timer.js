@@ -9,6 +9,7 @@
 import { h } from '../lib/dom.js';
 import { icon } from './icons.js';
 
+import { tx } from '../lib/i18n.js';
 const PRESETS = [60, 90, 120, 150, 180];
 
 let root;
@@ -88,10 +89,10 @@ function tick() {
   endAt = null;
   root.classList.remove('timer--running');
   root.classList.add('timer--done');
-  display.textContent = 'Go !';
+  display.textContent = tx('Go !');
   navigator.vibrate?.([200, 100, 200]);
   beep();
-  setTimeout(() => { if (!endAt) { root.classList.remove('timer--done'); display.textContent = 'Repos'; } }, 4000);
+  setTimeout(() => { if (!endAt) { root.classList.remove('timer--done'); display.textContent = tx('Repos'); } }, 4000);
 }
 
 function beep() {
@@ -115,5 +116,5 @@ export function stopTimer() {
   clearInterval(tickId);
   endAt = null;
   root?.classList.remove('timer--running', 'timer--done');
-  if (display) display.textContent = 'Repos';
+  if (display) display.textContent = tx('Repos');
 }

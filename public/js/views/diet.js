@@ -13,6 +13,7 @@ import { undoToast, toast } from '../ui/toast.js';
 import { parseTimeOfDay, formatMinutes } from '../lib/schedule.js';
 import { icon } from '../ui/icons.js';
 
+import { T } from '../lib/i18n.js';
 const CAT = 'diet';
 
 /** Totaux du plan : kcal + macros (g). */
@@ -98,15 +99,15 @@ async function editMeal(meal) {
 }
 
 async function deleteMeal(meal) {
-  const ok = await confirmSheet({ title: `Supprimer « ${meal.name} » ?`, message: 'Le repas et ses aliments seront supprimés.' });
+  const ok = await confirmSheet({ title: T`Supprimer « ${meal.name} » ?`, message: 'Le repas et ses aliments seront supprimés.' });
   if (!ok) return;
   const undo = updateProfileData(CAT, (d) => { d.meals = d.meals.filter((m) => m.id !== meal.id); });
-  undoToast(`« ${meal.name} » supprimé`, undo);
+  undoToast(T`« ${meal.name} » supprimé`, undo);
 }
 
 async function editFood(meal, food) {
   const r = await formSheet({
-    title: food ? "Modifier l'aliment" : `Ajouter à ${meal.name}`,
+    title: food ? "Modifier l'aliment" : T`Ajouter à ${meal.name}`,
     fields: [
       { name: 'name', label: 'Aliment', value: food?.name, required: true, placeholder: 'Riz basmati' },
       { type: 'row', fields: [
@@ -127,7 +128,7 @@ async function editFood(meal, food) {
       const m = d.meals.find((x) => x.id === meal.id);
       if (m) m.foods = m.foods.filter((f) => f.id !== food.id);
     });
-    undoToast(`« ${food.name} » supprimé`, undo);
+    undoToast(T`« ${food.name} » supprimé`, undo);
     return;
   }
   const v = r.values;
@@ -165,8 +166,8 @@ function CaloriesCard(d, totals) {
       h('button', { class: 'link-btn', type: 'button', onclick: () => editTargets(d) }, icon('edit', 16), 'Objectifs')),
     obj
       ? h('div', { class: 'kcal' },
-        h('div', {}, h('span', { class: 'kcal__big' }, String(totals.cal)), h('span', { class: 'kcal__unit' }, ` / ${obj} kcal`)),
-        h('span', { class: `kcal__rest${rest < 0 ? ' kcal__rest--over' : ''}` }, rest >= 0 ? `${rest} restantes` : `${-rest} en trop`))
+        h('div', {}, h('span', { class: 'kcal__big' }, String(totals.cal)), h('span', { class: 'kcal__unit' }, T` / ${obj} kcal`)),
+        h('span', { class: `kcal__rest${rest < 0 ? ' kcal__rest--over' : ''}` }, rest >= 0 ? T`${rest} restantes` : T`${-rest} en trop`))
       : h('div', { class: 'kcal' }, h('span', { class: 'kcal__big' }, String(totals.cal)), h('span', { class: 'kcal__unit' }, ' kcal')),
     obj ? h('div', { class: 'bar bar--lg' }, h('div', { class: 'bar__fill', style: { width: `${pct}%` } })) : null,
     h('div', { class: 'macros' },
@@ -179,7 +180,7 @@ function CaloriesCard(d, totals) {
 
 async function editSupplement(meal, sup) {
   const r = await formSheet({
-    title: sup ? 'Modifier le complément' : `Complément · ${meal.name}`,
+    title: sup ? 'Modifier le complément' : T`Complément · ${meal.name}`,
     fields: [
       { name: 'name', label: 'Complément', value: sup?.name, required: true, maxlength: 80, placeholder: 'Créatine, Oméga 3, Vitamine D…' },
       { name: 'dose', label: 'Dose (optionnel)', value: sup?.dose, maxlength: 40, placeholder: '5 g, 2 gélules…' },
@@ -192,7 +193,7 @@ async function editSupplement(meal, sup) {
       const m = d.meals.find((x) => x.id === meal.id);
       if (m) m.supplements = (m.supplements || []).filter((x) => x.id !== sup.id);
     });
-    undoToast(`« ${sup.name} » supprimé`, undo);
+    undoToast(T`« ${sup.name} » supprimé`, undo);
     return;
   }
   const next = { id: sup?.id || uid('sup'), name: r.values.name, dose: r.values.dose || '' };
@@ -227,7 +228,7 @@ function MealTime(meal) {
     icon('clock', 14),
     h('span', {}, shown || 'Heure'),
     h('input', {
-      type: 'time', class: 'meal__time-input', value: value || shown, 'aria-label': `Heure de ${meal.name}`,
+      type: 'time', class: 'meal__time-input', value: value || shown, 'aria-label': T`Heure de ${meal.name}`,
       // iOS déclenche « change » à chaque cran de la roue : enregistrer tout de suite
       // re-rendrait l'écran et fermerait la roue. On enregistre à la fermeture.
       onchange: (e) => { if (document.activeElement !== e.target) setMealTime(meal, e.target.value); else e.target.dataset.pending = '1'; },
@@ -243,14 +244,14 @@ function MealCard(meal) {
         MealTime(meal),
         h('div', {}, h('h3', { class: 'meal__name' }, meal.name), h('span', { class: 'meal__kcal' }, `${mealCal(meal)} kcal`))),
       h('div', { class: 'row-gap' },
-        IconButton('plus', `Ajouter à ${meal.name}`, () => actionSheet({
+        IconButton('plus', T`Ajouter à ${meal.name}`, () => actionSheet({
           title: meal.name,
           actions: [
             { label: 'Ajouter un aliment', icon: 'leaf', onClick: () => editFood(meal, null) },
             { label: 'Ajouter un complément', icon: 'pill', onClick: () => editSupplement(meal, null) },
           ],
         }), 'icon-btn--soft'),
-        IconButton('more', `Options de ${meal.name}`, () => actionSheet({
+        IconButton('more', T`Options de ${meal.name}`, () => actionSheet({
           title: meal.name,
           actions: [
             { label: 'Renommer / heure', icon: 'edit', onClick: () => editMeal(meal) },
@@ -265,7 +266,7 @@ function MealCard(meal) {
           h('button', { class: 'food', type: 'button', onclick: () => editFood(meal, f) },
             h('span', { class: 'food__body' },
               h('span', { class: 'food__name' }, f.name),
-              h('span', { class: 'food__meta' }, [f.qty, hasMacros ? `P ${frNum(f.p || 0, 0)} · G ${frNum(f.g || 0, 0)} · L ${frNum(f.l || 0, 0)}` : null].filter(Boolean).join(' · '))),
+              h('span', { class: 'food__meta' }, [f.qty, hasMacros ? T`P ${frNum(f.p || 0, 0)} · G ${frNum(f.g || 0, 0)} · L ${frNum(f.l || 0, 0)}` : null].filter(Boolean).join(' · '))),
             h('span', { class: 'food__kcal' }, String(f.cal || 0))));
       }))
       : h('button', { class: 'meal__empty', type: 'button', onclick: () => editFood(meal, null) }, 'Aucun aliment — appuie pour ajouter'),

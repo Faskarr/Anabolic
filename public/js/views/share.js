@@ -19,6 +19,7 @@ import { icon } from '../ui/icons.js';
 import { openSheet } from '../ui/sheet.js';
 import { isAccepted, friendOf, sendFriendShares, SHARE_LABEL } from '../data/friends.js';
 
+import { T, tx, locale } from '../lib/i18n.js';
 const CAT_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
 
 // État local de l'écran (survit aux re-rendus déclenchés par le store).
@@ -121,7 +122,7 @@ function sendToFriend() {
     const n = items.filter((x) => x.on).length;
     allCb.checked = n === items.length;
     sendBtn.disabled = !n || !friend;
-    sendBtn.lastChild.textContent = n ? `Envoyer ${n} élément${n > 1 ? 's' : ''}${friend ? ` à ${friend.name}` : ''}` : 'Coche au moins un élément';
+    sendBtn.lastChild.textContent = n ? T`Envoyer ${n} élément${n > 1 ? 's' : ''}${friend ? T` à ${friend.name}` : ''}` : tx('Coche au moins un élément');
   }
   allCb.addEventListener('change', () => { boxes.forEach(({ it, cb }) => { it.on = allCb.checked; cb.checked = allCb.checked; }); sync(); });
 
@@ -151,7 +152,7 @@ function sendToFriend() {
       await sendFriendShares(me, friend.f.id, picked.map((x) => ({ cat: x.cat, title: x.name, data: profileData(x.cat, x.pid) })));
       sheet.close();
       const pid = friend.f.id;
-      toast(`${picked.length > 1 ? `${picked.length} éléments envoyés` : 'Envoyé'} à ${friend.name}`, { action: { label: 'Voir', onClick: () => { location.hash = `#/friends/${encodeURIComponent(pid)}`; } } });
+      toast(`${picked.length > 1 ? T`${picked.length} éléments envoyés` : 'Envoyé'} à ${friend.name}`, { action: { label: 'Voir', onClick: () => { location.hash = `#/friends/${encodeURIComponent(pid)}`; } } });
     } catch (err) {
       console.error('[share]', err);
       toast(err.message?.includes('volumineux') ? err.message : 'Envoi impossible. Vérifie ta connexion.', { type: 'error', duration: 6000 });
@@ -185,7 +186,7 @@ function ExportCard() {
   } else {
     const n = ['workout', 'diet', 'protocol'].reduce((a, c) => a + state.profiles[c].list.length, 0);
     picker = h('p', { class: 'muted' },
-      `${n} profil(s), ${state.weights.length} pesée(s), carnet de charges et compteur. Idéal pour garder une copie de tes données.`);
+      T`${n} profil(s), ${state.weights.length} pesée(s), carnet de charges et compteur. Idéal pour garder une copie de tes données.`);
   }
 
   return h('section', { class: 'card' },
@@ -216,7 +217,7 @@ function analyse(text) {
       goals: Boolean(b.goals),
     };
     // Nom du (des) profil(s) importé(s) — modifiable avant l'import.
-    ui.importName = b.name || `Import ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+    ui.importName = b.name || `Import ${new Date().toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}`;
   } catch (err) {
     ui.error = err.message;
   }
@@ -255,14 +256,14 @@ function ImportCard() {
   if (ui.parsed) {
     const b = ui.parsed.bundle;
     const options = [
-      b.workout && ['workout', `Programme${b.name ? ` « ${b.name} »` : ''} · ${b.workout.sessions.length} séance(s)`],
-      b.diet && ['diet', `Diet · ${b.diet.meals.length} repas`],
-      b.protocol && ['protocol', `Protocole · ${b.protocol.days.length} jour(s)`],
+      b.workout && ['workout', T`Programme${b.name ? ` « ${b.name} »` : ''} · ${b.workout.sessions.length} séance(s)`],
+      b.diet && ['diet', T`Diet · ${b.diet.meals.length} repas`],
+      b.protocol && ['protocol', T`Protocole · ${b.protocol.days.length} jour(s)`],
       b.all && ['all', `Tous les profils de la sauvegarde`],
       b.exlogs && Object.keys(b.exlogs).length && ['exlogs', `Carnet de charges (fusion)`],
-      b.weights?.length && ['weights', `Poids · ${b.weights.length} pesée(s) — ajoutées sans écraser les tiennes`],
-      b.counterBase != null && ['counter', `Compteur de séances → ${b.counterBase} (remplace le tien)`],
-      b.goals && ['goals', `Objectifs · ${b.goals.items.length} (ajoutés aux tiens)`],
+      b.weights?.length && ['weights', T`Poids · ${b.weights.length} pesée(s) — ajoutées sans écraser les tiennes`],
+      b.counterBase != null && ['counter', T`Compteur de séances → ${b.counterBase} (remplace le tien)`],
+      b.goals && ['goals', T`Objectifs · ${b.goals.items.length} (ajoutés aux tiens)`],
     ].filter(Boolean);
 
     children.push(h('div', { class: 'import-pick' },
@@ -285,7 +286,7 @@ function ImportCard() {
           const name = (ui.importName || '').trim().slice(0, 60);
           const done = applyImport(name ? { ...b, name } : b, ui.pick);
           if (!done.length) return toast('Rien de sélectionné.', { type: 'error' });
-          toast(`Importé : ${done.join(', ')}`);
+          toast(T`Importé : ${done.join(', ')}`);
           Object.assign(ui, { importText: '', parsed: null, error: null });
           rerender();
         },

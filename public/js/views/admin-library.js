@@ -18,6 +18,7 @@ import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 import { Avatar } from '../ui/avatar.js';
 
+import { T } from '../lib/i18n.js';
 const CAT_LABEL = { workout: 'Programme', diet: 'Diet', protocol: 'Protocole' };
 const CAT_ICON = { workout: 'dumbbell', diet: 'leaf', protocol: 'pill' };
 const NORMALIZE = { workout: normalizeWorkout, diet: normalizeDiet, protocol: normalizeProtocol };
@@ -52,9 +53,9 @@ const BUILTINS = [
     id: 'builtin-ppl-6', cat: 'workout', builtin: true, name: 'Push / Pull / Legs · 6 jours',
     note: 'Avancé. PPL ×2 du lundi au samedi.',
     payload: () => {
-      const push = (d, n) => ses(`Push ${n}`, [d], [ex('Développé couché barre', '4×6–8', "2'30"), ex('Développé incliné haltères', '3×8–10', "2'"), ex('Développé militaire haltères', '3×8–10', "2'"), ex('Élévations latérales', '4×12–15', "1'"), ex('Dips', '3×8–12', "1'30"), { ...ex('Extension triceps poulie', '3×12–15', "1'"), ss: true }]);
-      const pull = (d, n) => ses(`Pull ${n}`, [d], [ex('Tractions lestées', '4×6–8', "2'30"), ex('Rowing barre', '4×8–10', "2'"), ex('Tirage horizontal', '3×10–12', "1'30"), ex('Face pull', '3×12–15', "1'"), ex('Curl barre', '3×8–10', "1'30"), { ...ex('Curl marteau', '3×10–12', "1'"), ss: true }]);
-      const legs = (d, n) => ses(`Legs ${n}`, [d], [ex('Squat barre', '4×6–8', "3'"), ex('Soulevé de terre roumain', '3×8–10', "2'30"), ex('Presse à cuisses', '3×10–12', "2'"), ex('Leg curl', '3×10–12', "1'30"), { ...ex('Leg extension', '3×12–15', "1'"), ss: true }, ex('Mollets debout', '4×10–15', "1'")]);
+      const push = (d, n) => ses(T`Push ${n}`, [d], [ex('Développé couché barre', '4×6–8', "2'30"), ex('Développé incliné haltères', '3×8–10', "2'"), ex('Développé militaire haltères', '3×8–10', "2'"), ex('Élévations latérales', '4×12–15', "1'"), ex('Dips', '3×8–12', "1'30"), { ...ex('Extension triceps poulie', '3×12–15', "1'"), ss: true }]);
+      const pull = (d, n) => ses(T`Pull ${n}`, [d], [ex('Tractions lestées', '4×6–8', "2'30"), ex('Rowing barre', '4×8–10', "2'"), ex('Tirage horizontal', '3×10–12', "1'30"), ex('Face pull', '3×12–15', "1'"), ex('Curl barre', '3×8–10', "1'30"), { ...ex('Curl marteau', '3×10–12', "1'"), ss: true }]);
+      const legs = (d, n) => ses(T`Legs ${n}`, [d], [ex('Squat barre', '4×6–8', "3'"), ex('Soulevé de terre roumain', '3×8–10', "2'30"), ex('Presse à cuisses', '3×10–12', "2'"), ex('Leg curl', '3×10–12', "1'30"), { ...ex('Leg extension', '3×12–15', "1'"), ss: true }, ex('Mollets debout', '4×10–15', "1'")]);
       return { sessions: [push(1, 'A'), pull(2, 'A'), legs(3, 'A'), push(4, 'B'), pull(5, 'B'), legs(6, 'B')] };
     },
   },
@@ -92,10 +93,10 @@ function summary(cat, p) {
   if (!p) return '';
   if (cat === 'workout') {
     const n = (p.sessions || []).reduce((a, s) => a + (s.exercises || []).length, 0);
-    return `${(p.sessions || []).length} séance(s) · ${n} exercice(s)`;
+    return T`${(p.sessions || []).length} séance(s) · ${n} exercice(s)`;
   }
-  if (cat === 'diet') return `${(p.meals || []).length} repas${p.objective ? ` · ${p.objective} kcal` : ''}`;
-  return `${(p.days || []).reduce((a, d) => a + (d.injections || []).length, 0)} produit(s)`;
+  if (cat === 'diet') return T`${(p.meals || []).length} repas${p.objective ? T` · ${p.objective} kcal` : ''}`;
+  return T`${(p.days || []).reduce((a, d) => a + (d.injections || []).length, 0)} produit(s)`;
 }
 
 // ── Actions ─────────────────────────────────────────────────────────────
@@ -105,15 +106,15 @@ async function addFlow(cat) {
   const mine = state.profiles[cat]?.list || [];
   const source = await new Promise((resolve) => {
     actionSheet({
-      title: `Nouveau modèle · ${CAT_LABEL[cat]}`,
+      title: T`Nouveau modèle · ${CAT_LABEL[cat]}`,
       actions: [
-        ...mine.map((p) => ({ label: `Depuis « ${p.name} »`, icon: 'file', onClick: () => resolve({ name: p.name, payload: profileData(cat, p.id) }) })),
+        ...mine.map((p) => ({ label: T`Depuis « ${p.name} »`, icon: 'file', onClick: () => resolve({ name: p.name, payload: profileData(cat, p.id) }) })),
         { label: 'Coller un code AnabolicOS…', icon: 'copy', onClick: async () => {
           const r = await formSheet({ title: 'Coller un code', fields: [{ name: 'code', label: 'Code JSON', type: 'textarea', maxlength: 900000, required: true }], submitLabel: 'Analyser' });
           if (!r?.values) return resolve(null);
           try {
             const { bundle } = parseImport(r.values.code);
-            if (!bundle[cat]) throw new Error(`Ce code ne contient pas de ${CAT_LABEL[cat].toLowerCase()}.`);
+            if (!bundle[cat]) throw new Error(T`Ce code ne contient pas de ${CAT_LABEL[cat].toLowerCase()}.`);
             resolve({ name: bundle.name || CAT_LABEL[cat], payload: bundle[cat] });
           } catch (err) { toast(err.message, { type: 'error' }); resolve(null); }
         } },
@@ -157,7 +158,7 @@ export function sendSheet(item) {
         ok += 1;
       } catch { /* toast déjà affiché */ }
     }
-    if (ok) toast(`${mode === 'install' ? 'Installé' : 'Proposé'} à ${ok} utilisateur${ok > 1 ? 's' : ''}`);
+    if (ok) toast(T`${mode === 'install' ? 'Installé' : 'Proposé'} à ${ok} utilisateur${ok > 1 ? 's' : ''}`);
   };
 
   const propose = h('button', { class: 'btn btn--primary btn--block', type: 'button', disabled: true, onclick: () => send('propose') },
@@ -167,7 +168,7 @@ export function sendSheet(item) {
   buttons.push(propose, install);
 
   const sheet = openSheet({
-    title: `Envoyer « ${item.name} »`,
+    title: T`Envoyer « ${item.name} »`,
     subtitle: 'Choisis les destinataires. « Proposer » : ils acceptent depuis leur accueil.',
     body: h('div', { class: 'send-sheet' },
       users.length
@@ -200,7 +201,7 @@ function itemMenu(item) {
         if (r?.values) saveLibraryItem(item.id, { cat: item.cat, name: r.values.name, note: r.values.note });
       } },
       !item.builtin && { label: 'Supprimer', icon: 'trash', danger: true, onClick: async () => {
-        if (await confirmSheet({ title: `Supprimer « ${item.name} » ?`, message: 'Les utilisateurs qui l’ont déjà reçu le gardent.' })) deleteLibraryItem(item.id);
+        if (await confirmSheet({ title: T`Supprimer « ${item.name} » ?`, message: 'Les utilisateurs qui l’ont déjà reçu le gardent.' })) deleteLibraryItem(item.id);
       } },
     ],
   });

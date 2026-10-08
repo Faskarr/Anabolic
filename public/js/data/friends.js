@@ -17,6 +17,7 @@ import { localISODate } from '../lib/dates.js';
 import { ms } from './messages.js';
 import { toast } from '../ui/toast.js';
 
+import { T } from '../lib/i18n.js';
 const {
   doc, collection, query, where, orderBy, limit, onSnapshot, getDoc, setDoc, updateDoc, deleteDoc,
   writeBatch, serverTimestamp,
@@ -91,9 +92,9 @@ export async function addFriendByCode(user, rawCode, existing = []) {
   const pid = pairOf(user.uid, other.uid);
   const already = existing.find((f) => f.id === pid);
   if (already) {
-    if (isAccepted(already)) throw new Error(`${other.name} est déjà dans tes amis.`);
-    if (isIncoming(already, user.uid)) throw new Error(`${other.name} t’a déjà envoyé une demande : accepte-la ci-dessous.`);
-    throw new Error(`Demande déjà envoyée à ${other.name}.`);
+    if (isAccepted(already)) throw new Error(T`${other.name} est déjà dans tes amis.`);
+    if (isIncoming(already, user.uid)) throw new Error(T`${other.name} t’a déjà envoyé une demande : accepte-la ci-dessous.`);
+    throw new Error(T`Demande déjà envoyée à ${other.name}.`);
   }
   const members = [user.uid, other.uid].sort();
   await setDoc(doc(db, 'friendships', pid), {
@@ -167,7 +168,7 @@ export function sendFriendShares(uid, pid, items) {
   for (const { cat, title, data } of items) {
     const payload = JSON.stringify(data ?? {});
     const name = String(title || SHARE_LABEL[cat]).trim().slice(0, 80) || SHARE_LABEL[cat];
-    if (payload.length > SHARE_MAX) throw new Error(`« ${name} » est trop volumineux pour être envoyé (exporte-le en fichier).`);
+    if (payload.length > SHARE_MAX) throw new Error(T`« ${name} » est trop volumineux pour être envoyé (exporte-le en fichier).`);
     last = `${SHARE_LABEL[cat]} « ${name} »`.slice(0, 200);
     batch.set(doc(collection(db, 'friendships', pid, 'messages')), {
       from: uid, text: last, at: serverTimestamp(), kind: 'share', cat, title: name, payload, status: 'pending',

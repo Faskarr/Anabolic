@@ -13,6 +13,8 @@
 import { h } from '../lib/dom.js';
 import { icon } from './icons.js';
 
+import { T, tx } from '../lib/i18n.js';
+import { dayLetters } from '../lib/dates.js';
 let openCount = 0;
 
 export function openSheet({ title, subtitle, body, footer, onClose, label }) {
@@ -102,7 +104,6 @@ export function openSheet({ title, subtitle, body, footer, onClose, label }) {
 
 // ── Formulaire ──────────────────────────────────────────────────────────
 
-const WEEKDAY_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const WEEKDAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
 /**
@@ -140,7 +141,7 @@ function timesField(field) {
 
 function weekdaysField(field) {
   const selected = new Set(field.value || []);
-  const buttons = WEEKDAY_LABELS.map((l, i) => {
+  const buttons = dayLetters().map((l, i) => {
     const day = i + 1;
     const b = h('button', {
       type: 'button',
@@ -281,14 +282,14 @@ export function formSheet({ title, subtitle, fields, submitLabel = 'Enregistrer'
         const { def } = c;
         c.input?.classList.remove('input--invalid');
         if (def.required && (v === '' || v == null)) {
-          error.textContent = `${def.label} est obligatoire.`;
+          error.textContent = T`${tx(def.label)} est obligatoire.`;
           c.input?.classList.add('input--invalid');
           c.input?.focus();
           return;
         }
         if (def.type === 'number' && v != null && (Number.isNaN(v)
             || (def.min != null && v < def.min) || (def.max != null && v > def.max))) {
-          error.textContent = `${def.label} : valeur invalide${def.min != null ? ` (${def.min} – ${def.max})` : ''}.`;
+          error.textContent = T`${tx(def.label)} : valeur invalide${def.min != null ? ` (${def.min} – ${def.max})` : ''}.`;
           c.input?.classList.add('input--invalid');
           c.input?.focus();
           return;

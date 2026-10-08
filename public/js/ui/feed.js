@@ -13,6 +13,7 @@ import { icon } from './icons.js';
 import { formSheet, openSheet, actionSheet, confirmSheet } from './sheet.js';
 import { toast } from './toast.js';
 
+import { T } from '../lib/i18n.js';
 /**
  * Publications récentes de mes amis et moi (plus récentes d'abord).
  * Hors de l'onglet Contact, on se contente de la DERNIÈRE publication de chacun,
@@ -74,7 +75,7 @@ export function LikeButton(post, me) {
   const liked = likes.includes(me);
   const n = likes.length;
   if (mine) {
-    return h('span', { class: `like like--static${n ? ' like--on' : ''}`, 'aria-label': `${n} like${n > 1 ? 's' : ''}` }, icon('heart', 18), n ? String(n) : '');
+    return h('span', { class: `like like--static${n ? ' like--on' : ''}`, 'aria-label': T`${n} like${n > 1 ? 's' : ''}` }, icon('heart', 18), n ? String(n) : '');
   }
   return h('button', {
     class: `like${liked ? ' like--on' : ''}`, type: 'button', 'aria-pressed': String(liked),
@@ -94,7 +95,7 @@ export function LikeButton(post, me) {
 /** Supprimer une de MES publications (son ou record). */
 async function removeMine(post) {
   const what = post.type === 'music' ? 'ce son' : 'ce record';
-  if (!(await confirmSheet({ title: `Supprimer ${what} ?`, message: 'Il disparaît pour tes amis.', confirmLabel: 'Supprimer' }))) return;
+  if (!(await confirmSheet({ title: T`Supprimer ${what} ?`, message: 'Il disparaît pour tes amis.', confirmLabel: 'Supprimer' }))) return;
   try { await deletePost(post.owner, post); toast(post.type === 'music' ? 'Son supprimé' : 'Record supprimé'); } catch (err) {
     console.error('[posts]', err); toast('Suppression impossible.', { type: 'error' });
   }
@@ -118,7 +119,7 @@ export function openMusic(m) {
   icon('external', 16)));
   sheet = openSheet({
     title: m.title || 'Écouter le son',
-    subtitle: `Conseillé par ${who}. Ouvrir avec :`,
+    subtitle: T`Conseillé par ${who}. Ouvrir avec :`,
     body: h('div', { class: 'action-list' }, rows,
       m.title ? null : h('p', { class: 'hint' }, 'Sans titre, seul le lien d’origine est disponible.'),
       m.owner === state.me?.uid ? h('button', {
@@ -130,7 +131,7 @@ export function openMusic(m) {
 
 export function PostRow(post, me) {
   const who = post.owner === me ? 'Toi' : String(post.name || 'Ami').split(' ')[0];
-  const head = h('span', { class: 'record__who' }, who, h('span', { class: 'record__when' }, ` · ${shortWhen(post.at)}`));
+  const head = h('span', { class: 'record__who' }, who, h('span', { class: 'record__when' }, T` · ${shortWhen(post.at)}`));
 
   if (post.type === 'music') {
     const ok = detectMusic(post.url);
@@ -148,7 +149,7 @@ export function PostRow(post, me) {
   }
 
   const what = [head,
-    h('span', { class: 'record__what' }, '🏆 ', post.exercise, ' · ', h('strong', {}, `${frNum(post.w, post.w % 1 ? 1 : 0)} kg × ${post.r}`))];
+    h('span', { class: 'record__what' }, '🏆 ', post.exercise, ' · ', h('strong', {}, T`${frNum(post.w, post.w % 1 ? 1 : 0)} kg × ${post.r}`))];
   return h('li', { class: 'record' },
     Avatar({ uid: post.owner, name: post.name, size: 'sm' }),
     post.owner === me
@@ -247,7 +248,7 @@ export async function sharePRFlow() {
     subtitle: sets.length ? 'Ta meilleure série par exercice (1RM estimé). Tes amis la verront sur leur accueil.' : 'Aucune charge notée pour l’instant : saisis ton record.',
     actions: [
       ...sets.map((x) => ({
-        label: `${x.name} · ${kg(x.w)} kg × ${x.r}`, icon: 'up',
+        label: T`${x.name} · ${kg(x.w)} kg × ${x.r}`, icon: 'up',
         onClick: () => sharePR(state.me, { exercise: x.name, w: x.w, r: x.r }),
       })),
       { label: 'Autre record (saisie libre)', icon: 'edit', onClick: manualPR },

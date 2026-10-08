@@ -9,12 +9,14 @@ import { greeting } from '../lib/dates.js';
 import { db, fs } from '../firebase.js';
 import { signOut } from '../auth.js';
 
+import { T } from '../lib/i18n.js';
+import { tx } from '../lib/i18n.js';
 const { doc, getDoc, updateDoc, serverTimestamp } = fs;
 
 /** Rejette si la promesse ne se résout pas à temps (ex. hors ligne). */
 const withTimeout = (promise, ms, label) => Promise.race([
   promise,
-  new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} : délai dépassé`)), ms)),
+  new Promise((_, reject) => setTimeout(() => reject(new Error(T`${label} : délai dépassé`)), ms)),
 ]);
 
 function Avatar(user) {
@@ -34,7 +36,7 @@ function CheckRow(label) {
     set(ok, text) {
       row.className = `check ${ok ? 'check--ok' : 'check--fail'}`;
       dot.textContent = ok ? '✓' : '!';
-      meta.textContent = text || '';
+      meta.textContent = tx(text || '');
     },
   };
 }
@@ -66,7 +68,7 @@ function screenInfo() {
     ['Fenêtre', `${innerWidth} × ${innerHeight}`],
     ['Viewport visuel', `${Math.round(visualViewport?.height || 0)} px`],
     ['Écran', `${screen.width} × ${screen.height}`],
-    ['Barre d’onglets', tab ? `haut ${Math.round(tab.top)} · bas ${Math.round(tab.bottom)}` : '—'],
+    ['Barre d’onglets', tab ? T`haut ${Math.round(tab.top)} · bas ${Math.round(tab.bottom)}` : '—'],
   ];
 }
 
@@ -88,9 +90,9 @@ function buildFoundation(session) {
     onclick: async () => {
       try {
         await navigator.clipboard.writeText(user.uid);
-        copyBtn.textContent = 'UID copié ✓';
+        copyBtn.textContent = tx('UID copié ✓');
       } catch {
-        copyBtn.textContent = 'Copie impossible — sélectionne le texte';
+        copyBtn.textContent = tx('Copie impossible — sélectionne le texte');
       }
     },
   }, 'Copier mon UID');
@@ -164,6 +166,6 @@ async function runChecks(user, created, isAdmin, adminError, checks) {
     else checks.rules.set(false, err.code || err.message);
   }
 
-  if (adminError) checks.role.set(false, `admin : ${adminError}`);
+  if (adminError) checks.role.set(false, T`admin : ${adminError}`);
   else checks.role.set(true, isAdmin ? 'Administrateur' : 'Utilisateur');
 }

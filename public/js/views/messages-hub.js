@@ -23,6 +23,7 @@ import { icon } from '../ui/icons.js';
 import { Avatar } from '../ui/avatar.js';
 import { PostRow, recentPosts, shareMusicFlow } from '../ui/feed.js';
 
+import { T } from '../lib/i18n.js';
 const rerender = () => window.dispatchEvent(new Event('app:render'));
 const initial = (n) => String(n || '?').trim().charAt(0).toUpperCase() || '?';
 export const trainedToday = (a) => Boolean(a && a.day === localISODate());
@@ -44,7 +45,7 @@ function loadMyCode(session) {
 function retryMyCode() { codeFailed = false; rerender(); }
 
 async function shareCode() {
-  const text = `Ajoute-moi sur AnabolicOS avec mon code ami : ${myCode}\nhttps://anabolic-adc6a.web.app`;
+  const text = T`Ajoute-moi sur AnabolicOS avec mon code ami : ${myCode}\nhttps://anabolic-adc6a.web.app`;
   try {
     if (navigator.share) await navigator.share({ title: 'AnabolicOS', text });
     else { await navigator.clipboard?.writeText(myCode); toast('Code copié'); }
@@ -72,12 +73,12 @@ function adminAddFriendFlow(session) {
       class: 'action', type: 'button',
       onclick: async () => {
         const name = u.displayName || u.email || 'Utilisateur';
-        if (!(await confirmSheet({ title: `Ajouter ${name} en ami ?`, message: 'Sans demande : vous serez amis tout de suite et il te verra dans sa liste.', confirmLabel: 'Ajouter', danger: false }))) return;
-        try { await addFriendDirect(session.user, { uid: u.id, name }); known.add(u.id); toast(`${name} ajouté à tes amis`); draw(); } catch (err) {
+        if (!(await confirmSheet({ title: T`Ajouter ${name} en ami ?`, message: 'Sans demande : vous serez amis tout de suite et il te verra dans sa liste.', confirmLabel: 'Ajouter', danger: false }))) return;
+        try { await addFriendDirect(session.user, { uid: u.id, name }); known.add(u.id); toast(T`${name} ajouté à tes amis`); draw(); } catch (err) {
           console.error('[admin] ami', err); toast('Ajout impossible.', { type: 'error' });
         }
       },
-    }, Avatar({ uid: u.id, name: u.displayName || u.email, size: 'sm' }), h('span', {}, u.displayName || u.email, h('span', { class: 'muted small' }, ` · ${u.email || ''}`))))
+    }, Avatar({ uid: u.id, name: u.displayName || u.email, size: 'sm' }), h('span', {}, u.displayName || u.email, h('span', { class: 'muted small' }, T` · ${u.email || ''}`))))
       : [h('p', { class: 'muted center' }, q ? 'Aucun résultat.' : 'Tout le monde est déjà dans tes amis.')]));
   };
   search.addEventListener('input', draw);
@@ -96,7 +97,7 @@ async function addFriendFlow(session) {
   if (!r?.values) return;
   try {
     const name = await addFriendByCode(session.user, r.values.code, state.friendships);
-    toast(`Demande envoyée à ${name}. Il doit l’accepter.`);
+    toast(T`Demande envoyée à ${name}. Il doit l’accepter.`);
   } catch (err) {
     toast(err.code === 'permission-denied' ? 'Code invalide ou ami déjà ajouté.' : err.message, { type: 'error' });
   }
@@ -113,17 +114,17 @@ function Row({ href, title, preview, when, unread, avatar, tag, onMore }) {
     tag || null,
     unread ? h('span', { class: 'dot', 'aria-label': 'Non lu' }) : null);
   if (!onMore) return link;
-  return h('div', { class: 'conv-wrap' }, link, IconButton('more', `Options : ${title}`, onMore, 'icon-btn--ghost conv__more'));
+  return h('div', { class: 'conv-wrap' }, link, IconButton('more', T`Options : ${title}`, onMore, 'icon-btn--ghost conv__more'));
 }
 
 /** Supprimer une discussion (de mon côté seulement). */
 async function deleteChat(kind, session, f = null, name = '') {
-  const who = kind === 'coach' ? 'avec ton coach' : `avec ${name}`;
+  const who = kind === 'coach' ? 'avec ton coach' : T`avec ${name}`;
   const ok = await confirmSheet({
-    title: `Supprimer la discussion ${who} ?`,
+    title: T`Supprimer la discussion ${who} ?`,
     message: kind === 'coach'
       ? 'Les messages disparaissent de ton côté. Ton coach garde l’historique.'
-      : `Les messages disparaissent de ton côté. ${name} reste dans tes amis et garde la discussion.`,
+      : T`Les messages disparaissent de ton côté. ${name} reste dans tes amis et garde la discussion.`,
     confirmLabel: 'Supprimer',
   });
   if (!ok) return false;
@@ -146,7 +147,7 @@ function CoachRow(session) {
     const n = (state.adminConversations || []).filter(unreadForAdmin).length;
     return Row({
       href: '#/admin/messages', title: 'Messages des utilisateurs',
-      preview: n ? `${n} conversation${n > 1 ? 's' : ''} non lue${n > 1 ? 's' : ''}` : 'Tout est lu',
+      preview: n ? T`${n} conversation${n > 1 ? 's' : ''} non lue${n > 1 ? 's' : ''}` : 'Tout est lu',
       unread: n > 0, avatar: h('span', { class: 'avatar avatar--brand' }, icon('shield', 20)),
     });
   }
@@ -188,9 +189,9 @@ function FriendRow(f, me) {
       Avatar({ uid: other, name }),
       h('span', { class: 'conv__body' },
         h('span', { class: 'conv__top' }, h('span', { class: 'conv__name' }, name)),
-        h('span', { class: 'conv__preview' }, trainedToday(act) ? `Entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}` : 'Voir son profil')),
+        h('span', { class: 'conv__preview' }, trainedToday(act) ? T`Entraîné aujourd’hui${act.sessionName ? T` · ${act.sessionName}` : ''}` : 'Voir son profil')),
       trainedToday(act) ? h('span', { class: 'tag tag--ok' }, icon('dumbbell', 14), 'Auj.') : null),
-    h('a', { class: 'icon-btn icon-btn--soft conv__more', href: `#/friends/${encodeURIComponent(f.id)}`, 'aria-label': `Écrire à ${name}` }, icon('message', 18)));
+    h('a', { class: 'icon-btn icon-btn--soft conv__more', href: `#/friends/${encodeURIComponent(f.id)}`, 'aria-label': T`Écrire à ${name}` }, icon('message', 18)));
 }
 
 // ── Vue : hub ───────────────────────────────────────────────────────────
@@ -210,12 +211,12 @@ function RequestRow(f, me, isAdmin) {
         class: 'btn btn--primary btn--sm', type: 'button',
         onclick: async (e) => {
           e.currentTarget.disabled = true;
-          try { await acceptFriend(f.id); toast(`${name} est maintenant ton ami`); } catch { /* erreur déjà affichée */ }
+          try { await acceptFriend(f.id); toast(T`${name} est maintenant ton ami`); } catch { /* erreur déjà affichée */ }
         },
       }, 'Accepter'),
       h('button', {
         class: 'btn btn--ghost btn--sm', type: 'button',
-        onclick: async () => { if (await confirmSheet({ title: `Refuser la demande de ${name} ?`, confirmLabel: 'Refuser' })) removeFriend(f.id); },
+        onclick: async () => { if (await confirmSheet({ title: T`Refuser la demande de ${name} ?`, confirmLabel: 'Refuser' })) removeFriend(f.id); },
       }, 'Refuser')));
 }
 
@@ -264,7 +265,7 @@ export function MessagesHubView(session) {
         posts.length
           // ~5 publications visibles, la suite en faisant défiler DANS le bloc.
           ? h('section', { class: 'card records-box' }, h('ul', { class: 'records records--scroll' }, posts.map((p) => PostRow(p, me))),
-            posts.length > 5 ? h('p', { class: 'records-box__more' }, `${posts.length} publications · fais défiler`) : null)
+            posts.length > 5 ? h('p', { class: 'records-box__more' }, T`${posts.length} publications · fais défiler`) : null)
           : h('p', { class: 'hint' }, 'Partage ta musique du moment (Spotify, Deezer, YouTube Music) : tes amis l’ouvrent directement dans leur app.'),
       ] : null,
       SectionTitle('Discussions'),
@@ -281,7 +282,7 @@ export function MessagesHubView(session) {
     PageHeader({ eyebrow: 'Messagerie', title: 'Mes messages' }),
     tabs,
     incoming.length ? [
-      SectionTitle(`Demandes d’ami (${incoming.length})`),
+      SectionTitle(T`Demandes d’ami (${incoming.length})`),
       h('section', { class: 'card card--flush requests requests--in' }, incoming.map((f) => RequestRow(f, me, session.isAdmin))),
     ] : null,
     SectionTitle('Amis', h('div', { class: 'row-gap' },
@@ -294,7 +295,7 @@ export function MessagesHubView(session) {
     h('section', { class: 'card friend-code' },
       h('p', { class: 'eyebrow' }, 'Mon code ami'),
       myCode
-        ? h('p', { class: 'friend-code__value', 'aria-label': `Code ${myCode.split('').join(' ')}` }, myCode)
+        ? h('p', { class: 'friend-code__value', 'aria-label': T`Code ${myCode.split('').join(' ')}` }, myCode)
         : codeFailed
           ? h('button', { class: 'btn btn--ghost', type: 'button', style: { margin: '10px 0' }, onclick: retryMyCode }, icon('reset', 18), 'Réessayer')
           : h('div', { class: 'spinner', style: { margin: '12px 0' } }),
@@ -346,9 +347,9 @@ function parseShare(m) {
 
 function shareSummary(cat, d) {
   if (!d) return 'Contenu illisible';
-  if (cat === 'workout') { const n = d.sessions.length; const e = d.sessions.reduce((a, x) => a + x.exercises.length, 0); return `${n} séance${n > 1 ? 's' : ''} · ${e} exercice${e > 1 ? 's' : ''}`; }
-  if (cat === 'diet') return `${d.meals.length} repas${d.objective ? ` · ${d.objective} kcal` : ''}`;
-  return `${d.days.length} jour${d.days.length > 1 ? 's' : ''} de prises`;
+  if (cat === 'workout') { const n = d.sessions.length; const e = d.sessions.reduce((a, x) => a + x.exercises.length, 0); return T`${n} séance${n > 1 ? 's' : ''} · ${e} exercice${e > 1 ? 's' : ''}`; }
+  if (cat === 'diet') return T`${d.meals.length} repas${d.objective ? T` · ${d.objective} kcal` : ''}`;
+  return T`${d.days.length} jour${d.days.length > 1 ? 's' : ''} de prises`;
 }
 
 async function answerShare(pid, m, accept) {
@@ -361,7 +362,7 @@ async function answerShare(pid, m, accept) {
       applyImport({ name: m.title, [m.cat]: structuredClone(data) }, { [m.cat]: true });
     }
     await answerFriendShare(pid, m.id, accept ? 'accepted' : 'refused');
-    toast(accept ? `${SHARE_LABEL[m.cat]} « ${m.title} » ajouté et activé` : 'Envoi refusé');
+    toast(accept ? T`${SHARE_LABEL[m.cat]} « ${m.title} » ajouté et activé` : 'Envoi refusé');
   } catch (err) {
     handled.delete(m.id);
     console.error('[share]', err);
@@ -379,7 +380,7 @@ function ShareBubble(pid, m, mine, time) {
     h('div', { class: 'share-msg__head' },
       h('span', { class: 'share-msg__icon', 'aria-hidden': 'true' }, icon(ico, 20)),
       h('div', { class: 'share-msg__txt' },
-        h('p', { class: 'share-msg__eyebrow' }, mine ? `Tu as envoyé · ${label}` : `${label} reçu`),
+        h('p', { class: 'share-msg__eyebrow' }, mine ? T`Tu as envoyé · ${label}` : T`${label} reçu`),
         h('p', { class: 'share-msg__title' }, m.title || label),
         h('p', { class: 'share-msg__sub' }, shareSummary(m.cat, data)))),
     !mine && status === 'pending' && data
@@ -417,14 +418,14 @@ export function FriendChatView(session, pid) {
   const header = PageHeader({
     eyebrow: 'Ami', title: name,
     trailing: h('div', { class: 'row-gap' },
-      h('a', { href: `#/u/${encodeURIComponent(other)}`, 'aria-label': `Voir le profil de ${name}` }, Avatar({ uid: other, name })),
+      h('a', { href: `#/u/${encodeURIComponent(other)}`, 'aria-label': T`Voir le profil de ${name}` }, Avatar({ uid: other, name })),
       IconButton('more', 'Options', () => actionSheet({
         title: name,
         actions: [
           { label: 'Voir son profil', icon: 'user', onClick: () => { location.hash = `#/u/${encodeURIComponent(other)}`; } },
           { label: 'Supprimer la discussion', icon: 'trash', danger: true, onClick: async () => { if (await deleteChat('friend', session, f, name)) location.hash = '#/contact'; } },
           { label: 'Retirer de mes amis', icon: 'x', danger: true, onClick: async () => {
-          const ok = await confirmSheet({ title: `Retirer ${name} ?`, message: 'Votre discussion ne sera plus accessible.', confirmLabel: 'Retirer' });
+          const ok = await confirmSheet({ title: T`Retirer ${name} ?`, message: 'Votre discussion ne sera plus accessible.', confirmLabel: 'Retirer' });
           if (ok) { await removeFriend(pid); location.hash = '#/contact'; }
         } }],
       }), 'icon-btn--soft'),
@@ -441,11 +442,11 @@ export function FriendChatView(session, pid) {
   return [
     header,
     trainedToday(act)
-      ? h('p', { class: 'friend-status' }, icon('dumbbell', 16), `S’est entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}`)
+      ? h('p', { class: 'friend-status' }, icon('dumbbell', 16), T`S’est entraîné aujourd’hui${act.sessionName ? T` · ${act.sessionName}` : ''}`)
       : null,
     shown.length
       ? Thread(shown, me, { special: (m, mine, time) => (m.kind === 'share' ? ShareBubble(pid, m, mine, time) : null) })
-      : h('p', { class: 'muted center' }, `Commence la discussion avec ${name}.`),
+      : h('p', { class: 'muted center' }, T`Commence la discussion avec ${name}.`),
     h('div', { class: 'composer-spacer' }),
     Composer({ id: `friend-input-${pid}`, draft: drafts[pid], placeholder: 'Message…', onSend: (t) => sendFriendMessage(me, pid, t) }),
   ];

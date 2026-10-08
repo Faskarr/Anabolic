@@ -8,6 +8,7 @@
 import { h } from '../lib/dom.js';
 import { icon } from './icons.js';
 
+import { T } from '../lib/i18n.js';
 export const TABS = [
   { route: 'home',     label: 'Accueil',   icon: 'home' },
   { route: 'training', label: 'Séances',   icon: 'dumbbell' },
@@ -45,7 +46,7 @@ export function TabBar(current, badges = {}) {
         class: `tab${on ? ' tab--on' : ''}${pop === t.route ? ' tab--pop' : ''}`,
         href: `#/${t.route}`,
         'aria-current': on ? 'page' : null,
-        'aria-label': n ? `${t.label}, ${n} non lu${n > 1 ? 's' : ''}` : null,
+        'aria-label': n ? T`${t.label}, ${n} non lu${n > 1 ? 's' : ''}` : null,
         onpointerdown: () => {
           justTapped = t.route;
           navigator.vibrate?.(8); // retour haptique léger (Android ; ignoré sur iOS)

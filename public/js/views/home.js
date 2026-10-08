@@ -29,6 +29,8 @@ import { updateHome } from '../data/repo.js';
 import { openSheet } from '../ui/sheet.js';
 import { undoToast } from '../ui/toast.js';
 
+import { T, tx } from '../lib/i18n.js';
+import { LangButton } from '../ui/flag.js';
 function Widget({ eyebrow, action, children, tone, cls = '' }) {
   return h('section', { class: `card widget${tone ? ` widget--${tone}` : ''} ${cls}` },
     h('div', { class: 'card__row' }, h('p', { class: 'eyebrow' }, eyebrow), action || null),
@@ -43,7 +45,7 @@ const cta = (label, href) => h('a', { class: 'btn btn--ghost btn--block', href }
 function CoachSends(session) {
   if (!state.inbox.length) return null;
   return state.inbox.map((it) => Widget({
-    eyebrow: `${TYPE_LABEL[it.type] || 'Envoi'} de ton coach`,
+    eyebrow: T`${TYPE_LABEL[it.type] || 'Envoi'} de ton coach`,
     cls: 'coach-send',
     children: [
       h('p', { class: 'widget__title' }, it.title),
@@ -83,7 +85,7 @@ function MessagesButton(session) {
   if (n === 1 && friendUnread.length === 1) href = `#/friends/${encodeURIComponent(friendUnread[0].id)}`;
   return h('a', {
     class: `msg-btn${n ? ' msg-btn--unread' : ''}`, href,
-    'aria-label': n ? `${n} message${n > 1 ? 's' : ''} non lu${n > 1 ? 's' : ''}` : 'Messages',
+    'aria-label': n ? T`${n} message${n > 1 ? 's' : ''} non lu${n > 1 ? 's' : ''}` : 'Messages',
   },
   icon('message', 22),
   n ? h('span', { class: 'msg-btn__badge' }, n > 9 ? '9+' : String(n)) : null,
@@ -110,13 +112,13 @@ function FriendsWidget(session) {
   return Widget({
     eyebrow: 'Mes amis aujourd’hui',
     cls: 'widget--compact',
-    action: link(`${trainedN}/${friends.length} entraîné${trainedN > 1 ? 's' : ''}`, '#/contact'),
+    action: link(T`${trainedN}/${friends.length} entraîné${trainedN > 1 ? 's' : ''}`, '#/contact'),
     children: [
       h('div', { class: 'fstrip' }, friends.slice(0, 7).map((x) => {
         const done = trainedToday(x.act);
         return h('a', {
           class: `fstrip__item${done ? ' fstrip__item--done' : ''}`, href: `#/u/${encodeURIComponent(x.uid)}`,
-          'aria-label': `${x.name} : ${done ? `entraîné (${x.act.sessionName || 'séance faite'})` : 'pas encore entraîné'}`,
+          'aria-label': T`${x.name} : ${done ? T`entraîné (${x.act.sessionName || 'séance faite'})` : 'pas encore entraîné'}`,
         },
         h('span', { class: 'fstrip__ava' }, Avatar({ uid: x.uid, name: x.name, size: 'sm' }), done ? h('span', { class: 'fstrip__ok' }, icon('check', 10)) : null),
         h('span', { class: 'fstrip__name' }, String(x.name || 'Ami').split(' ')[0]));
@@ -133,12 +135,12 @@ function FriendsWidget(session) {
         ? h('div', { class: 'music-list' }, music.map((m) => h('div', { class: `music-card music-card--${m.service}` },
           h('button', {
             class: 'music-card__main', type: 'button', onclick: () => openMusic(m),
-            'aria-label': `Écouter ${m.title || 'le son'} conseillé par ${m.owner === me ? 'toi' : m.name}`,
+            'aria-label': T`Écouter ${m.title || 'le son'} conseillé par ${m.owner === me ? 'toi' : m.name}`,
           },
           h('span', { class: 'music-card__play' }, icon('play', 14)),
           h('span', { class: 'music-card__body' },
             h('span', { class: 'music-card__title' }, m.title || 'Écouter le son'),
-            h('span', { class: 'music-card__who' }, `${m.owner === me ? 'Toi' : String(m.name || 'Ami').split(' ')[0]} · ${MUSIC_LABEL[m.service] || 'Musique'}`))),
+            h('span', { class: 'music-card__who' }, T`${m.owner === me ? 'Toi' : String(m.name || 'Ami').split(' ')[0]} · ${MUSIC_LABEL[m.service] || 'Musique'}`))),
           LikeButton(m, me))))
         : h('p', { class: 'muted small' }, 'Aucun son partagé. Lance la playlist de ta séance !'),
     ],
@@ -156,26 +158,26 @@ function TodaySession() {
   if (!session) {
     return Widget({ eyebrow: 'Séances de la semaine', cls: 'widget--compact', tone: 'ink', action: link('Programme', '#/training'), children: [
       h('p', { class: 'today-session__name today-session__name--sm' }, 'Semaine bouclée ✓'),
-      h('p', { class: 'today-session__meta' }, `${sessions.length}/${sessions.length} séances faites. Repos bien mérité.`)] });
+      h('p', { class: 'today-session__meta' }, T`${sessions.length}/${sessions.length} séances faites. Repos bien mérité.`)] });
   }
   const n = (session.exercises || []).length;
   return Widget({
-    eyebrow: doneToday.length ? `${doneToday.map((x) => x.name).join(', ')} faite · ensuite` : plannedToday ? 'Séance du jour' : 'Prochaine séance',
+    eyebrow: doneToday.length ? T`${doneToday.map((x) => x.name).join(', ')} faite · ensuite` : plannedToday ? 'Séance du jour' : 'Prochaine séance',
     cls: 'widget--compact',
     tone: 'ink',
     children: h('div', { class: 'today-row' },
       h('a', { class: 'today-row__main', href: '#/training', onclick: () => selectSession(session.id) },
         h('span', { class: 'today-session__name' }, session.name),
-        h('span', { class: 'today-session__meta' }, `${n} exercice${n > 1 ? 's' : ''}${session.weekdays?.length ? ` · ${formatWeekdays(session.weekdays)}` : ''}`)),
+        h('span', { class: 'today-session__meta' }, T`${n} exercice${n > 1 ? 's' : ''}${session.weekdays?.length ? T` · ${formatWeekdays(session.weekdays)}` : ''}`)),
       h('button', {
-        class: 'today-row__check', type: 'button', 'aria-label': `Marquer ${session.name} comme faite`,
+        class: 'today-row__check', type: 'button', 'aria-label': T`Marquer ${session.name} comme faite`,
         onclick: (e) => {
           e.currentTarget.disabled = true;
           setSessionDone(pid, session, true);
-          undoToast(`${session.name} terminée 💪`, () => setSessionDone(pid, session, false));
+          undoToast(T`${session.name} terminée 💪`, () => setSessionDone(pid, session, false));
         },
       }, icon('check', 22)),
-      h('a', { class: 'today-session__go', href: '#/training', 'aria-label': `Ouvrir ${session.name}`, onclick: () => selectSession(session.id) }, icon('chevron', 22))),
+      h('a', { class: 'today-session__go', href: '#/training', 'aria-label': T`Ouvrir ${session.name}`, onclick: () => selectSession(session.id) }, icon('chevron', 22))),
   });
 }
 
@@ -192,7 +194,7 @@ function ProtocolWidget() {
   const { items, todayTotal, todayDone } = nextProtocolItems(
     days, (it) => Boolean(state.week[itemKey(pid, dayOf(it), it)]?.done), effectiveWeekdays, 2);
 
-  const progress = todayTotal ? `${todayDone}/${todayTotal} aujourd’hui` : null;
+  const progress = todayTotal ? T`${todayDone}/${todayTotal} aujourd’hui` : null;
   return Widget({
     eyebrow: 'Prochaines prises',
     cls: 'widget--compact',
@@ -232,9 +234,9 @@ function DietWidget() {
         h('span', { class: 'next-meal__time' }, `${next.tomorrow ? 'Demain · ' : ''}${m.time || `~${formatMinutes(next.minutes)}`}`)),
       foods.length
         ? h('ul', { class: 'next-meal__foods' }, foods.slice(0, 5).map((f) => h('li', {}, h('span', {}, f.name), h('span', { class: 'muted' }, f.qty || ''))),
-          foods.length > 5 ? h('li', { class: 'muted' }, `+ ${foods.length - 5} autre(s)`) : null)
+          foods.length > 5 ? h('li', { class: 'muted' }, T`+ ${foods.length - 5} autre(s)`) : null)
         : h('p', { class: 'muted small' }, 'Aucun aliment dans ce repas.'),
-      h('p', { class: 'next-meal__macros' }, `${mt.cal} kcal · P ${Math.round(mt.p)} · G ${Math.round(mt.g)} · L ${Math.round(mt.l)}`),
+      h('p', { class: 'next-meal__macros' }, T`${mt.cal} kcal · P ${Math.round(mt.p)} · G ${Math.round(mt.g)} · L ${Math.round(mt.l)}`),
       SupplementList(m));
   }
 
@@ -263,8 +265,8 @@ function WeightWidget() {
         h('span', { class: 'kcal__big' }, frNum(s.last.kg)),
         h('span', { class: 'kcal__unit' }, ' kg'),
         s.delta7 != null ? h('span', { class: `trend${s.delta7 > 0 ? ' up' : s.delta7 < 0 ? ' down' : ''}` },
-          `${s.delta7 > 0 ? '+' : ''}${frNum(s.delta7)} kg / 7 j`) : null) : h('p', { class: 'muted' }, 'Première pesée ? Le matin, à jeun.'),
-      s ? h('p', { class: 'muted small' }, `Dernière pesée : ${formatShortDate(s.last.date)}`) : null,
+          T`${s.delta7 > 0 ? '+' : ''}${frNum(s.delta7)} kg / 7 j`) : null) : h('p', { class: 'muted' }, 'Première pesée ? Le matin, à jeun.'),
+      s ? h('p', { class: 'muted small' }, T`Dernière pesée : ${formatShortDate(s.last.date)}`) : null,
       WeightInput({ compact: true }),
     ],
   });
@@ -282,8 +284,8 @@ function GoalsWidget() {
   return Widget({
     eyebrow: 'Habitudes du jour',
     cls: 'widget--compact',
-    action: link(day.total ? `${day.done}/${day.total} aujourd’hui` : 'Tout voir', '#/goals'),
-    children: [list, more ? h('a', { class: 'link-btn', href: '#/goals', style: { marginTop: '8px' } }, `+ ${more} autre(s)`, icon('chevron', 16)) : null],
+    action: link(day.total ? T`${day.done}/${day.total} aujourd’hui` : 'Tout voir', '#/goals'),
+    children: [list, more ? h('a', { class: 'link-btn', href: '#/goals', style: { marginTop: '8px' } }, T`+ ${more} autre(s)`, icon('chevron', 16)) : null],
   });
 }
 
@@ -320,14 +322,14 @@ function customize() {
     const move = (i, d) => { const v = [...visible]; [v[i], v[i + d]] = [v[i + d], v[i]]; save(v, hidden); };
     // replaceChildren n'aplatit pas les tableaux → on aplatit (sinon « [object …] »).
     list.replaceChildren(...[
-      h('p', { class: 'eyebrow' }, `Affichés (${visible.length})`),
+      h('p', { class: 'eyebrow' }, T`Affichés (${visible.length})`),
       h('div', { class: 'wedit__list' }, visible.map((id, i) => h('div', { class: 'wedit__row' },
         h('span', { class: 'wedit__icon' }, icon(WIDGETS[id].icon, 18)),
         h('span', { class: 'wedit__label' }, WIDGETS[id].label),
-        h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': `Monter ${WIDGETS[id].label}`, disabled: i === 0, onclick: () => move(i, -1) }, icon('up', 18)),
-        h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': `Descendre ${WIDGETS[id].label}`, disabled: i === visible.length - 1, onclick: () => move(i, 1) }, icon('down', 18)),
+        h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': T`Monter ${WIDGETS[id].label}`, disabled: i === 0, onclick: () => move(i, -1) }, icon('up', 18)),
+        h('button', { class: 'icon-btn icon-btn--ghost', type: 'button', 'aria-label': T`Descendre ${WIDGETS[id].label}`, disabled: i === visible.length - 1, onclick: () => move(i, 1) }, icon('down', 18)),
         h('button', {
-          class: 'icon-btn icon-btn--ghost wedit__hide', type: 'button', 'aria-label': `Masquer ${WIDGETS[id].label}`,
+          class: 'icon-btn icon-btn--ghost wedit__hide', type: 'button', 'aria-label': T`Masquer ${WIDGETS[id].label}`,
           onclick: () => save(visible.filter((x) => x !== id), [...hidden, id]),
         }, icon('eyeOff', 18))))),
       hidden.length ? [
@@ -360,13 +362,15 @@ export function HomeView(session) {
   const head = h('header', { class: 'home-head' },
     h('div', { class: 'topbar topbar--home' },
       LiveLogo(),
-      h('div', { class: 'row-gap' },
-        h('a', { class: 'counter', href: '#/training', 'aria-label': 'Séances effectuées' },
-          h('span', { class: 'counter__value' }, String(sessionCount())), h('span', { class: 'counter__label' }, 'séances')),
-        h('button', { class: 'icon-btn icon-btn--soft', type: 'button', 'aria-label': 'Personnaliser l’accueil', onclick: customize }, icon('layout', 20)))),
+      // Barre d'outils compacte : compteur · langue · personnaliser (tient sur un iPhone 375 px).
+      h('div', { class: 'home-tools' },
+        h('a', { class: 'home-tools__count', href: '#/training', 'aria-label': 'Séances effectuées' },
+          h('span', { class: 'home-tools__value' }, String(sessionCount())), h('span', { class: 'home-tools__label' }, 'séances')),
+        LangButton({ cls: 'home-tools__btn' }),
+        h('button', { class: 'home-tools__btn', type: 'button', 'aria-label': 'Personnaliser l’accueil', onclick: customize }, icon('layout', 20)))),
     h('div', { class: 'home-hello' },
       h('div', { style: { minWidth: 0 } },
-        h('p', { class: 'eyebrow' }, `${greeting()} · ${formatShortDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`),
+        h('p', { class: 'eyebrow' }, T`${tx(greeting())} · ${formatShortDate(new Date(), { weekday: 'long', day: 'numeric', month: 'long' })}`),
         h('h1', { class: 'page-title' }, first || 'Athlète')),
       h('div', { class: 'home-hello__actions' },
         HsnButton(),

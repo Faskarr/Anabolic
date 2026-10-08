@@ -6,6 +6,7 @@ import { h } from '../lib/dom.js';
 import { icon } from './icons.js';
 import { ms, MAX_LEN } from '../data/messages.js';
 
+import { locale } from '../lib/i18n.js';
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 function dayLabel(d) {
@@ -13,10 +14,10 @@ function dayLabel(d) {
   const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
   if (sameDay(d, now)) return "Aujourd'hui";
   if (sameDay(d, yesterday)) return 'Hier';
-  return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return d.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-const hhmm = (d) => d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const hhmm = (d) => d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 
 /** « 14:05 », « Hier », « lun. », « 6 oct. » — pour les listes. */
 export function shortWhen(v) {
@@ -27,8 +28,8 @@ export function shortWhen(v) {
   if (sameDay(d, now)) return hhmm(d);
   const diffDays = (now - d) / 86400000;
   if (diffDays < 2 && sameDay(new Date(now.getTime() - 86400000), d)) return 'Hier';
-  if (diffDays < 7) return d.toLocaleDateString('fr-FR', { weekday: 'short' });
-  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  if (diffDays < 7) return d.toLocaleDateString(locale(), { weekday: 'short' });
+  return d.toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
 }
 
 /**
@@ -50,7 +51,7 @@ export function Thread(messages, me, { special } = {}) {
     const custom = special?.(m, mine, hhmm(d));
     if (custom) { nodes.push(custom); continue; }
     nodes.push(h('div', { class: `bubble${mine ? ' bubble--mine' : ''}` },
-      h('p', { class: 'bubble__text' }, m.text),
+      h('p', { class: 'bubble__text', translate: 'no' }, m.text),
       h('span', { class: 'bubble__time' }, hhmm(d))));
   }
   return h('div', { class: 'thread', role: 'log', 'aria-live': 'polite', 'aria-label': 'Messages' }, nodes);

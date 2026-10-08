@@ -15,6 +15,7 @@
 import { uid } from './ids.js';
 import { normalizeGoals } from '../data/goals.js';
 
+import { T } from './i18n.js';
 export const FORMAT_VERSION = '4';
 const MAX_CHARS = 900_000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -165,9 +166,9 @@ export function parseImport(text) {
   for (const cat of Object.keys(NORMALIZERS)) {
     if (data[V3_KEY[cat]]) bundle[cat] = NORMALIZERS[cat](data[V3_KEY[cat]]);
   }
-  if (bundle.workout) summary.push(`Programme · ${bundle.workout.sessions.length} séance(s)`);
-  if (bundle.diet) summary.push(`Diet · ${bundle.diet.meals.length} repas`);
-  if (bundle.protocol) summary.push(`Protocole · ${bundle.protocol.days.length} jour(s)`);
+  if (bundle.workout) summary.push(T`Programme · ${bundle.workout.sessions.length} séance(s)`);
+  if (bundle.diet) summary.push(T`Diet · ${bundle.diet.meals.length} repas`);
+  if (bundle.protocol) summary.push(T`Protocole · ${bundle.protocol.days.length} jour(s)`);
 
   if (data.all && typeof data.all === 'object') {
     bundle.all = {};
@@ -178,26 +179,26 @@ export function parseImport(text) {
       }));
     }
     const n = Object.values(bundle.all).reduce((a, l) => a + l.length, 0);
-    if (n) summary.push(`Sauvegarde complète · ${n} profil(s)`);
+    if (n) summary.push(T`Sauvegarde complète · ${n} profil(s)`);
   }
 
   if (data.weights) {
     bundle.weights = normalizeWeights(data.weights);
-    if (bundle.weights.length) summary.push(`Poids · ${bundle.weights.length} pesée(s)`);
+    if (bundle.weights.length) summary.push(T`Poids · ${bundle.weights.length} pesée(s)`);
   }
   if (data.counterBase != null) {
     bundle.counterBase = int(data.counterBase, 0, 100000) ?? 0;
-    summary.push(`Compteur · ${bundle.counterBase}`);
+    summary.push(T`Compteur · ${bundle.counterBase}`);
   }
   if (data.goals) {
     bundle.goals = normalizeGoals(data.goals);
-    if (bundle.goals.items.length) summary.push(`Objectifs · ${bundle.goals.items.length}`);
+    if (bundle.goals.items.length) summary.push(T`Objectifs · ${bundle.goals.items.length}`);
     else delete bundle.goals;
   }
   if (data.exlogs) {
     bundle.exlogs = normalizeExlogs(data.exlogs);
     const n = Object.values(bundle.exlogs).reduce((a, l) => a + l.length, 0);
-    if (n) summary.push(`Carnet de charges · ${n} entrée(s)`);
+    if (n) summary.push(T`Carnet de charges · ${n} entrée(s)`);
   }
 
   if (!summary.length) throw new Error('Aucune donnée AnabolicOS trouvée dans ce code.');

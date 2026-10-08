@@ -5,6 +5,7 @@
  * @param {{ label: string, value: number }[]} points
  * @param {{ height?: number, unit?: string, decimals?: number, ariaLabel?: string }} [opts]
  */
+import { tx, num } from '../lib/i18n.js';
 const NS = 'http://www.w3.org/2000/svg';
 
 function el(name, attrs = {}, text) {
@@ -20,7 +21,7 @@ export function lineChart(points, { height = 120, unit = '', decimals = 1, ariaL
   const W = 320;
   const H = height;
   const P = { t: 18, r: 14, b: 22, l: 14 };
-  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': ariaLabel });
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart', role: 'img', 'aria-label': tx(ariaLabel) });
 
   if (points.length < 2) {
     svg.appendChild(el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', class: 'chart__empty' },
@@ -48,7 +49,7 @@ export function lineChart(points, { height = 120, unit = '', decimals = 1, ariaL
   grad.append(el('stop', { offset: '0%', class: 'chart__stop-top' }), el('stop', { offset: '100%', class: 'chart__stop-bottom' }));
   defs.appendChild(grad);
 
-  const fmt = (v) => `${v.toFixed(decimals).replace('.', ',')}${unit}`;
+  const fmt = (v) => `${num(v, decimals)}${unit}`;
   const [lx, ly] = xy.at(-1);
 
   svg.append(

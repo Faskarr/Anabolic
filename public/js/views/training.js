@@ -4,7 +4,7 @@
  */
 import { h, mount } from '../lib/dom.js';
 import { uid } from '../lib/ids.js';
-import { formatWeekdays, formatShortDate, isoWeekday, frNum, localISODate } from '../lib/dates.js';
+import { formatWeekdays, formatShortDate, isoWeekday, frNum, localISODate, dayLetters } from '../lib/dates.js';
 import {
   state, activeProfileId, profileData, sessionCount, sessionWeekKey, subscribe, ensureExlogs,
 } from '../store.js';
@@ -20,6 +20,7 @@ import { icon } from '../ui/icons.js';
 import { lineChart } from '../ui/chart.js';
 import { startTimer, parseRest, showTimer } from '../ui/timer.js';
 
+import { T, isEn } from '../lib/i18n.js';
 const CAT = 'workout';
 
 /** Séance sélectionnée (mémorisée entre deux rendus). */
@@ -63,7 +64,6 @@ export function setSessionDone(pid, session, done) {
   publishActivity(state.me, other?.name, Boolean(other));
 }
 
-const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
 
 /** Jours de la séance, modifiables d'un tap (plus besoin de passer par un menu). */
@@ -71,8 +71,8 @@ function WeekdayPicker(session) {
   const days = new Set(session.weekdays || []);
   return h('div', { class: 'day-picker' },
     h('span', { class: 'day-picker__label' }, 'Jours'),
-    h('div', { class: 'daychips daychips--inline', role: 'group', 'aria-label': `Jours prévus pour ${session.name}` },
-      DAY_LETTERS.map((l, i) => {
+    h('div', { class: 'daychips daychips--inline', role: 'group', 'aria-label': T`Jours prévus pour ${session.name}` },
+      dayLetters().map((l, i) => {
         const d = i + 1;
         const on = days.has(d);
         return h('button', {
@@ -146,7 +146,7 @@ function VideoButton(kind, name) {
   const v = VIDEO[kind];
   return h('a', {
     class: `pill-btn pill-btn--video pill-btn--${kind}`, href: v.url(name), target: '_blank', rel: 'noopener noreferrer',
-    'aria-label': `Voir ${name} sur ${v.label} (le nom est copié)`,
+    'aria-label': T`Voir ${name} sur ${v.label} (le nom est copié)`,
     // Copie le nom : pratique si l'app ouvre sa page d'accueil au lieu de la recherche.
     onclick: () => { navigator.clipboard?.writeText(name).catch(() => {}); },
   }, icon('play', 13), v.label);
@@ -187,13 +187,13 @@ async function editSession(session) {
 
 async function deleteSession(session) {
   const ok = await confirmSheet({
-    title: `Supprimer « ${session.name} » ?`,
+    title: T`Supprimer « ${session.name} » ?`,
     message: 'La séance et ses exercices seront supprimés. Le carnet de charges est conservé.',
   });
   if (!ok) return;
   const undo = updateProfileData(CAT, (d) => { d.sessions = d.sessions.filter((s) => s.id !== session.id); });
   if (selectedSid === session.id) selectedSid = null;
-  undoToast(`« ${session.name} » supprimée`, undo);
+  undoToast(T`« ${session.name} » supprimée`, undo);
 }
 
 // ── Exercices ───────────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ async function editExercise(session, exercise) {
       const s = d.sessions.find((x) => x.id === session.id);
       if (s) s.exercises = s.exercises.filter((e) => e.id !== exercise.id);
     });
-    undoToast(`« ${exercise.n} » supprimé`, undo);
+    undoToast(T`« ${exercise.n} » supprimé`, undo);
     return;
   }
 
@@ -309,7 +309,7 @@ function openLog(exercise) {
   const dropRow = (w = '') => {
     const wIn = h('input', { class: 'input input--num', inputmode: 'decimal', placeholder: 'kg', 'aria-label': 'Charge du palier en kg', maxlength: 6 });
     const rIn = h('input', { class: 'input input--num', inputmode: 'numeric', placeholder: 'reps', 'aria-label': 'Répétitions du palier', maxlength: 4 });
-    wIn.value = w === '' ? '' : String(w).replace('.', ',');
+    wIn.value = w === '' ? '' : (isEn() ? String(w) : String(w).replace('.', ','));
     const row = { wIn, rIn, el: null };
     row.el = h('div', { class: 'drop-row' },
       h('span', { class: 'drop-row__arrow', 'aria-hidden': 'true' }, '↘'), wIn, h('span', { class: 'log__x', 'aria-hidden': 'true' }, '×'), rIn,
@@ -336,7 +336,7 @@ function openLog(exercise) {
   function syncChips() {
     chipsEl.replaceChildren(
       h('span', { class: 'log__opts-label' }, 'RIR'),
-      ...[2, 1, 0].map((n) => chip(String(n), opts.rir === n, () => { opts.rir = opts.rir === n ? null : n; syncChips(); }, `${n} répétition${n > 1 ? 's' : ''} en réserve`)),
+      ...[2, 1, 0].map((n) => chip(String(n), opts.rir === n, () => { opts.rir = opts.rir === n ? null : n; syncChips(); }, T`${n} répétition${n > 1 ? 's' : ''} en réserve`)),
       h('span', { class: 'log__opts-sep', 'aria-hidden': 'true' }),
       chip('↘ Dégressive', opts.drop, () => { opts.drop = !opts.drop; syncChips(); }, 'Série dégressive : plusieurs charges enchaînées sans repos'));
     renderDrops();
@@ -372,12 +372,12 @@ function openLog(exercise) {
       const ts = Date.now();
       addLog(eid, w, r, { rir: opts.rir, ts });
       steps.forEach((x, i) => addLog(eid, x.w, x.r, { drop: true, ts: ts + i + 1 }));
-      if (steps.length) toast(`Dégressive notée : ${[w, ...steps.map((x) => x.w)].map((x) => frNum(x, x % 1 ? 1 : 0)).join(' → ')} kg`);
+      if (steps.length) toast(T`Dégressive notée : ${[w, ...steps.map((x) => x.w)].map((x) => frNum(x, x % 1 ? 1 : 0)).join(' → ')} kg`);
       // Prochaine série : on garde la charge, on vide les reps des paliers.
       drops.forEach((d) => { d.rIn.value = ''; });
       // Nouveau record (1RM estimé) → proposition de partage aux amis.
       if (prevBest > 0 && est1RM(w, r) > prevBest && state.me) {
-        toast(`Nouveau record ! ${frNum(w, w % 1 ? 1 : 0)} kg × ${r} 🏆`, {
+        toast(T`Nouveau record ! ${frNum(w, w % 1 ? 1 : 0)} kg × ${r} 🏆`, {
           duration: 7000,
           action: { label: 'Partager', onClick: () => sharePR(state.me, { exercise: exercise.n, w, r }) },
         });
@@ -397,7 +397,7 @@ function openLog(exercise) {
       weightIn.placeholder = fmtKg(sug.w);
       repsIn.placeholder = String(sug.r);
       suggestEl.replaceChildren(icon(sug.up ? 'up' : 'target', 16),
-        h('span', {}, 'Suggéré aujourd’hui : ', h('strong', {}, `${fmtKg(sug.w)} kg × ${sug.r}`),
+        h('span', {}, 'Suggéré aujourd’hui : ', h('strong', {}, T`${fmtKg(sug.w)} kg × ${sug.r}`),
           sug.up ? ' · haut de fourchette atteint, on monte' : ' · même charge, +1 rep'));
       suggestEl.hidden = false;
     } else { suggestEl.hidden = true; }
@@ -419,9 +419,9 @@ function openLog(exercise) {
       state.me ? h('button', {
         class: 'btn btn--ghost btn--block share-pr', type: 'button',
         onclick: () => sharePR(state.me, { exercise: exercise.n, w: bestSet.w, r: bestSet.r }),
-      }, icon('share', 18), `Partager mon record · ${frNum(bestSet.w, bestSet.w % 1 ? 1 : 0)} kg × ${bestSet.r}`) : null,
+      }, icon('share', 18), T`Partager mon record · ${frNum(bestSet.w, bestSet.w % 1 ? 1 : 0)} kg × ${bestSet.r}`) : null,
       h('div', { class: 'stats' },
-        Stat(`${frNum(last.w, last.w % 1 ? 1 : 0)} kg × ${last.r}`, 'Dernière série'),
+        Stat(T`${frNum(last.w, last.w % 1 ? 1 : 0)} kg × ${last.r}`, 'Dernière série'),
         Stat(`${frNum(best, 0)} kg`, '1RM estimé max'),
         Stat(delta == null ? '—' : `${delta >= 0 ? '+' : ''}${frNum(delta, 1)}`, 'Δ 1RM', delta > 0 ? 'up' : delta < 0 ? 'down' : '')),
       days.length > 1 ? h('div', { class: 'chart-wrap' },
@@ -429,10 +429,10 @@ function openLog(exercise) {
           { unit: '', decimals: 0, ariaLabel: '1RM estimé par séance' })) : null,
       h('ul', { class: 'list' }, [...arr].reverse().slice(0, 60).map((e) => h('li', { class: 'list__row' },
         h('span', { class: 'list__meta' }, formatShortDate(e.d, { day: 'numeric', month: 'short' })),
-        h('span', { class: 'list__main' }, `${frNum(e.w, e.w % 1 ? 1 : 0)} kg × ${e.r}`,
+        h('span', { class: 'list__main' }, T`${frNum(e.w, e.w % 1 ? 1 : 0)} kg × ${e.r}`,
           e.k === 'drop' ? h('span', { class: 'set-tag set-tag--drop' }, '↘ dégr.') : null,
-          e.rir != null ? h('span', { class: 'set-tag' }, `RIR ${e.rir}`) : null),
-        h('span', { class: 'list__meta' }, `1RM ${frNum(est1RM(e.w, e.r), 0)}`),
+          e.rir != null ? h('span', { class: 'set-tag' }, T`RIR ${e.rir}`) : null),
+        h('span', { class: 'list__meta' }, T`1RM ${frNum(est1RM(e.w, e.r), 0)}`),
         IconButton('x', 'Supprimer cette série', () => undoToast('Série supprimée', deleteLog(eid, e.ts)), 'icon-btn--ghost')))),
     );
   }
@@ -441,7 +441,7 @@ function openLog(exercise) {
   const unsub = subscribe(render);
   openSheet({
     title: exercise.n,
-    subtitle: [exercise.s !== '—' && exercise.s, exercise.r !== '—' && `repos ${exercise.r}`].filter(Boolean).join(' · ') || 'Carnet de charges',
+    subtitle: [exercise.s !== '—' && exercise.s, exercise.r !== '—' && T`repos ${exercise.r}`].filter(Boolean).join(' · ') || 'Carnet de charges',
     body: h('div', {}, suggestEl, form, chipsEl, dropPanel, content),
     onClose: unsub,
   });
@@ -493,27 +493,27 @@ function ExerciseCard(session, ex, index, total, label, inSuperset = false) {
     ],
   });
 
-  const main = h('button', { class: 'exercise__main', type: 'button', 'aria-label': `Modifier ${ex.n}`, onclick: () => editExercise(session, ex) },
+  const main = h('button', { class: 'exercise__main', type: 'button', 'aria-label': T`Modifier ${ex.n}`, onclick: () => editExercise(session, ex) },
     h('span', { class: 'exercise__index' }, label || String(index + 1).padStart(2, '0')),
     h('span', { class: 'exercise__body' },
       h('span', { class: 'exercise__name' }, ex.n),
       ex.no ? h('span', { class: 'exercise__note' }, ex.no) : null,
       METHOD[ex.m] ? h('span', { class: `exercise__method exercise__method--${ex.m}` }, METHOD[ex.m],
-        ex.dw ? ` · ${parseLoads(ex.dw).map((x) => frNum(x, x % 1 ? 1 : 0)).join(' → ')} kg` : null) : null,
+        ex.dw ? T` · ${parseLoads(ex.dw).map((x) => frNum(x, x % 1 ? 1 : 0)).join(' → ')} kg` : null) : null,
       sug ? h('span', { class: `exercise__suggest${sug.up ? ' exercise__suggest--up' : ''}` },
-        icon(sug.up ? 'up' : 'target', 14), `Suggéré ${fmtKg(sug.w)} kg × ${sug.r}`) : null),
+        icon(sug.up ? 'up' : 'target', 14), T`Suggéré ${fmtKg(sug.w)} kg × ${sug.r}`) : null),
     h('span', { class: 'exercise__sets' },
       h('span', { class: 'exercise__setsval' }, ex.s),
       !inSuperset && ex.r && ex.r !== '—' ? h('span', { class: 'exercise__rest' }, ex.r) : null));
 
   const logBtn = h('button', { class: 'pill-btn', type: 'button', onclick: () => openLog(ex) },
-    icon('chart', 16), last ? `${fmtKg(last.w)} kg × ${last.r}` : 'Charges');
+    icon('chart', 16), last ? T`${fmtKg(last.w)} kg × ${last.r}` : 'Charges');
 
   if (inSuperset) {
     return h('article', { class: 'ss-row' }, main,
       h('div', { class: 'exercise__actions' }, logBtn, VideoButton('youtube', ex.n),
         h('span', { class: 'spacer' }),
-        IconButton('more', `Options de ${ex.n}`, more, 'icon-btn--ghost exercise__more')));
+        IconButton('more', T`Options de ${ex.n}`, more, 'icon-btn--ghost exercise__more')));
   }
 
   return h('article', { class: 'exercise' },
@@ -521,11 +521,11 @@ function ExerciseCard(session, ex, index, total, label, inSuperset = false) {
     h('div', { class: 'exercise__actions' },
       logBtn,
       h('button', {
-        class: 'pill-btn', type: 'button', 'aria-label': `Lancer le repos ${ex.r}`,
+        class: 'pill-btn', type: 'button', 'aria-label': T`Lancer le repos ${ex.r}`,
         onclick: () => (restSec ? startTimer(restSec) : startTimer(120)),
       }, icon('timer', 16), restSec ? ex.r : 'Repos'),
       h('span', { class: 'spacer' }),
-      IconButton('more', `Options de ${ex.n}`, more, 'icon-btn--ghost exercise__more')),
+      IconButton('more', T`Options de ${ex.n}`, more, 'icon-btn--ghost exercise__more')),
     h('div', { class: 'exercise__video' },
       h('span', { class: 'exercise__video-label' }, 'Technique'),
       VideoButton('youtube', ex.n)));
@@ -536,7 +536,7 @@ function SupersetCard(session, group, num, total) {
   // Repos du tour : celui du dernier exercice (à défaut, le dernier renseigné).
   const restEx = [...group].reverse().map((g) => g.ex).find((e) => parseRest(e.r));
   const restSec = restEx ? parseRest(restEx.r) : null;
-  const kind = group.length > 2 ? `Circuit · ${group.length} exercices` : 'Superset';
+  const kind = group.length > 2 ? T`Circuit · ${group.length} exercices` : 'Superset';
   return h('section', { class: 'exercise superset-card', 'aria-label': `${kind}` },
     h('p', { class: 'superset__label' }, icon('link2', 14), kind, h('span', { class: 'superset__hint' }, ' · enchaînés sans repos')),
     h('div', { class: 'superset-card__rows' },
@@ -544,9 +544,9 @@ function SupersetCard(session, group, num, total) {
     h('div', { class: 'superset-card__foot' },
       h('button', {
         class: 'pill-btn pill-btn--rest', type: 'button',
-        'aria-label': `Lancer le repos après le tour${restEx ? ` (${restEx.r})` : ''}`,
+        'aria-label': T`Lancer le repos après le tour${restEx ? ` (${restEx.r})` : ''}`,
         onclick: () => startTimer(restSec || 120),
-      }, icon('timer', 16), restSec ? `Repos ${restEx.r}` : 'Repos'),
+      }, icon('timer', 16), restSec ? T`Repos ${restEx.r}` : 'Repos'),
       h('span', { class: 'superset-card__hint' }, 'après le dernier exercice')));
 }
 

@@ -13,6 +13,7 @@ import { Thread, Composer, scrollToEnd, shortWhen } from '../ui/chat.js';
 import { icon } from '../ui/icons.js';
 import { Avatar } from '../ui/avatar.js';
 
+import { T } from '../lib/i18n.js';
 // ── Boîte de réception ──────────────────────────────────────────────────
 
 const FILTERS = [
@@ -72,7 +73,7 @@ export function AdminInboxView() {
             h('span', { class: 'conv__top' },
               h('span', { class: 'conv__name' }, c.userName || 'Utilisateur'),
               h('span', { class: 'conv__when' }, shortWhen(c.lastAt))),
-            h('span', { class: 'conv__preview' }, c.lastFrom === 'admin' ? `Toi : ${c.lastText || ''}` : (c.lastText || ''))),
+            h('span', { class: 'conv__preview' }, c.lastFrom === 'admin' ? T`Toi : ${c.lastText || ''}` : (c.lastText || ''))),
           isUnread ? h('span', { class: 'dot', 'aria-label': 'Non lu' }) : null,
           c.status === 'done' ? h('span', { class: 'tag' }, 'Traitée') : null);
       }))

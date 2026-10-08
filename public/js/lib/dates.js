@@ -4,6 +4,7 @@
  * Corrige le bug de l'ancienne app qui utilisait toISOString() — date UTC —
  * et enregistrait la veille pour toute saisie entre minuit et 1 h/2 h en France.
  */
+import { locale, isEn, num } from './i18n.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -34,10 +35,15 @@ export function greeting(d = new Date()) {
 }
 
 const SHORT_DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const SHORT_DAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** Initiales des jours (lundi → dimanche) dans la langue de l'app. */
+export const dayLetters = () => (isEn() ? ['M', 'T', 'W', 'T', 'F', 'S', 'S'] : ['L', 'M', 'M', 'J', 'V', 'S', 'D']);
 
 /** [1, 4] → « Lun · Jeu » */
 export function formatWeekdays(days) {
-  return (days || []).map((d) => SHORT_DAYS[d - 1]).filter(Boolean).join(' · ');
+  const names = isEn() ? SHORT_DAYS_EN : SHORT_DAYS;
+  return (days || []).map((d) => names[d - 1]).filter(Boolean).join(' · ');
 }
 
 /** 'YYYY-MM-DD' → Date à midi local (évite les décalages de fuseau). */
@@ -45,10 +51,10 @@ export function parseISODate(s) {
   return new Date(`${s}T12:00:00`);
 }
 
-/** Format court français : « lun. 6 oct. » */
+/** Format court (langue de l'app) : « lun. 6 oct. » / « Mon, Oct 6 » */
 export function formatShortDate(input, opts = { weekday: 'short', day: 'numeric', month: 'short' }) {
   const d = typeof input === 'string' ? parseISODate(input) : new Date(input);
-  return d.toLocaleDateString('fr-FR', opts);
+  return d.toLocaleDateString(locale(), opts);
 }
 
 /** Nombre de jours entre deux dates ISO (b - a). */
@@ -56,7 +62,7 @@ export function daysBetween(a, b) {
   return Math.round((parseISODate(b) - parseISODate(a)) / 86400000);
 }
 
-/** Formate un nombre à la française : 82.5 → « 82,5 ». */
+/** Formate un nombre selon la langue : 82.5 → « 82,5 » (FR) / « 82.5 » (EN). */
 export function frNum(n, decimals = 1) {
-  return Number(n).toFixed(decimals).replace('.', ',');
+  return num(n, decimals);
 }

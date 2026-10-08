@@ -10,13 +10,14 @@ import { formSheet, confirmSheet } from '../ui/sheet.js';
 import { toast } from '../ui/toast.js';
 import { icon } from '../ui/icons.js';
 
+import { T } from '../lib/i18n.js';
 const ICON_LABEL = { link: 'Lien', play: 'Vidéo', message: 'Discussion', music: 'Musique', leaf: 'Nutrition', pill: 'Compléments', dumbbell: 'Sport', heart: 'Favori' };
 
 async function persist(next, msg) {
   try { await saveLinks(next); if (msg) toast(msg); } catch (err) {
     toast(err.code === 'permission-denied'
       ? 'Refusé par les règles Firebase : elles ne sont pas encore déployées (firebase deploy).'
-      : `Enregistrement impossible : ${err.code || err.message}`, { type: 'error', duration: 6000 });
+      : T`Enregistrement impossible : ${err.code || err.message}`, { type: 'error', duration: 6000 });
   }
 }
 
@@ -37,7 +38,7 @@ async function editLink(items, link) {
   });
   if (!r) return;
   if (r.action === 'delete') {
-    if (await confirmSheet({ title: `Supprimer « ${link.label} » ?` })) persist(items.filter((x) => x.id !== link.id), 'Lien supprimé');
+    if (await confirmSheet({ title: T`Supprimer « ${link.label} » ?` })) persist(items.filter((x) => x.id !== link.id), 'Lien supprimé');
     return;
   }
   const next = cleanLink({ ...link, ...r.values });
@@ -66,8 +67,8 @@ export function AdminLinksView(session) {
             h('span', { class: 'menu-row__sub' }, l.sub || l.href)),
           l.private ? h('span', { class: 'tag' }, icon('eyeOff', 12), 'Moi') : null),
         h('span', { class: 'link-edit__moves' },
-          IconButton('up', `Monter ${l.label}`, () => move(items, i, -1), `icon-btn--ghost${i === 0 ? ' is-hidden' : ''}`),
-          IconButton('down', `Descendre ${l.label}`, () => move(items, i, 1), `icon-btn--ghost${i === items.length - 1 ? ' is-hidden' : ''}`)))))
+          IconButton('up', T`Monter ${l.label}`, () => move(items, i, -1), `icon-btn--ghost${i === 0 ? ' is-hidden' : ''}`),
+          IconButton('down', T`Descendre ${l.label}`, () => move(items, i, 1), `icon-btn--ghost${i === items.length - 1 ? ' is-hidden' : ''}`)))))
       : Empty({ iconName: 'link', title: 'Aucun lien', text: 'Ajoute ta chaîne, ton Discord, tes boutiques préférées…' }),
     h('button', { class: 'btn btn--primary btn--block', type: 'button', onclick: () => editLink(items, null) }, icon('plus', 18), 'Ajouter un lien'),
     h('p', { class: 'hint' }, 'Touche un lien pour le modifier (nom, adresse, icône, visibilité). Les changements apparaissent chez tout le monde à la prochaine ouverture de l’app.'),

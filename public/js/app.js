@@ -35,6 +35,10 @@ import { WeightView } from './views/weight.js';
 import { ContactView, leaveContact } from './views/contact.js';
 import { MessagesHubView, FriendChatView, leaveFriendChat, leaveHub } from './views/messages-hub.js';
 import { GoalsView } from './views/goals.js';
+import { langReady } from './lib/i18n.js';
+
+// Anglais : le dictionnaire (chargé à la demande, en cache) doit être prêt avant le 1er affichage.
+await langReady;
 
 // Version des fichiers statiques (à incrémenter à chaque déploiement visuel).
 export const ASSET_VERSION = '0.9.1';
@@ -219,7 +223,20 @@ function mountShell() {
  * Rend la vue courante. Préserve le champ en cours de saisie (valeur + curseur)
  * pour qu'une mise à jour temps réel n'efface pas ce que l'utilisateur tape.
  */
+/**
+ * Rendu groupé : une rafale de mises à jour temps réel (écriture locale, accusé
+ * serveur, documents liés…) ne produit qu'UN rendu par image affichée.
+ */
+let frame = 0;
+function scheduleRender() {
+  if (frame) return;
+  frame = requestAnimationFrame(() => { frame = 0; render(); });
+}
+
 function render({ scrollTop = false } = {}) {
+  if (frame) { cancelAnimationFrame(frame); frame = 0; }
+  // Écran de connexion : redessiné en entier (changement de langue avant connexion).
+  if (session?.state === 'signed-out') { mount(root, LoginView()); return; }
   if (!session || session.state !== 'active' || !viewEl) return;
 
   const def = ROUTES[current.key];
@@ -262,7 +279,7 @@ window.addEventListener('hashchange', () => {
   enter = { pending: true, at: 0 };
   render({ scrollTop: true });
 });
-window.addEventListener('app:render', () => render());
+window.addEventListener('app:render', scheduleRender);
 
 onSession((s) => {
   // Autre compte que la session affichée en attendant Firebase, ou déconnexion :
@@ -312,7 +329,7 @@ onSession((s) => {
   }
   if (s.isAdmin && !adminFeeds) { adminFeeds = true; startAdminFeeds(); }
   if (!wasActive) {
-    unsubStore = subscribe(() => render());
+    unsubStore = subscribe(scheduleRender);
     mountShell();
   }
   current = parseRoute();

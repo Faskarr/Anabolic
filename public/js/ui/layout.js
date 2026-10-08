@@ -8,6 +8,7 @@ import { setActiveProfile, createProfile, renameProfile, deleteProfile } from '.
 import { formSheet, confirmSheet, actionSheet } from './sheet.js';
 import { undoToast } from './toast.js';
 
+import { T } from '../lib/i18n.js';
 /** En-tête de page « grand titre » façon iOS. */
 export function PageHeader({ eyebrow, title, trailing }) {
   return h('header', { class: 'page-head' },
@@ -47,8 +48,8 @@ const CAT_EXAMPLES = { workout: 'PPL Masse, Full Body…', diet: 'Sèche, Prise 
 
 export async function newProfileFlow(cat) {
   const r = await formSheet({
-    title: `Nouveau ${CAT_LABEL[cat]}`,
-    subtitle: `Ex. ${CAT_EXAMPLES[cat]}`,
+    title: T`Nouveau ${CAT_LABEL[cat]}`,
+    subtitle: T`Ex. ${CAT_EXAMPLES[cat]}`,
     fields: [{ name: 'name', label: 'Nom', required: true, maxlength: 60 }],
     submitLabel: 'Créer',
   });
@@ -66,9 +67,9 @@ export function ProfileBar(cat) {
 
   const manage = () => actionSheet({
     title: active ? active.name : 'Profils',
-    subtitle: `Gérer tes profils ${CAT_LABEL[cat]}`,
+    subtitle: T`Gérer tes profils ${CAT_LABEL[cat]}`,
     actions: [
-      { label: `Nouveau ${CAT_LABEL[cat]}`, icon: 'plus', onClick: () => newProfileFlow(cat) },
+      { label: T`Nouveau ${CAT_LABEL[cat]}`, icon: 'plus', onClick: () => newProfileFlow(cat) },
       active && { label: 'Renommer', icon: 'edit', onClick: async () => {
         const r = await formSheet({
           title: 'Renommer', fields: [{ name: 'name', label: 'Nom', value: active.name, required: true, maxlength: 60 }],
@@ -77,10 +78,10 @@ export function ProfileBar(cat) {
       } },
       active && { label: 'Supprimer', icon: 'trash', danger: true, onClick: async () => {
         const ok = await confirmSheet({
-          title: `Supprimer « ${active.name} » ?`,
+          title: T`Supprimer « ${active.name} » ?`,
           message: 'Toutes les données de ce profil seront supprimées.',
         });
-        if (ok) undoToast(`« ${active.name} » supprimé`, deleteProfile(cat, active.id));
+        if (ok) undoToast(T`« ${active.name} » supprimé`, deleteProfile(cat, active.id));
       } },
     ],
   });
@@ -99,9 +100,9 @@ export function ProfileBar(cat) {
 export function NoProfile(cat, iconName) {
   return Empty({
     iconName,
-    title: `Aucun ${CAT_LABEL[cat]}`,
+    title: T`Aucun ${CAT_LABEL[cat]}`,
     text: 'Crée ton premier profil, ou importe un code depuis Moi › Partage.',
-    actionLabel: `Créer un ${CAT_LABEL[cat]}`,
+    actionLabel: T`Créer un ${CAT_LABEL[cat]}`,
     onAction: () => newProfileFlow(cat),
   });
 }

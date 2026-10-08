@@ -9,8 +9,9 @@
 import { uid } from '../lib/ids.js';
 import { createProfile, mergeWeights, mergeLogs, setCounterBase, exerciseIdExists, updateGoals } from './repo.js';
 
+import { T, locale } from '../lib/i18n.js';
 const defaultName = () =>
-  `Import ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`;
+  `Import ${new Date().toLocaleDateString(locale(), { day: 'numeric', month: 'short' })}`;
 
 /** Régénère les ids d'exercices en collision. Renvoie la table ancienId → nouvelId. */
 function dedupeExerciseIds(workout) {
@@ -58,19 +59,19 @@ export function applyImport(bundle, pick) {
         n += 1;
       }
     }
-    if (n) done.push(`${n} profil(s)`);
+    if (n) done.push(T`${n} profil(s)`);
   }
 
   if (pick.exlogs && bundle.exlogs) {
     const remapped = {};
     for (const [eid, entries] of Object.entries(bundle.exlogs)) remapped[idMap[eid] || eid] = entries;
     const n = mergeLogs(remapped);
-    done.push(`${n} charge(s)`);
+    done.push(T`${n} charge(s)`);
   }
 
   if (pick.weights && bundle.weights?.length) {
     const n = mergeWeights(bundle.weights);
-    done.push(`${n} pesée(s) ajoutée(s)`);
+    done.push(T`${n} pesée(s) ajoutée(s)`);
   }
 
   if (pick.counter && bundle.counterBase != null) {

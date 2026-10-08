@@ -18,6 +18,8 @@ import { linksOf } from '../data/links.js';
 import { InstallRow } from '../ui/install.js';
 import { openSheet } from '../ui/sheet.js';
 
+import { T, getLang, setLang } from '../lib/i18n.js';
+import { Flag } from '../ui/flag.js';
 export const APP_VERSION = '0.9.1';
 
 function Row({ href, onclick, iconName, label, value, badge, danger }) {
@@ -25,7 +27,7 @@ function Row({ href, onclick, iconName, label, value, badge, danger }) {
     h('span', { class: 'menu-row__icon' }, icon(iconName, 20)),
     h('span', { class: 'menu-row__label' }, label),
     value ? h('span', { class: 'menu-row__value' }, value) : null,
-    badge ? h('span', { class: 'count-badge', 'aria-label': `${badge} non lu${badge > 1 ? 's' : ''}` }, String(badge)) : null,
+    badge ? h('span', { class: 'count-badge', 'aria-label': T`${badge} non lu${badge > 1 ? 's' : ''}` }, String(badge)) : null,
     href ? h('span', { class: 'menu-row__chevron' }, icon('chevron', 18)) : null,
   ];
   return href
@@ -84,6 +86,19 @@ function ThemePicker() {
       }, l))));
 }
 
+/** Langue de l'app : chaque option est écrite dans sa propre langue (jamais traduite). */
+function LangPicker() {
+  const cur = getLang();
+  return h('div', { class: 'theme-row' },
+    h('span', { class: 'menu-row__icon' }, Flag(cur === 'en' ? 'us' : 'fr', 20)),
+    h('span', { class: 'menu-row__label' }, 'Langue'),
+    h('div', { class: 'segmented segmented--mini', role: 'radiogroup', 'aria-label': 'Langue', translate: 'no' },
+      [['fr', 'Français'], ['en', 'English']].map(([v, l]) => h('button', {
+        class: `segment${cur === v ? ' segment--on' : ''}`, type: 'button', role: 'radio', 'aria-checked': String(cur === v),
+        onclick: () => { if (v !== cur) setLang(v); },
+      }, l))));
+}
+
 /** Fond animé (halos en mouvement) : activé par défaut, désactivable. */
 function FxToggle() {
   const input = h('input', {
@@ -102,7 +117,7 @@ async function editPseudo(session) {
   const { user } = session;
   const r = await formSheet({
     title: 'Mon pseudo',
-    subtitle: `Affiché à tes amis et à ton coach à la place de « ${user.googleName || user.email} ». Laisse vide pour reprendre ton nom Google.`,
+    subtitle: T`Affiché à tes amis et à ton coach à la place de « ${user.googleName || user.email} ». Laisse vide pour reprendre ton nom Google.`,
     fields: [{ name: 'pseudo', label: 'Pseudo', maxlength: 30, value: user.pseudo || '', placeholder: 'Ex. Faskarr' }],
     submitLabel: 'Enregistrer',
   });
@@ -110,7 +125,7 @@ async function editPseudo(session) {
   try {
     const { savePseudo } = await import('../data/profile.js');
     const name = await savePseudo(session, r.values.pseudo);
-    toast(`Tu t’appelles maintenant ${name}`);
+    toast(T`Tu t’appelles maintenant ${name}`);
     setTimeout(() => location.reload(), 700);   // tout l'écran repart avec le nouveau nom
   } catch (err) {
     console.error('[pseudo]', err);
@@ -129,7 +144,7 @@ export function MeView(session) {
       h('div', { style: { minWidth: 0 } },
         h('button', { class: 'profile-card__name profile-card__edit', type: 'button', 'aria-label': 'Changer mon pseudo', onclick: () => editPseudo(session) },
           user.displayName || 'Athlète', icon('edit', 15), isAdmin ? h('span', { class: 'badge badge--inline' }, 'Admin') : null),
-        user.pseudo ? h('p', { class: 'muted small' }, `Nom Google : ${user.googleName}`) : null,
+        user.pseudo ? h('p', { class: 'muted small' }, T`Nom Google : ${user.googleName}`) : null,
         h('p', { class: 'muted', style: { overflowWrap: 'anywhere' } }, user.email),
         h('p', { class: 'muted small' }, 'Photo visible par tes amis et ton coach.'))),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Sections' },
@@ -145,6 +160,7 @@ export function MeView(session) {
     h('p', { class: 'eyebrow menu-title' }, 'Liens & réglages'),
     h('nav', { class: 'menu card card--flush', 'aria-label': 'Liens utiles' },
       ThemePicker(),
+      LangPicker(),
       FxToggle(),
       linksOf(isAdmin).map((l) => h('a', { class: 'menu-row', href: l.href, target: '_blank', rel: 'noopener noreferrer' },
         h('span', { class: 'menu-row__icon' }, icon(l.icon || 'link', 20)),
@@ -153,7 +169,7 @@ export function MeView(session) {
     isAdmin ? h('nav', { class: 'menu card card--flush', 'aria-label': 'Administration' },
       Row({
         href: '#/admin', iconName: 'shield', label: 'Espace admin',
-        value: state.adminUsers ? `${state.adminUsers.length} utilisateur${state.adminUsers.length > 1 ? 's' : ''}` : null,
+        value: state.adminUsers ? T`${state.adminUsers.length} utilisateur${state.adminUsers.length > 1 ? 's' : ''}` : null,
       })) : null,
     h('nav', { class: 'menu card card--flush' },
       Row({
@@ -162,6 +178,6 @@ export function MeView(session) {
           if (await confirmSheet({ title: 'Se déconnecter ?', confirmLabel: 'Se déconnecter', danger: false })) signOut();
         },
       })),
-    h('p', { class: 'hint center' }, `AnabolicOS ${APP_VERSION}${state.error ? ' · erreur de synchro' : ''}`),
+    h('p', { class: 'hint center' }, T`AnabolicOS ${APP_VERSION}${state.error ? ' · erreur de synchro' : ''}`),
   ];
 }

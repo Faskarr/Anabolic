@@ -23,6 +23,7 @@ import { toast } from '../ui/toast.js';
 import { dietTotals } from './diet.js';
 import { trainedToday } from './messages-hub.js';
 
+import { T } from '../lib/i18n.js';
 const rerender = () => window.dispatchEvent(new Event('app:render'));
 
 // Abonnements de la page ouverte (coupés en la quittant).
@@ -56,9 +57,9 @@ function Fold(key, summary, body) {
 async function copyToMine(cat, data, title, owner) {
   const label = { workout: 'programme', diet: 'diet', protocol: 'protocole' }[cat];
   const name = `${title || label} (${owner})`.slice(0, 60);
-  if (!(await confirmSheet({ title: `Ajouter ce ${label} ?`, message: `« ${name} » sera ajouté à tes ${label}s et activé. Rien n’est remplacé.`, confirmLabel: 'Ajouter', danger: false }))) return;
+  if (!(await confirmSheet({ title: T`Ajouter ce ${label} ?`, message: T`« ${name} » sera ajouté à tes ${label}s et activé. Rien n’est remplacé.`, confirmLabel: 'Ajouter', danger: false }))) return;
   applyImport({ name, [cat]: structuredClone(data) }, { [cat]: true });
-  toast(`${label[0].toUpperCase()}${label.slice(1)} « ${name} » ajouté`);
+  toast(T`${label[0].toUpperCase() + label.slice(1)} « ${name} » ajouté`);
 }
 
 /** Ce que voient mes amis (rien n'est envoyé sans être coché). */
@@ -94,12 +95,12 @@ function WorkoutCard(w, owner, isMe) {
     h('div', { class: 'card__row' }, h('p', { class: 'eyebrow' }, icon('dumbbell', 13), ' Programme'),
       isMe ? null : h('button', { class: 'link-btn', type: 'button', onclick: () => copyToMine('workout', w, w.name, owner) }, icon('plus', 15), 'Copier')),
     h('p', { class: 'pcard-sec__title' }, w.name || 'Programme'),
-    h('p', { class: 'muted small' }, `${w.sessions.length} séance${w.sessions.length > 1 ? 's' : ''} · ${n} exercice${n > 1 ? 's' : ''}`),
+    h('p', { class: 'muted small' }, T`${w.sessions.length} séance${w.sessions.length > 1 ? 's' : ''} · ${n} exercice${n > 1 ? 's' : ''}`),
     w.sessions.map((s, i) => Fold(`w${i}`,
-      h('span', { class: 'pfold__title' }, s.name, s.weekdays?.length ? h('span', { class: 'pfold__meta' }, ` · ${formatWeekdays(s.weekdays)}`) : null),
+      h('span', { class: 'pfold__title' }, s.name, s.weekdays?.length ? h('span', { class: 'pfold__meta' }, T` · ${formatWeekdays(s.weekdays)}`) : null),
       h('ol', { class: 'plist' }, s.exercises.map((e) => h('li', {},
         h('span', { class: 'plist__main' }, e.n),
-        h('span', { class: 'plist__meta' }, [e.s !== '—' && e.s, e.r !== '—' && `repos ${e.r}`].filter(Boolean).join(' · '))))))));
+        h('span', { class: 'plist__meta' }, [e.s !== '—' && e.s, e.r !== '—' && T`repos ${e.r}`].filter(Boolean).join(' · '))))))));
 }
 
 function DietCard(d, owner, isMe) {
@@ -113,7 +114,7 @@ function DietCard(d, owner, isMe) {
     h('div', { class: 'pmacros' },
       Stat(kcal ? `${kcal}` : '—', 'kcal'), Stat(`${m.p || 0} g`, 'Protéines'), Stat(`${m.g || 0} g`, 'Glucides'), Stat(`${m.l || 0} g`, 'Lipides')),
     d.meals.map((meal, i) => Fold(`d${i}`,
-      h('span', { class: 'pfold__title' }, meal.name, meal.time ? h('span', { class: 'pfold__meta' }, ` · ${meal.time}`) : null),
+      h('span', { class: 'pfold__title' }, meal.name, meal.time ? h('span', { class: 'pfold__meta' }, T` · ${meal.time}`) : null),
       h('ul', { class: 'plist' },
         (meal.foods || []).map((f) => h('li', {}, h('span', { class: 'plist__main' }, f.name), h('span', { class: 'plist__meta' }, [f.qty, f.cal ? `${f.cal} kcal` : null].filter(Boolean).join(' · ')))),
         (meal.supplements || []).map((s) => h('li', {}, h('span', { class: 'plist__main' }, `💊 ${s.name}`), h('span', { class: 'plist__meta' }, s.dose || '')))))));
@@ -128,9 +129,9 @@ function ProtocolCard(p, owner, isMe) {
     p.products.length
       ? h('ul', { class: 'plist' }, p.products.map((x) => h('li', {}, h('span', { class: 'plist__main' }, x.name), h('span', { class: 'plist__meta' }, x.dose || ''))))
       : null,
-    items.length ? Fold('p0', h('span', { class: 'pfold__title' }, `Planning · ${items.length} prise${items.length > 1 ? 's' : ''}`),
+    items.length ? Fold('p0', h('span', { class: 'pfold__title' }, T`Planning · ${items.length} prise${items.length > 1 ? 's' : ''}`),
       h('ul', { class: 'plist' }, items.map(({ d, i }) => h('li', {},
-        h('span', { class: 'plist__main' }, i.name, i.type ? h('span', { class: 'plist__meta' }, ` · ${i.type}`) : null),
+        h('span', { class: 'plist__main' }, i.name, i.type ? h('span', { class: 'plist__meta' }, T` · ${i.type}`) : null),
         h('span', { class: 'plist__meta' }, [d.weekdays?.length ? formatWeekdays(d.weekdays) : d.name, i.time].filter(Boolean).join(' · ')))))) : null);
 }
 
@@ -154,7 +155,7 @@ export function ProfileView(session, uid) {
   const header = h('div', { class: 'ptop' }, h('p', { class: 'eyebrow' }, isMe ? 'Mon profil' : 'Profil'), back);
 
   const statusLine = act && trainedToday(act)
-    ? h('p', { class: 'phero__status phero__status--on' }, icon('dumbbell', 14), `Entraîné aujourd’hui${act.sessionName ? ` · ${act.sessionName}` : ''}`)
+    ? h('p', { class: 'phero__status phero__status--on' }, icon('dumbbell', 14), T`Entraîné aujourd’hui${act.sessionName ? T` · ${act.sessionName}` : ''}`)
     : h('p', { class: 'phero__status' }, isMe ? 'Voici ce que voient tes amis' : 'Pas encore entraîné aujourd’hui');
   const action = isMe
     ? h('button', { class: 'btn btn--ghost phero__btn', type: 'button', onclick: editSharing }, icon('eye', 16), 'Ce que voient mes amis')
@@ -179,14 +180,14 @@ export function ProfileView(session, uid) {
   const noteText = cleanNote(sh?.note ?? (isMe ? myNote() : ''));
   const stats = [
     Number.isInteger(sh?.sessions) ? Stat(String(sh.sessions), 'séances') : null,
-    weight ? Stat(`${frNum(weight.kg, weight.kg % 1 ? 1 : 0)} kg`, weight.date ? `poids · ${formatShortDate(weight.date, { day: 'numeric', month: 'short' })}` : 'poids') : null,
+    weight ? Stat(`${frNum(weight.kg, weight.kg % 1 ? 1 : 0)} kg`, weight.date ? T`poids · ${formatShortDate(weight.date, { day: 'numeric', month: 'short' })}` : 'poids') : null,
     d ? Stat(String(d.objective || Math.round(dietTotals(d).cal) || '—'), 'kcal / jour') : null,
     Stat(String(prs.length), `record${prs.length > 1 ? 's' : ''}`),
   ].filter(Boolean);
 
   const nothing = !w && !d && !p && !weight && !Number.isInteger(sh?.sessions);
   const noteEl = noteText || isMe ? h('div', { class: `pnote${noteText ? '' : ' pnote--empty'}` },
-    h('p', { class: 'pnote__text' }, noteText || 'Ajoute une note : ton objectif, ta prépa, ton mood du moment…'),
+    h('p', { class: 'pnote__text', translate: noteText ? 'no' : null }, noteText || 'Ajoute une note : ton objectif, ta prépa, ton mood du moment…'),
     isMe ? h('button', { class: 'link-btn pnote__edit', type: 'button', onclick: () => editNote(noteText) }, icon('edit', 15), noteText ? 'Modifier' : 'Écrire une note') : null) : null;
   const heroFull = heroParts([noteEl, stats.length ? h('div', { class: 'pstats' }, stats) : null]);
 
@@ -202,6 +203,6 @@ export function ProfileView(session, uid) {
     p ? ProtocolCard(p, first, isMe) : null,
     nothing ? h('p', { class: 'muted center' }, isMe
       ? 'Tu ne partages rien pour l’instant. Touche « Ce que voient mes amis » en haut pour choisir.'
-      : `${first} ne partage pas encore son programme, sa diet ou son protocole.`) : null,
+      : T`${first} ne partage pas encore son programme, sa diet ou son protocole.`) : null,
   ];
 }

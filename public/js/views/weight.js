@@ -10,6 +10,7 @@ import { confirmSheet, formSheet } from '../ui/sheet.js';
 import { toast, undoToast } from '../ui/toast.js';
 import { lineChart } from '../ui/chart.js';
 
+import { T } from '../lib/i18n.js';
 /** Statistiques utilisées ici et par l'accueil. */
 export function weightStats(log = state.weights) {
   if (!log.length) return null;
@@ -55,7 +56,7 @@ export function WeightInput({ compact = false } = {}) {
       addWeight(v, date);
       input.value = '';
       input.blur();
-      toast(`${frNum(v)} kg ${replaced ? 'mis à jour' : 'enregistré'}${date !== localISODate() ? ` (${formatShortDate(date)})` : ''}`);
+      toast(T`${frNum(v)} kg ${replaced ? 'mis à jour' : 'enregistré'}${date !== localISODate() ? ` (${formatShortDate(date)})` : ''}`);
     },
   }, input, h('span', { class: 'weight-input__unit' }, 'kg'),
   h('button', { class: 'btn btn--primary', type: 'submit' }, today && compact ? 'Mettre à jour' : 'Ajouter'),
@@ -115,7 +116,7 @@ export function WeightView() {
         Stat(frNum(s.min), 'Mini'),
         Stat(frNum(s.max), 'Maxi')),
       h('section', { class: 'card' },
-        h('p', { class: 'eyebrow' }, `Courbe · ${shown.length} pesée${shown.length > 1 ? 's' : ''}`),
+        h('p', { class: 'eyebrow' }, T`Courbe · ${shown.length} pesée${shown.length > 1 ? 's' : ''}`),
         h('div', { class: 'weight-range' }, RANGES.map(([k, label]) => h('button', {
           class: `chip chip--sm${range === k ? ' chip--on' : ''}`, type: 'button', onclick: () => { range = k; window.dispatchEvent(new Event('app:render')); },
         }, label))),
@@ -123,11 +124,11 @@ export function WeightView() {
           lineChart(shown.map((e) => ({ label: formatShortDate(e.date, { day: 'numeric', month: 'short' }), value: e.kg })),
             { unit: ' kg', ariaLabel: 'Évolution du poids', height: 150 }))),
       h('section', { class: 'card card--flush' },
-        h('header', { class: 'meal__head' }, h('h3', { class: 'meal__name' }, `Historique · ${log.length}`),
+        h('header', { class: 'meal__head' }, h('h3', { class: 'meal__name' }, T`Historique · ${log.length}`),
           h('button', {
             class: 'link-btn link-btn--danger', type: 'button',
             onclick: async () => {
-              const ok = await confirmSheet({ title: "Effacer tout l'historique ?", message: `${log.length} pesée(s) seront supprimées.`, confirmLabel: 'Tout effacer' });
+              const ok = await confirmSheet({ title: "Effacer tout l'historique ?", message: T`${log.length} pesée(s) seront supprimées.`, confirmLabel: 'Tout effacer' });
               if (!ok) return;
               undoToast('Historique effacé', clearWeights());
             },
@@ -137,9 +138,9 @@ export function WeightView() {
           const d = older ? e.kg - older.kg : null;
           return h('li', { class: 'list__row' },
             h('span', { class: 'list__meta list__meta--date' }, formatShortDate(e.date)),
-            h('button', { class: 'list__main list__edit', type: 'button', 'aria-label': `Modifier la pesée du ${formatShortDate(e.date)}`, onclick: () => editWeight(e) }, `${frNum(e.kg)} kg`),
+            h('button', { class: 'list__main list__edit', type: 'button', 'aria-label': T`Modifier la pesée du ${formatShortDate(e.date)}`, onclick: () => editWeight(e) }, `${frNum(e.kg)} kg`),
             h('span', { class: `list__meta${d > 0 ? ' up' : d < 0 ? ' down' : ''}` }, d == null ? '' : signed(d)),
-            IconButton('x', `Supprimer la pesée du ${formatShortDate(e.date)}`,
+            IconButton('x', T`Supprimer la pesée du ${formatShortDate(e.date)}`,
               () => undoToast('Pesée supprimée', deleteWeight(e.date)), 'icon-btn--ghost'));
         }); })())),
     ] : Empty({ iconName: 'scale', title: 'Aucune pesée', text: 'Pèse-toi le matin, à jeun, pour un suivi fiable.' }),
